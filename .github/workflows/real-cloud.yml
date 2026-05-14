@@ -1,0 +1,53 @@
+name: Real-cloud lane
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'fixtures/supabase-stack/**'
+      - 'packages/adapters/src/auth/supabase.ts'
+      - 'dogfood/5-4-claude/**'
+      - '.github/workflows/real-cloud.yml'
+
+concurrency:
+  group: real-cloud-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-cloud:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm -r --filter './packages/**' build
+
+      - name: Bring up Supabase stack
+        run: bash fixtures/supabase-stack/scripts/up.sh
+
+      - name: Seed fixture users
+        run: bash fixtures/supabase-stack/scripts/seed.sh
+
+      - name: Run 5-4-claude real-cloud test
+        env:
+          SUPABASE_URL: http://localhost:54321
+          SUPABASE_PROJECT_REF: localhost
+        run: bash dogfood/5-4-claude/scripts/test-real-cloud.sh
+
+      - name: Tear down (always)
+        if: always()
+        run: bash fixtures/supabase-stack/scripts/down.sh
