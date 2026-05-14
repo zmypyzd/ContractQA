@@ -1,0 +1,32 @@
+id: INV-N1
+title: Navbar Login link routes anonymous users to /login
+area: navigation
+severity: P1
+owner: dogfood
+risk_tags: [navigation, anon-user]
+
+# This contract intentionally avoids auth APIs — the target needs a real
+# Supabase + NextAuth setup, which we don't have. But the navigation surface
+# (next/link → router push) is testable with stub env vars.
+preconditions:
+  auth_state: anonymous
+  role: visitor
+
+actions:
+  - { type: goto, path: / }
+  - type: click
+    # The same accessible name "登录" appears in the navbar AND in the
+    # messages section. Without `first: true`, Playwright strict-mode
+    # rejects the multi-match.
+    target: { role: link, name_regex: "登录|login|sign\\s*in", first: true }
+
+expected:
+  url: { matches: "^/login" }
+  # NextAuth + Supabase store nothing in localStorage on a fresh anon
+  # session — assert that explicitly.
+  localStorage: { no_key_matches: "^(authjs|next-auth|sb-)" }
+
+verification:
+  wait_ms: 1000
+  retries: 1
+  evidence_required: [state_diff]

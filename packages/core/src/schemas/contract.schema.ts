@@ -14,6 +14,12 @@ const Target = z.object({
   name_regex: SafeRegex.optional(),
   test_id: z.string().optional(),
   text: z.string().optional(),
+  // `first: true` resolves to the first match when the accessible name
+  // appears multiple times on the page (e.g. a "Login" link in both
+  // navbar and footer). Without this, Playwright's strict-mode locator
+  // throws on multi-match. Added during dogfood #2 — see
+  // dogfood/website-vercel-supabase/FINDINGS.md.
+  first: z.boolean().optional(),
 });
 
 const Action = z.discriminatedUnion('type', [
