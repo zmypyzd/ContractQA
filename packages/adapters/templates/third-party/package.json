@@ -1,0 +1,19 @@
+{
+  "name": "contractqa-adapter-example",
+  "version": "0.1.0",
+  "description": "Starter template for a third-party ContractQA adapter.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@contractqa/adapters": "^0.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}
