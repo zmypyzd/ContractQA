@@ -1,0 +1,26 @@
+id: INV-A2
+title: Logged-out users cannot access protected routes
+area: auth
+severity: P0
+owner: platform
+risk_tags: [auth, protected-route, session]
+
+preconditions:
+  auth_state: logged_in
+  role: normal_user
+
+actions:
+  - { type: goto, path: /lobby }
+  - type: click
+    target: { role: button, name_regex: "logout|sign out|退出|登出" }
+  - { type: goto, path: /agents }
+
+expected:
+  url: { matches: "^/login" }
+  localStorage: { no_key_matches: "^sb-" }
+  auth_state: { fully_logged_out: true }
+
+verification:
+  wait_ms: 1000
+  retries: 1
+  evidence_required: [state_diff]

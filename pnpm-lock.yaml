@@ -79,6 +79,65 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)
 
+  apps/fixture-app:
+    dependencies:
+      next:
+        specifier: ^15.0.3
+        version: 15.5.18(@playwright/test@1.60.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.6
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.6(react@19.2.6)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.19
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.0.0
+        version: 19.2.3(@types/react@19.2.14)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
+  e2e:
+    dependencies:
+      '@contractqa/core':
+        specifier: workspace:*
+        version: link:../packages/core
+      '@contractqa/evidence':
+        specifier: workspace:*
+        version: link:../packages/evidence
+      '@contractqa/oracle':
+        specifier: workspace:*
+        version: link:../packages/oracle
+      '@contractqa/orchestrator':
+        specifier: workspace:*
+        version: link:../packages/orchestrator
+      '@contractqa/repro':
+        specifier: workspace:*
+        version: link:../packages/repro
+      '@contractqa/runner':
+        specifier: workspace:*
+        version: link:../packages/runner
+      contractqa:
+        specifier: workspace:*
+        version: link:../packages/cli
+      yaml:
+        specifier: ^2.6.1
+        version: 2.9.0
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)
+
   packages/adapters:
     dependencies:
       '@contractqa/core':

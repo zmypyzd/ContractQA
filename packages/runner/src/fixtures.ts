@@ -19,6 +19,7 @@ export async function runOracle(input: RunOracleInput): Promise<VerdictResult> {
     diff,
     input.contract.expected as Parameters<typeof classifyDiff>[1],
     input.noise,
+    input.after,
   );
   const verdict = computeVerdict({
     runs: [{ failContributions: classified.failContributions, evidence: { state_diff: true } }],

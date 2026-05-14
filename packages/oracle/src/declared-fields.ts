@@ -1,5 +1,5 @@
 import type { NoiseProfile } from '@contractqa/core';
-import type { StateDiff } from './state-diff.js';
+import type { StateDiff, StateSlice } from './state-diff.js';
 
 export interface Expected {
   url?: { matches?: string };
@@ -24,6 +24,7 @@ export function classifyDiff(
   diff: StateDiff,
   expected: Expected,
   noise: NoiseProfile,
+  afterState?: StateSlice,
 ): DiffClassification {
   const out: DiffClassification = {
     passContributions: [],
@@ -47,20 +48,33 @@ export function classifyDiff(
 
   const watchLS = expected.watch_keys?.localStorage ?? [];
   const ignoreLS = noise.ignore.localStorage_keys;
+
+  // Check post-state (afterState.localStorageKeys) for no_key_matches violations.
+  // Catches keys present before AND still present after — e.g. logout that didn't
+  // clear an sb-* token. Falls back to checking just added keys when afterState
+  // is unavailable.
+  const seenViolations = new Set<string>();
+  if (expected.localStorage?.no_key_matches) {
+    const re = new RegExp(expected.localStorage.no_key_matches);
+    const keysToCheck = afterState ? afterState.localStorageKeys : diff.localStorage.added;
+    for (const key of keysToCheck) {
+      if (re.test(key) && !seenViolations.has(key)) {
+        seenViolations.add(key);
+        out.failContributions.push({
+          field: 'localStorage',
+          detail: `violates no_key_matches ${expected.localStorage.no_key_matches}`,
+          actual: key,
+        });
+      }
+    }
+  }
+
+  // Classify added keys as watched/noise/ignored.
   for (const key of diff.localStorage.added) {
     const isWatched = matchAny(key, watchLS);
     const isNoise = !isWatched && matchAny(key, ignoreLS);
-    const violatesNegative = expected.localStorage?.no_key_matches
-      ? new RegExp(expected.localStorage.no_key_matches).test(key)
-      : false;
     if (isWatched) out.watchedKeysMatched.push(key);
-    if (violatesNegative) {
-      out.failContributions.push({
-        field: 'localStorage',
-        detail: `violates no_key_matches ${expected.localStorage!.no_key_matches}`,
-        actual: key,
-      });
-    } else if (isNoise) {
+    if (isNoise) {
       out.noiseIgnored.push(`localStorage:${key}`);
     } else if (!expected.localStorage) {
       out.noiseIgnored.push(`localStorage:${key}`);

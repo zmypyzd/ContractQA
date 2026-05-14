@@ -1,0 +1,23 @@
+{
+  "name": "@contractqa/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@contractqa/core": "workspace:*",
+    "@contractqa/runner": "workspace:*",
+    "@contractqa/oracle": "workspace:*",
+    "@contractqa/evidence": "workspace:*",
+    "@contractqa/repro": "workspace:*",
+    "@contractqa/orchestrator": "workspace:*",
+    "contractqa": "workspace:*",
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
