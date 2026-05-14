@@ -1,0 +1,28 @@
+id: INV-L1
+title: Logout reaches /login and clears the apk_sid session cookie
+area: auth
+severity: P0
+owner: dogfood
+risk_tags: [auth, session, protected-route]
+
+preconditions:
+  auth_state: logged_in
+  role: normal_user
+
+# Flow: from /lobby, click the "Log out" button, then re-enter a protected
+# route (/agents). The contract is satisfied iff the user lands somewhere
+# under /login AND the apk_sid session cookie is gone.
+actions:
+  - { type: goto, path: /lobby }
+  - type: click
+    target: { role: button, name_regex: "log\\s*out" }
+  - { type: goto, path: /agents }
+
+expected:
+  url: { matches: "^/login" }
+  cookies: { no_name_matches: "^apk_sid$" }
+
+verification:
+  wait_ms: 1500
+  retries: 1
+  evidence_required: [state_diff]

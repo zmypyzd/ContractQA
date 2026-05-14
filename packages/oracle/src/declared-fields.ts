@@ -97,11 +97,18 @@ export function classifyDiff(
 
   if (expected.cookies?.no_name_matches) {
     const re = new RegExp(expected.cookies.no_name_matches);
-    for (const c of diff.cookies.added) {
-      if (re.test(c)) {
+    // Symmetric to the localStorage post-state check above: a cookie that was
+    // present before AND still present after (e.g. a logout that failed to
+    // clear `apk_sid`) would never appear in `diff.cookies.added`. Inspect
+    // the after-state when available; fall back to delta-only otherwise.
+    const seenCookieViolations = new Set<string>();
+    const cookiesToCheck = afterState ? afterState.cookies : diff.cookies.added;
+    for (const c of cookiesToCheck) {
+      if (re.test(c) && !seenCookieViolations.has(c)) {
+        seenCookieViolations.add(c);
         out.failContributions.push({
           field: 'cookies',
-          detail: `violates no_name_matches`,
+          detail: `violates no_name_matches ${expected.cookies.no_name_matches}`,
           actual: c,
         });
       }

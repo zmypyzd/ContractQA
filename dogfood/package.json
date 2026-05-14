@@ -1,0 +1,24 @@
+{
+  "name": "@contractqa/dogfood",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "pretest": "playwright install chromium",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@contractqa/core": "workspace:*",
+    "@contractqa/runner": "workspace:*",
+    "@contractqa/oracle": "workspace:*",
+    "@contractqa/evidence": "workspace:*",
+    "@contractqa/probes": "workspace:*",
+    "@contractqa/repro": "workspace:*",
+    "@playwright/test": "^1.49.0",
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

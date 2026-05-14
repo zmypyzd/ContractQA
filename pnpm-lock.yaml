@@ -104,6 +104,40 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  dogfood:
+    dependencies:
+      '@contractqa/core':
+        specifier: workspace:*
+        version: link:../packages/core
+      '@contractqa/evidence':
+        specifier: workspace:*
+        version: link:../packages/evidence
+      '@contractqa/oracle':
+        specifier: workspace:*
+        version: link:../packages/oracle
+      '@contractqa/probes':
+        specifier: workspace:*
+        version: link:../packages/probes
+      '@contractqa/repro':
+        specifier: workspace:*
+        version: link:../packages/repro
+      '@contractqa/runner':
+        specifier: workspace:*
+        version: link:../packages/runner
+      '@playwright/test':
+        specifier: ^1.49.0
+        version: 1.60.0
+      yaml:
+        specifier: ^2.6.1
+        version: 2.9.0
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)
+
   e2e:
     dependencies:
       '@contractqa/core':
