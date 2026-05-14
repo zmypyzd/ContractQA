@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { detectRequiredEnv, type RequiredVar } from '../lib/env-detect.js';
 import { allocatePort } from '../lib/port-pool.js';
@@ -93,8 +93,23 @@ async function fixNativeDeps(i: DoctorInput, _r: DoctorReport): Promise<{ ok: bo
   });
 }
 
-async function fixEnvStub(_i: DoctorInput, _r: DoctorReport): Promise<{ ok: boolean; detail: string }> {
-  return { ok: true, detail: 'env-stub not yet implemented' };
+async function fixEnvStub(i: DoctorInput, _r: DoctorReport): Promise<{ ok: boolean; detail: string }> {
+  const examplePath = path.join(i.targetRoot, '.env.example');
+  const localPath = path.join(i.targetRoot, '.env.local');
+  let example: string;
+  try {
+    example = await readFile(examplePath, 'utf8');
+  } catch {
+    return { ok: true, detail: 'no .env.example to stub from, skipped' };
+  }
+  try {
+    await readFile(localPath, 'utf8');
+    return { ok: true, detail: '.env.local already exists, skipped' };
+  } catch {
+    await writeFile(localPath, example);
+    const lineCount = example.split('\n').filter((l) => l.length > 0).length;
+    return { ok: true, detail: `.env.local written from .env.example (${lineCount} lines)` };
+  }
 }
 
 async function fixPortCollision(_i: DoctorInput, _r: DoctorReport): Promise<{ ok: boolean; detail: string }> {
