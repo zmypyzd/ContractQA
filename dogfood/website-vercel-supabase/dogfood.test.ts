@@ -5,17 +5,13 @@
 // a pure-navigation invariant that doesn't depend on a working DB.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { chromium, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { loadContractsFromDir, compileContract, runOracle } from '@contractqa/runner';
-import type { CompiledPage } from '@contractqa/runner';
-import { snapshotBrowser } from '@contractqa/probes';
-import type { StateSlice } from '@contractqa/oracle';
-import { writeEvidenceBundle } from '@contractqa/evidence';
+import { loadContractsFromDir, runContract } from '@contractqa/runner';
 
 const __dir = path.dirname(fileURLToPath(import.meta.url));
 const TARGET_REPO = '/Users/zmy/intership/4/website_vercel-supabase-main';
@@ -106,87 +102,38 @@ describe('ContractQA dogfood — website_vercel-supabase (Next.js 16 + NextAuth 
     const page: Page = await context.newPage();
 
     // Pre-navigate to a real origin so snapshotBrowser can read localStorage.
-    // (about:blank has no origin → SecurityError on `window.localStorage`.)
-    // This is a workaround — the framework should handle origin-less pages.
+    // (T5 made snapshotBrowser tolerate about:blank too, but a real-origin
+    // pre-nav keeps the before-snapshot meaningful.)
     await page.goto('/');
-    const beforeSnap = await snapshotBrowser(
-      page as unknown as Parameters<typeof snapshotBrowser>[0],
-      { screenshotPath: beforeShot },
-    );
 
-    const stripBase = (u: string): string => {
-      if (u.startsWith(BASE)) return u.slice(BASE.length) || '/';
-      if (u === 'about:blank') return '/';
-      return u;
-    };
-    const sliceFromSnap = (snap: typeof beforeSnap): StateSlice => ({
-      url: stripBase(snap.url),
-      localStorageKeys: Object.keys(snap.localStorage),
-      cookies: snap.cookies.map((c) => c.name),
-    });
-
-    // Drive INV-N1 — goto /, click 登录, then verify.
-    const compiled = compileContract(inv!);
-    await compiled({
-      page: page as unknown as CompiledPage,
-      snapshot: async () => ({
-        url: stripBase(page.url()),
-        localStorageKeys: await page.evaluate(() => Object.keys(localStorage)),
-        cookies: (await context.cookies()).map((c) => c.name),
-      }),
-    });
-
-    const afterSnap = await snapshotBrowser(
-      page as unknown as Parameters<typeof snapshotBrowser>[0],
-      { screenshotPath: afterShot },
-    );
-    const beforeState = sliceFromSnap(beforeSnap);
-    const afterState = sliceFromSnap(afterSnap);
-
-    await context.tracing.stop({ path: tracePath });
-    await context.close();
-
-    // Diagnostic: easy-to-read failure if Phase 1's compileContract didn't
-    // route through Next.js 16 + next-auth's surface.
-    expect(afterState.url).toMatch(/^\/login/);
-
-    const attached: Array<{ name: string; path: string; contentType: string }> = [];
-    const verdict = await runOracle({
+    const result = await runContract({
       contract: inv!,
-      before: beforeState,
-      after: afterState,
+      page: page as any,
+      stripBaseUrl: BASE,
       noise,
-      missingCapabilities: [],
-      attach: (a) => attached.push(a),
-      tmpDir: scratchDir,
-    });
-    expect(verdict.verdict).toBe('PASS');
-
-    // Persist a bundle for offline inspection (proof of real-Next-16 run).
-    const beforeSnapPath = path.join(scratchDir, 'snapshot-before.json');
-    const afterSnapPath = path.join(scratchDir, 'snapshot-after.json');
-    await writeFile(beforeSnapPath, JSON.stringify(beforeSnap, null, 2));
-    await writeFile(afterSnapPath, JSON.stringify(afterSnap, null, 2));
-
-    const runId = `dogfood_website-vercel-supabase_${Date.now()}_INV-N1`;
-    const files: Record<string, Buffer> = {
-      'trace.zip': await readFile(tracePath),
-      'screenshots/0001.png': await readFile(afterShot),
-      'network/network.har': await readFile(harPath),
-      'snapshots/before.json': await readFile(beforeSnapPath),
-      'snapshots/after.json': await readFile(afterSnapPath),
-      'diffs/state-diff.json': await readFile(attached[0]!.path),
-    };
-    await writeEvidenceBundle({
-      runId,
-      contractId: inv!.id,
       artifactsRoot,
-      files,
-      redactionApplied: true,
+      tracePath,
+      harPath,
+      screenshotPaths: { before: beforeShot, after: afterShot },
+      attachments: [
+        { name: 'evidence:trace', path: tracePath, contentType: 'application/zip' },
+        { name: 'evidence:screenshot', path: afterShot, contentType: 'image/png' },
+        { name: 'evidence:network', path: harPath, contentType: 'application/json' },
+      ],
+      alwaysBundle: true,
+      flushObservability: async () => {
+        await context.tracing.stop({ path: tracePath });
+        await context.close();
+      },
     });
 
-    const runDir = path.join(artifactsRoot, 'runs', runId);
-    const manifest = JSON.parse(await readFile(path.join(runDir, 'manifest.json'), 'utf8'));
+    expect(result.verdict.verdict).toBe('PASS');
+    expect(result.after.url).toMatch(/^\/login/);
+    expect(result.bundleDir).toBeTruthy();
+
+    const manifest = JSON.parse(
+      await readFile(path.join(result.bundleDir!, 'manifest.json'), 'utf8'),
+    );
     expect(manifest.contract_id).toBe('INV-N1');
     expect(manifest.files.length).toBe(6);
   });

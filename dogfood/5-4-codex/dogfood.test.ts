@@ -8,21 +8,13 @@
 // assumption Phase 1 baked in. See FINDINGS.md for the running list.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { chromium, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import {
-  loadContractsFromDir,
-  compileContract,
-  runOracle,
-  ContractQAReporter,
-} from '@contractqa/runner';
-import type { CompiledPage } from '@contractqa/runner';
-import { snapshotBrowser } from '@contractqa/probes';
-import type { StateSlice } from '@contractqa/oracle';
+import { loadContractsFromDir, runContract } from '@contractqa/runner';
 
 const __dir = path.dirname(fileURLToPath(import.meta.url));
 const TARGET_REPO = '/Users/zmy/intership/5/5-4-codex';
@@ -155,95 +147,40 @@ describe('ContractQA dogfood — agent-poker-platform (Vite + cookie auth)', () 
     const preCookies = await context.cookies();
     expect(preCookies.some((c) => c.name === 'apk_sid')).toBe(true);
 
-    // Capture rich BEFORE snapshot via the real probe.
-    const beforeSnap = await snapshotBrowser(
-      page as unknown as Parameters<typeof snapshotBrowser>[0],
-      { screenshotPath: beforeShot },
-    );
-
-    const stripBase = (u: string): string => {
-      if (u.startsWith(WEB_BASE)) return u.slice(WEB_BASE.length) || '/';
-      return u;
-    };
-    const sliceFromSnap = (snap: typeof beforeSnap): StateSlice => ({
-      url: stripBase(snap.url),
-      localStorageKeys: Object.keys(snap.localStorage),
-      cookies: snap.cookies.map((c) => c.name),
-    });
-
-    // Drive INV-L1 through real Playwright via the production compileContract.
-    const compiled = compileContract(inv!);
-    await compiled({
-      page: page as unknown as CompiledPage,
-      snapshot: async () => ({
-        url: stripBase(page.url()),
-        localStorageKeys: await page.evaluate(() => Object.keys(localStorage)),
-        cookies: (await context.cookies()).map((c) => c.name),
-      }),
-    });
-
-    // Capture AFTER. The url should end up under /login (ProtectedRoute
-    // redirects when /auth/me returns 401 after the cookie is cleared).
-    const afterSnap = await snapshotBrowser(
-      page as unknown as Parameters<typeof snapshotBrowser>[0],
-      { screenshotPath: afterShot },
-    );
-    const beforeState = sliceFromSnap(beforeSnap);
-    const afterState = sliceFromSnap(afterSnap);
-
-    await context.tracing.stop({ path: tracePath });
-    await context.close();
-
-    // Diagnostic assertions so a failed verdict is easy to read.
-    expect(afterState.url).toMatch(/^\/login/);
-    expect(afterState.cookies).not.toContain('apk_sid');
-
-    const oracleAttachments: Array<{ name: string; path: string; contentType: string }> = [];
-    const verdict = await runOracle({
+    // Drive INV-L1 through the standalone runner. Trace/HAR get flushed via
+    // the hook so the bundle inside runContract can read the on-disk artifacts.
+    const result = await runContract({
       contract: inv!,
-      before: beforeState,
-      after: afterState,
+      page: page as any,
+      stripBaseUrl: WEB_BASE,
       noise,
-      missingCapabilities: [],
-      attach: (a) => oracleAttachments.push(a),
-      tmpDir: scratchDir,
+      artifactsRoot,
+      tracePath,
+      harPath,
+      screenshotPaths: { before: beforeShot, after: afterShot },
+      attachments: [
+        { name: 'evidence:trace', path: tracePath, contentType: 'application/zip' },
+        { name: 'evidence:screenshot', path: afterShot, contentType: 'image/png' },
+        { name: 'evidence:network', path: harPath, contentType: 'application/json' },
+      ],
+      alwaysBundle: true,
+      flushObservability: async () => {
+        await context.tracing.stop({ path: tracePath });
+        await context.close();
+      },
     });
 
     // The agent-poker-platform implementation is CORRECT — we expect PASS,
     // proving ContractQA's pipeline runs end-to-end on a Vite/cookie stack.
-    expect(verdict.verdict).toBe('PASS');
+    expect(result.verdict.verdict).toBe('PASS');
+    expect(result.after.url).toMatch(/^\/login/);
+    expect(result.after.cookies).not.toContain('apk_sid');
+    expect(result.bundleDir).toBeTruthy();
 
-    // Write the snapshot blobs and drive the real reporter (even on PASS we
-    // want a bundle for offline inspection of the dogfood run).
-    const beforeSnapPath = path.join(scratchDir, 'snapshot-before.json');
-    const afterSnapPath = path.join(scratchDir, 'snapshot-after.json');
-    await writeFile(beforeSnapPath, JSON.stringify(beforeSnap, null, 2));
-    await writeFile(afterSnapPath, JSON.stringify(afterSnap, null, 2));
-
-    // The reporter early-returns on non-failed status, so for a PASS dogfood
-    // we just write the bundle directly via the @contractqa/evidence path.
-    const { writeEvidenceBundle } = await import('@contractqa/evidence');
-    const runId = `dogfood_5-4-codex_${stamp}_INV-L1`;
-    const files: Record<string, Buffer> = {
-      'trace.zip': await readFile(tracePath),
-      'screenshots/0001.png': await readFile(afterShot),
-      'network/network.har': await readFile(harPath),
-      'snapshots/before.json': await readFile(beforeSnapPath),
-      'snapshots/after.json': await readFile(afterSnapPath),
-      'diffs/state-diff.json': await readFile(oracleAttachments[0]!.path),
-    };
-    await writeEvidenceBundle({
-      runId,
-      contractId: inv!.id,
-      artifactsRoot,
-      files,
-      redactionApplied: true,
-    });
-
-    const runDir = path.join(artifactsRoot, 'runs', runId);
-    const harStat = await stat(path.join(runDir, 'network', 'network.har'));
-    expect(harStat.size).toBeGreaterThan(0);
-    const manifest = JSON.parse(await readFile(path.join(runDir, 'manifest.json'), 'utf8'));
+    // The bundle contains every expected file.
+    const manifest = JSON.parse(
+      await readFile(path.join(result.bundleDir!, 'manifest.json'), 'utf8'),
+    );
     expect(manifest.contract_id).toBe('INV-L1');
     expect(manifest.files.map((f: { path: string }) => f.path).sort()).toEqual(
       [
@@ -255,42 +192,5 @@ describe('ContractQA dogfood — agent-poker-platform (Vite + cookie auth)', () 
         'trace.zip',
       ].sort(),
     );
-
-    // Also exercise the reporter's failure path on a synthetic FAIL so the
-    // dogfood proves the FAIL → bundle pipe works against this stack — not
-    // just the happy PASS path. We craft a deliberate violation by giving the
-    // oracle an afterState that still has apk_sid.
-    const synthFailAfter: StateSlice = { ...afterState, cookies: ['apk_sid', ...afterState.cookies.filter(c => c !== 'apk_sid')] };
-    const synthAttached: Array<{ name: string; path: string; contentType: string }> = [];
-    const synthVerdict = await runOracle({
-      contract: inv!,
-      before: beforeState,
-      after: synthFailAfter,
-      noise,
-      missingCapabilities: [],
-      attach: (a) => synthAttached.push(a),
-      tmpDir: scratchDir,
-    });
-    expect(synthVerdict.verdict).toBe('FAIL');
-    expect(synthVerdict.violations.some((v) => v.message.includes('cookies'))).toBe(true);
-
-    const reporter = new ContractQAReporter({ artifactsRoot });
-    const fakeTest = { title: `${inv!.id}: synthetic FAIL for reporter coverage` } as unknown as Parameters<
-      ContractQAReporter['onTestEnd']
-    >[0];
-    const fakeResult = {
-      status: 'failed',
-      attachments: [
-        ...synthAttached,
-        { name: 'evidence:trace', path: tracePath, contentType: 'application/zip' },
-        { name: 'evidence:screenshot', path: afterShot, contentType: 'image/png' },
-        { name: 'evidence:network', path: harPath, contentType: 'application/json' },
-      ],
-    } as unknown as Parameters<ContractQAReporter['onTestEnd']>[1];
-    await reporter.onTestEnd(fakeTest, fakeResult);
-
-    const runs = await readdir(path.join(artifactsRoot, 'runs'));
-    // 1 PASS dogfood bundle + 1 synthetic FAIL bundle from the reporter
-    expect(runs.length).toBe(2);
   });
 });

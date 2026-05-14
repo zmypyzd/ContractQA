@@ -24,6 +24,13 @@ export interface RunContractInput {
   screenshotPaths: { before: string; after: string };
   attachments: RunContractAttachment[];
   alwaysBundle?: boolean;
+  // Called after the after-snapshot but before the bundle is written.
+  // Playwright trace.zip + network.har are only flushed once
+  // `context.tracing.stop({ path })` and `context.close()` complete — and
+  // those must happen AFTER the page-driven snapshots. Hook lets the
+  // caller close those resources in the right order without losing the
+  // one-shot ergonomics.
+  flushObservability?: () => Promise<void>;
   writeFile?: typeof fsWriteFile;
   readFile?: typeof fsReadFile;
 }
@@ -86,6 +93,10 @@ export async function runContract(input: RunContractInput): Promise<RunContractR
     localStorageKeys: Object.keys(afterSnap.localStorage),
     cookies: afterSnap.cookies.map((c) => c.name),
   };
+
+  if (input.flushObservability) {
+    await input.flushObservability();
+  }
 
   const oracleAttached: RunContractAttachment[] = [];
   const scratchDir = path.dirname(input.tracePath);

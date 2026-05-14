@@ -5,17 +5,13 @@
 // it drives React.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { chromium, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { loadContractsFromDir, compileContract, runOracle } from '@contractqa/runner';
-import type { CompiledPage } from '@contractqa/runner';
-import { snapshotBrowser } from '@contractqa/probes';
-import type { StateSlice } from '@contractqa/oracle';
-import { writeEvidenceBundle } from '@contractqa/evidence';
+import { loadContractsFromDir, runContract } from '@contractqa/runner';
 
 const __dir = path.dirname(fileURLToPath(import.meta.url));
 const TARGET = '/Users/zmy/intership/5/WolfMind-main/frontend';
@@ -97,83 +93,35 @@ describe('ContractQA dogfood — WolfMind (Vue 3 + Vite, no auth)', () => {
     const page: Page = await context.newPage();
 
     // Pre-navigate so snapshotBrowser has a real origin to read storage from.
-    // (Finding #2 from dogfood/website-vercel-supabase/FINDINGS.md.)
     await page.goto('/');
 
-    const beforeSnap = await snapshotBrowser(
-      page as unknown as Parameters<typeof snapshotBrowser>[0],
-      { screenshotPath: beforeShot },
-    );
-
-    const stripBase = (u: string): string => {
-      if (u.startsWith(BASE)) return u.slice(BASE.length) || '/';
-      return u;
-    };
-    const sliceFromSnap = (snap: typeof beforeSnap): StateSlice => ({
-      url: stripBase(snap.url),
-      localStorageKeys: Object.keys(snap.localStorage),
-      cookies: snap.cookies.map((c) => c.name),
-    });
-
-    const compiled = compileContract(inv!);
-    await compiled({
-      page: page as unknown as CompiledPage,
-      snapshot: async () => ({
-        url: stripBase(page.url()),
-        localStorageKeys: await page.evaluate(() => Object.keys(localStorage)),
-        cookies: (await context.cookies()).map((c) => c.name),
-      }),
-    });
-
-    const afterSnap = await snapshotBrowser(
-      page as unknown as Parameters<typeof snapshotBrowser>[0],
-      { screenshotPath: afterShot },
-    );
-    const beforeState = sliceFromSnap(beforeSnap);
-    const afterState = sliceFromSnap(afterSnap);
-
-    await context.tracing.stop({ path: tracePath });
-    await context.close();
-
-    expect(afterState.url).toBe('/');
-
-    const attached: Array<{ name: string; path: string; contentType: string }> = [];
-    const verdict = await runOracle({
+    const result = await runContract({
       contract: inv!,
-      before: beforeState,
-      after: afterState,
+      page: page as any,
+      stripBaseUrl: BASE,
       noise,
-      missingCapabilities: [],
-      attach: (a) => attached.push(a),
-      tmpDir: scratchDir,
-    });
-    expect(verdict.verdict).toBe('PASS');
-
-    // Bundle for evidence.
-    const beforeSnapPath = path.join(scratchDir, 'snapshot-before.json');
-    const afterSnapPath = path.join(scratchDir, 'snapshot-after.json');
-    await writeFile(beforeSnapPath, JSON.stringify(beforeSnap, null, 2));
-    await writeFile(afterSnapPath, JSON.stringify(afterSnap, null, 2));
-
-    const runId = `dogfood_wolfmind_${Date.now()}_INV-W1`;
-    const files: Record<string, Buffer> = {
-      'trace.zip': await readFile(tracePath),
-      'screenshots/0001.png': await readFile(afterShot),
-      'network/network.har': await readFile(harPath),
-      'snapshots/before.json': await readFile(beforeSnapPath),
-      'snapshots/after.json': await readFile(afterSnapPath),
-      'diffs/state-diff.json': await readFile(attached[0]!.path),
-    };
-    await writeEvidenceBundle({
-      runId,
-      contractId: inv!.id,
       artifactsRoot,
-      files,
-      redactionApplied: true,
+      tracePath,
+      harPath,
+      screenshotPaths: { before: beforeShot, after: afterShot },
+      attachments: [
+        { name: 'evidence:trace', path: tracePath, contentType: 'application/zip' },
+        { name: 'evidence:screenshot', path: afterShot, contentType: 'image/png' },
+        { name: 'evidence:network', path: harPath, contentType: 'application/json' },
+      ],
+      alwaysBundle: true,
+      flushObservability: async () => {
+        await context.tracing.stop({ path: tracePath });
+        await context.close();
+      },
     });
+
+    expect(result.verdict.verdict).toBe('PASS');
+    expect(result.after.url).toBe('/');
+    expect(result.bundleDir).toBeTruthy();
 
     const manifest = JSON.parse(
-      await readFile(path.join(artifactsRoot, 'runs', runId, 'manifest.json'), 'utf8'),
+      await readFile(path.join(result.bundleDir!, 'manifest.json'), 'utf8'),
     );
     expect(manifest.contract_id).toBe('INV-W1');
     expect(manifest.files.length).toBe(6);
