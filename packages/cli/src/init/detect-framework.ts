@@ -116,7 +116,7 @@ export async function detectFramework(input: DetectInput): Promise<DetectResult>
   if (matches.length === 0) {
     return { framework: 'unknown', confidence: 0, evidence: [], authSignals };
   }
-  const top = matches[0];
+  const top = matches[0]!;
   return {
     framework: top.rule.framework,
     confidence: top.result.confidence,

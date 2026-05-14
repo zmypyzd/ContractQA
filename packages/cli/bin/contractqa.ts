@@ -7,8 +7,6 @@ import { renderInvariantsMd } from '../src/commands/invariants-gen.js';
 import { runContracts } from '../src/commands/run.js';
 import { initProject } from '../src/commands/init.js';
 import { doctor, renderDoctorReport } from '../src/commands/doctor.js';
-import type { AuthProviderName } from '@contractqa/core';
-
 const program = new Command('contractqa');
 
 program
@@ -23,10 +21,21 @@ program
 
 program
   .command('init')
-  .option('--provider <name>', 'Auth provider', 'supabase')
-  .action(async (opts: { provider: AuthProviderName }) => {
-    await initProject({ cwd: process.cwd(), provider: opts.provider });
-    console.log(`Initialized qa/ scaffold for provider=${opts.provider}`);
+  .description('Scaffold qa/ directory for the current project (auto-detects framework)')
+  .option('-y, --yes', 'skip confirmation prompts')
+  .option('-f, --force', 'overwrite existing files')
+  .option('--framework <name>', 'force a specific framework (next-app, next-pages, vite-react, vite-vue, astro, unknown)')
+  .action(async (opts: { yes?: boolean; force?: boolean; framework?: string }) => {
+    const report = await initProject({
+      cwd: process.cwd(),
+      yes: opts.yes,
+      force: opts.force,
+      framework: opts.framework as never,
+    });
+    console.log(`Detected: ${report.detected.framework} (confidence ${report.detected.confidence.toFixed(2)})`);
+    console.log(`Auth signals: ${report.detected.authSignals.join(', ') || '(none)'}`);
+    console.log(`Wrote ${report.filesWritten.length} files:`);
+    for (const f of report.filesWritten) console.log(`  ${f}`);
   });
 
 program
