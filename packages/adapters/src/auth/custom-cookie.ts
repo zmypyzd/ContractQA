@@ -61,7 +61,7 @@ export class CustomCookieAuthAdapter implements AuthAdapter {
       throw new Error(`CustomCookieAuthAdapter login response missing ${this.cfg.cookieName}`);
     }
     const ctx = (
-      page as { context: () => { addCookies: (a: unknown[]) => Promise<void> } }
+      page as unknown as { context: () => { addCookies: (a: unknown[]) => Promise<void> } }
     ).context();
     const url = new URL(this.cfg.baseUrl);
     await ctx.addCookies([
@@ -83,7 +83,7 @@ export class CustomCookieAuthAdapter implements AuthAdapter {
 
   async currentUser(page: Page): Promise<{ id: string; role: string } | null> {
     const ctx = (
-      page as {
+      page as unknown as {
         context: () => {
           cookies: () => Promise<Array<{ name: string; value: string }>>;
         };
@@ -96,7 +96,7 @@ export class CustomCookieAuthAdapter implements AuthAdapter {
 
   async expectFullyLoggedOut(page: Page): Promise<AuthStateAssertion> {
     const ctx = (
-      page as {
+      page as unknown as {
         context: () => {
           cookies: () => Promise<Array<{ name: string }>>;
         };

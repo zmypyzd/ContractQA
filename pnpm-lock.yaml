@@ -106,6 +106,9 @@ importers:
 
   dogfood:
     dependencies:
+      '@contractqa/adapters':
+        specifier: workspace:*
+        version: link:../packages/adapters
       '@contractqa/core':
         specifier: workspace:*
         version: link:../packages/core

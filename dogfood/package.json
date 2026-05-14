@@ -14,6 +14,7 @@
     "@contractqa/evidence": "workspace:*",
     "@contractqa/probes": "workspace:*",
     "@contractqa/repro": "workspace:*",
+    "@contractqa/adapters": "workspace:*",
     "@playwright/test": "^1.49.0",
     "yaml": "^2.6.1"
   },

@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { chromium, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { loadContractsFromDir, runContract } from '@contractqa/runner';
+import { CustomCookieAuthAdapter } from '@contractqa/adapters';
 
 const __dir = path.dirname(fileURLToPath(import.meta.url));
 const TARGET_REPO = '/Users/zmy/intership/5/5-4-codex';
@@ -146,6 +147,20 @@ describe('ContractQA dogfood — agent-poker-platform (Vite + cookie auth)', () 
     // Sanity: apk_sid is now in the context.
     const preCookies = await context.cookies();
     expect(preCookies.some((c) => c.name === 'apk_sid')).toBe(true);
+
+    // Phase 2: the cookie auth shape is now first-class via CustomCookieAuthAdapter.
+    // We don't drive login through the adapter (the UI registration above
+    // already did that), but exercising currentUser proves the adapter
+    // composes with the live context.
+    const auth = new CustomCookieAuthAdapter({
+      cookieName: 'apk_sid',
+      loginUrl: '/api/v1/auth/login',
+      logoutUrl: '/api/v1/auth/logout',
+      baseUrl: WEB_BASE,
+    });
+    const adapterUser = await auth.currentUser(page as unknown as Parameters<typeof auth.currentUser>[0]);
+    expect(adapterUser).not.toBeNull();
+    expect(adapterUser!.role).toBe('user');
 
     // Drive INV-L1 through the standalone runner. Trace/HAR get flushed via
     // the hook so the bundle inside runContract can read the on-disk artifacts.
