@@ -10,3 +10,4 @@ artifacts
 .env.local
 *.tsbuildinfo
 .DS_Store
+dist-host*

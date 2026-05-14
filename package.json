@@ -8,7 +8,8 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "pack:host": "bash scripts/pack-for-host.sh"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
