@@ -60,6 +60,9 @@ importers:
       '@contractqa/oracle':
         specifier: workspace:*
         version: link:../oracle
+      '@contractqa/orchestrator':
+        specifier: workspace:*
+        version: link:../orchestrator
       '@contractqa/probes':
         specifier: workspace:*
         version: link:../probes
@@ -116,6 +119,19 @@ importers:
         version: 2.1.9(@types/node@22.19.19)
 
   packages/oracle:
+    dependencies:
+      '@contractqa/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.19.19)
+
+  packages/orchestrator:
     dependencies:
       '@contractqa/core':
         specifier: workspace:*

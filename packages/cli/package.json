@@ -14,6 +14,7 @@
     "@contractqa/core": "workspace:*",
     "@contractqa/adapters": "workspace:*",
     "@contractqa/runner": "workspace:*",
+    "@contractqa/orchestrator": "workspace:*",
     "@contractqa/repro": "workspace:*",
     "@contractqa/evidence": "workspace:*",
     "@contractqa/probes": "workspace:*",
