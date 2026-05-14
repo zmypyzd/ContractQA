@@ -2,14 +2,18 @@
 set -euo pipefail
 echo "== ContractQA Phase 2 acceptance =="
 
+# Build MUST come before typecheck: downstream packages typecheck against
+# @contractqa/core's emitted dist/*.d.ts, not the source. If core's source
+# changes and dist is stale, typecheck sees the old surface and fails.
+# (Discovered 2026-05-14 during session resume; see scripts/phase3-acceptance.sh.)
+echo "--- build"
+pnpm -r --filter './packages/**' build
+
 echo "--- typecheck"
 pnpm -r --filter './packages/**' typecheck
 
 echo "--- unit tests"
 pnpm -r --filter './packages/**' test
-
-echo "--- build"
-pnpm -r --filter './packages/**' build
 
 echo "--- generate INVARIANTS.md"
 node packages/cli/dist/bin/contractqa.js invariants:gen \
