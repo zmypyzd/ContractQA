@@ -565,17 +565,29 @@ export interface BackendAdapter {
 
 新仓库接入的**最低要求是 L1**；§23.1 的 Phase 1 验收基线对齐 L1。
 
-#### 7.6.5 Adapter API 开放策略（v1.2 决策）
+#### 7.6.5 Adapter API 开放策略（v1.2 决策 → Phase 3 / v0.3.0 反转）
 
 | 阶段 | 策略 | 用户体验 |
 |---|---|---|
-| Day-1 → v0.5 | **内部 API，不开放** | 用户从平台预置的 provider 列表中选择；新 provider 需求由用户提 issue，平台官方实现 |
-| v0.5+ | 评估开放 | 若已有 ≥ 3 个用户群体反复申请某未支持 provider 且接口已稳定 6 个月，启动开放计划 |
-| v1.0+ | 选择性开放 + semver-major | 开放给少量审核过的第三方贡献者；保持 semver 严格 |
+| Day-1 → v0.2 | **内部 API，不开放** | 用户从平台预置的 provider 列表中选择；新 provider 需求由用户提 issue，平台官方实现 |
+| ~~v0.5+~~ → **v0.3.0**（Phase 3 反转） | **`@contractqa/adapters/public` 上线，semver 稳定** | 第三方贡献者可基于 `templates/third-party/` 自建 adapter，仅依赖 `/public` 子路径 |
+| v1.0+ | 收窄实验性出口 | `@experimental` 标记的 export（如 `PostgresBackendAdapter` 当前阶段）逐步晋升或废弃；按 `STABILITY.md` 走 deprecation window |
 
-理由：Full Platform 路线下用户更早更多出现，过早开放 API 会让接口在 churn 期暴露给生态，每次重构都引发不可接受的破坏。先内部稳定，让接口经过 4 个 provider 的真实压力测试，再决定开放。
+**Phase 3 反转的理由**（取代 v1.2 的"先内部稳定"原文）：
 
-这一决策意味着 v1 不需要为外部贡献者写 adapter 文档、版本兼容矩阵、迁移指南——这一部分工作量从 Phase 1 移除。
+1. **`/public` 子路径锁住 surface**——非 `./public` 的 import 仍然是内部 API，可以随意 churn；只有 `@contractqa/adapters/public` 走 semver。所以"接口在 churn 期暴露给生态"的风险被压缩到一个小 surface 上。
+2. **`@experimental` 安全阀**——还未稳定的 export 用 JSDoc tag 标注（v0.3.0 起 `PostgresBackendAdapter` 是唯一一个），并允许 minor 版本破坏。语义清晰。
+3. **`composeAuth` + `AuthResponsibility`（Phase 2 落地）**——给了一条"组合而不是修改"的路径。未来 adapter 形状变化通过新增 adapter + 组合实现，不必动 `AuthAdapter` 接口本身。
+4. **Phase 2 已经经过 5 个 dogfood target 的压力测试**——内部 API 实际上稳定到可以晋升的程度，比预期的"v0.5 + 6 个月"提前。
+5. **第三方接入门槛拉低本身就是产品价值**——v1.2 决策预设"用户来得多就别开放"，但 Phase 1–2 实测发现外部 adapter 是一个低成本撬动多 stack 适配的杠杆。
+
+实现要点（详见 `packages/adapters/STABILITY.md`）：
+
+- `@contractqa/adapters/public` 是唯一 semver-stable 入口；root + deep path 仍然是内部，明确告知用户不要 import。
+- `@stable` 改动遵循 semver；`@experimental` 改动只在 changelog 标注。
+- Removed export 走至少一个 minor cycle 的 `@deprecated` window 才真正下线。
+- 第三方 adapter 模板在 `packages/adapters/templates/third-party/`，配套指南 `docs/adapters/writing-your-own.md`。
+- 出树编译 + 装入 host project 的回归测试在 `scripts/test-third-party-adapter.sh`，每次 acceptance 跑一次。
 
 ---
 
