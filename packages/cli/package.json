@@ -1,0 +1,28 @@
+{
+  "name": "contractqa",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": { "contractqa": "./dist/bin/contractqa.js" },
+  "main": "./dist/src/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src bin tests",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@contractqa/core": "workspace:*",
+    "@contractqa/adapters": "workspace:*",
+    "@contractqa/runner": "workspace:*",
+    "@contractqa/repro": "workspace:*",
+    "@contractqa/evidence": "workspace:*",
+    "@contractqa/probes": "workspace:*",
+    "@contractqa/oracle": "workspace:*",
+    "commander": "^12.1.0",
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
