@@ -20,6 +20,11 @@ const Target = z.object({
   // throws on multi-match. Added during dogfood #2 — see
   // dogfood/website-vercel-supabase/FINDINGS.md.
   first: z.boolean().optional(),
+  // `within` scopes the locator to an ancestor with the given ARIA role
+  // (e.g. `within: navigation` for the navbar). Combined with name_regex
+  // it semantically disambiguates duplicate accessible names — preferred
+  // over `first: true` when the author knows where the element lives.
+  within: z.string().optional(),
 });
 
 const Action = z.discriminatedUnion('type', [

@@ -8,6 +8,7 @@ export interface CompiledLocator {
   click(): Promise<unknown>;
   fill(v: string): Promise<unknown>;
   first(): CompiledLocator;
+  getByRole(role: string, opts?: { name?: RegExp }): CompiledLocator;
 }
 
 export interface CompiledPage {
@@ -35,14 +36,18 @@ export function compileContract(c: ContractDoc): CompiledContract {
       } else if (a.type === 'click') {
         const opts: { name?: RegExp } = {};
         if (a.target.name_regex) opts.name = new RegExp(a.target.name_regex, 'i');
-        let loc = ctx.page.getByRole(a.target.role ?? 'button', opts);
-        if (a.target.first) loc = loc.first();
+        const scope = a.target.within
+          ? ctx.page.getByRole(a.target.within).getByRole(a.target.role ?? 'button', opts)
+          : ctx.page.getByRole(a.target.role ?? 'button', opts);
+        const loc = a.target.first ? scope.first() : scope;
         await loc.click();
       } else if (a.type === 'fill') {
         const opts: { name?: RegExp } = {};
         if (a.target.name_regex) opts.name = new RegExp(a.target.name_regex, 'i');
-        let loc = ctx.page.getByRole(a.target.role ?? 'textbox', opts);
-        if (a.target.first) loc = loc.first();
+        const scope = a.target.within
+          ? ctx.page.getByRole(a.target.within).getByRole(a.target.role ?? 'textbox', opts)
+          : ctx.page.getByRole(a.target.role ?? 'textbox', opts);
+        const loc = a.target.first ? scope.first() : scope;
         await loc.fill(a.value);
       } else if (a.type === 'wait') {
         await ctx.page.waitForTimeout(a.ms);
