@@ -28,7 +28,10 @@ const Target = z.object({
 });
 
 const Action = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('goto'), path: z.string() }),
+  // `locale` sets the Accept-Language header before navigation, so i18n
+  // contracts can pin DOM text to a known language (e.g. `locale: 'en'`
+  // makes "Login" stable rather than "登录").
+  z.object({ type: z.literal('goto'), path: z.string(), locale: z.string().optional() }),
   z.object({ type: z.literal('click'), target: Target }),
   z.object({ type: z.literal('fill'), target: Target, value: z.string() }),
   z.object({ type: z.literal('wait'), ms: z.number().int().nonnegative() }),

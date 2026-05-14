@@ -83,4 +83,40 @@ describe('compileContract', () => {
     });
     expect(calls).toEqual(['page:getByRole(navigation)', 'scoped:getByRole(link)']);
   });
+
+  it('goto.locale calls page.setExtraHTTPHeaders before goto', async () => {
+    const calls: string[] = [];
+    const locator: any = {
+      click: vi.fn(async () => undefined),
+      fill: vi.fn(async () => undefined),
+      first: () => locator,
+      getByRole: () => locator,
+    };
+    const page: any = {
+      goto: vi.fn(async (p: string) => calls.push(`goto:${p}`)),
+      setExtraHTTPHeaders: vi.fn(async (h: Record<string, string>) =>
+        calls.push(`headers:${JSON.stringify(h)}`),
+      ),
+      url: () => '/',
+      waitForTimeout: vi.fn(async () => undefined),
+      getByRole: () => locator,
+    };
+    const c: ContractDoc = {
+      id: 'INV-T6',
+      title: 'locale',
+      area: 'test',
+      severity: 'P2',
+      owner: 't',
+      risk_tags: [],
+      preconditions: { auth_state: 'anonymous' },
+      actions: [{ type: 'goto', path: '/', locale: 'en-US' }],
+      expected: {},
+      verification: { wait_ms: 0, retries: 0, evidence_required: ['state_diff'] },
+    } as unknown as ContractDoc;
+    await compileContract(c)({
+      page,
+      snapshot: async () => ({ url: '/', localStorageKeys: [], cookies: [] }),
+    });
+    expect(calls).toEqual(['headers:{"Accept-Language":"en-US"}', 'goto:/']);
+  });
 });

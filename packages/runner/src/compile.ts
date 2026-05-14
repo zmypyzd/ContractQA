@@ -13,6 +13,7 @@ export interface CompiledLocator {
 
 export interface CompiledPage {
   goto(path: string): Promise<unknown>;
+  setExtraHTTPHeaders?(h: Record<string, string>): Promise<unknown>;
   getByRole(role: string, opts?: { name?: RegExp }): CompiledLocator;
   url(): string;
   waitForTimeout(ms: number): Promise<unknown>;
@@ -32,6 +33,9 @@ export function compileContract(c: ContractDoc): CompiledContract {
     const before = await ctx.snapshot();
     for (const a of c.actions) {
       if (a.type === 'goto') {
+        if (a.locale && ctx.page.setExtraHTTPHeaders) {
+          await ctx.page.setExtraHTTPHeaders({ 'Accept-Language': a.locale });
+        }
         await ctx.page.goto(a.path);
       } else if (a.type === 'click') {
         const opts: { name?: RegExp } = {};
