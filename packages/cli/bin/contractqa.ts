@@ -6,6 +6,7 @@ import { loadContractsFromDir } from '@contractqa/runner';
 import { renderInvariantsMd } from '../src/commands/invariants-gen.js';
 import { runContracts } from '../src/commands/run.js';
 import { initProject } from '../src/commands/init.js';
+import { doctor, renderDoctorReport } from '../src/commands/doctor.js';
 import type { AuthProviderName } from '@contractqa/core';
 
 const program = new Command('contractqa');
@@ -45,6 +46,22 @@ program
       changedFiles: changed,
     });
     process.exit(r.exitCode);
+  });
+
+program
+  .command('doctor <target>')
+  .description('preflight: env vars, ports, native deps, boot probe for a host project')
+  .option('--port <p...>', 'port(s) to allocate', [])
+  .option('--no-boot', 'skip boot probe (default: skip — wire bootCommand programmatically)')
+  .action(async (target: string, opts: { port: string[]; boot: boolean }) => {
+    const requestedPorts = (opts.port ?? []).map((p) => Number(p)).filter((n) => Number.isFinite(n));
+    const report = await doctor({
+      targetRoot: target,
+      requestedPorts,
+      skipBootProbe: !opts.boot,
+    });
+    console.log(renderDoctorReport(report));
+    process.exit(report.summary === 'READY' ? 0 : 1);
   });
 
 program.parseAsync().catch((e: unknown) => {
