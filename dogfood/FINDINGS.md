@@ -101,20 +101,31 @@ Findings RESOLVED in Phase 2:
 - ✅ Workspace-only install → T19 `pnpm pack:host`
 - ✅ 5-target validation (§23.1) → 5 PASS verdicts across 5 stacks
 
-Findings DEFERRED to Phase 3:
-- `BackendAdapter` for HTTP-API-bypass test setup
-- `contractqa init` framework detection (Next.js / Vite / Astro / etc.)
-- pnpm-version-aware spawn helper (still documented, not coded)
-- `contractqa doctor --fix` one-shot remediation for native deps
+## Phase 3 resolution status (v0.3.0)
+
+Findings RESOLVED in Phase 3:
+- ✅ `contractqa init` framework detection → A1–A3 (rule-based detector + per-framework scaffolds + auto-detect wiring)
+- ✅ `contractqa scan` read-only project survey → A4
+- ✅ `contractqa doctor --fix` one-shot remediation → A5–A8 (native-deps via `npm rebuild`, env-stub from `.env.example`, port-collision via `allocatePort`)
+- ✅ SupabaseAuthAdapter v2 with default `loginAs` → B3 (injectable tokenIssuer, real GoTrue fetch, `responsibilities: ['session']`)
+- ✅ Real-Supabase fixture (vs stub-env) → B1–B2 (vendored docker-compose stack with pinned tags)
+- ✅ Real-cloud lane CI integration → B6 (opt-in workflow_dispatch + path-filtered PR)
+- ✅ Public adapter API → C1–C6 (`@contractqa/adapters/public` semver surface, STABILITY.md, third-party starter, out-of-tree smoke test, design doc §7.6.5 reversal)
+- ✅ Acceptance-script ordering bug (build → typecheck → test) → D1 (cheap mitigation for the tsc -b backlog item)
+- ✅ Detector also handles `src/app/` and `src/pages/` layouts → inline fix during A9 dogfood (f0d8a2a)
+
+Findings STILL DEFERRED to Phase 4:
+- `BackendAdapter` for HTTP-API-bypass test setup (the candidate dropped from Phase 3's anchor vote)
 - HTTP-API contract surface (for api-only repos like the original `agent-poker-platform`)
-- Hybrid-auth scanner (`contractqa scan --detect-auth` from 5-4-claude finding)
-- SupabaseAuthAdapter v2 with default `loginAs` impl (Phase 1 throws)
-- Real-Supabase / real-NextAuth fixture (vs stub-env)
-- Public adapter API
+- Hybrid-auth scanner (`contractqa scan --detect-auth` from 5-4-claude finding) — basic detection landed in scan, hybrid multi-provider case still requires manual `composeAuth`
 - Dashboard §15.3–§15.6
 - Persona dogfood agents
 - Property/model-based test generation
-- TypeScript project references (`tsc -b`) so consumers resolve `@contractqa/core` from source instead of `dist/*.d.ts` — eliminates the "did you rebuild core?" footgun (surfaced 2026-05-14: `DomShape` / `AuthResponsibility` added but `core` not rebuilt, so `phase2-acceptance.sh` typecheck stage saw stale `.d.ts` and tripped TS2305/TS2339)
+- TypeScript project references (`tsc -b`) — Phase 3 D1 reorder is the cheap mitigation; project references is the real fix
+- True per-responsibility routing in `composeAuth` (currently all calls route to the session owner; `sessionKeyPatterns` is the only unioned method; gap discovered during Phase 3 B4)
+- Monorepo / polyglot subdirectory detection in `contractqa init` (currently returns `unknown` for projects whose Vite/Next app lives in `frontend/` or a pnpm workspace package; surfaced during Phase 3 A9 dogfood for 5-4-codex / WolfMind / 5-4-claude)
+- pnpm-version-aware spawn helper (still documented, not coded)
+- Publishing to npm — Phase 3 prepares the surface; `pnpm publish` is user-gated
 
 ## Targets considered but not used
 
