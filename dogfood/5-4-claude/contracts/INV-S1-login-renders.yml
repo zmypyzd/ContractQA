@@ -1,0 +1,26 @@
+id: INV-S1
+title: Login page renders + no Supabase error token leaks
+area: auth
+severity: P2
+owner: dogfood
+risk_tags: [auth, supabase, stub-env]
+
+preconditions:
+  auth_state: anonymous
+  role: visitor
+
+# Without real Supabase credentials we can't drive the actual signIn flow,
+# but supabase-js initializes a stub auth client at module load — visiting
+# /login should NOT crash and should NOT spawn an `auth-token-error` key.
+actions:
+  - { type: goto, path: /login }
+  - { type: wait, ms: 800 }
+
+expected:
+  url: { matches: "^/login" }
+  localStorage: { no_key_matches: "^sb-.+-auth-token-error$" }
+
+verification:
+  wait_ms: 500
+  retries: 1
+  evidence_required: [state_diff]

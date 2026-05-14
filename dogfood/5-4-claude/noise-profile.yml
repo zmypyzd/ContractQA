@@ -1,0 +1,14 @@
+project: 5-4-claude
+generated_at: 2026-05-14T10:00:00Z
+# supabase-js writes a stub token at module init even with a fake URL;
+# treat any sb-* key as noise EXCEPT the *-auth-token-error variants which
+# the contract specifically watches for.
+ignore:
+  localStorage_keys:
+    - "^sb-[a-zA-Z0-9-]+-auth-token$"
+  sessionStorage_keys: []
+  cookies: []
+  network_url_patterns:
+    - "^http://localhost:1/"
+  console_patterns:
+    - "Failed to fetch"
