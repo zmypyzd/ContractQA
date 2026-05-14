@@ -14,6 +14,7 @@ export type {
   SessionKeyPatterns,
   AuthResponsibility,
   AuthProviderName,
+  AuthStateAssertion,
   SeedProfile,
   SchemaDescriptor,
 } from '@contractqa/core';
