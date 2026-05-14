@@ -73,20 +73,50 @@ const { verdict, bundlePath } = await runContract({
 
 Today this is ~70 lines of glue per dogfood.
 
-## Target-specific summary
+## Target-specific summary (Phase 2 = 5 targets, §23.1 acceptance met)
 
 | Target | Stack | Auth | Result |
 |---|---|---|---|
 | [5-4-codex](./5-4-codex/FINDINGS.md) | Vite + React + react-router + Fastify | Custom cookie session | PASS + 1 oracle bug fixed (cookie classifier) |
-| [website-vercel-supabase](./website-vercel-supabase/FINDINGS.md) | Next.js 16 + NextAuth v5 + Supabase | NextAuth+Supabase composite | PASS + schema change required (`target.first`) |
+| [website-vercel-supabase](./website-vercel-supabase/FINDINGS.md) | Next.js 16 + NextAuth v5 + Supabase | NextAuth+Supabase composite | PASS + schema changes (`target.first`, `target.within`) |
 | [wolfmind](./wolfmind/FINDINGS.md) | Vue 3 + Vite + FastAPI | None | PASS — no new findings beyond what targets 1-2 already surfaced |
+| [5-4-claude](./5-4-claude/FINDINGS.md) | Vite + React + Supabase (stub env) | supabase-js direct | PASS — Supabase+Vite path works; hybrid auth finding |
+| [agent-poker-platform-gpt](./agent-poker-platform-gpt/FINDINGS.md) | Vite + React + Fastify (LLM-author variant) | Custom cookie session | PASS — null divergence finding |
 
-## What's NOT in dogfood scope yet
+## Phase 2 resolution status (after T1–T22)
 
-Targets we considered but skipped, with why:
+Findings RESOLVED in Phase 2:
+- ✅ Cookie classifier delta-only (5-4-codex #1, fixed pre-Phase-2 in 2a75413)
+- ✅ Schema thinness on no-auth UIs → T4 `dom:` block
+- ✅ Multi-match locator → already-shipped `target.first` + T3 `target.within`
+- ✅ i18n stability → T6 `goto.locale`
+- ✅ about:blank SecurityError → T5 origin-less tolerance
+- ✅ Reporter no-bundle on PASS → T2 `alwaysBundle`
+- ✅ Standalone runner glue → T1 `runContract()`
+- ✅ No cookie-session AuthAdapter → T15 `CustomCookieAuthAdapter`
+- ✅ Multi-adapter composition → T16 `composeAuth`
+- ✅ Env preflight → T11 + T13 `contractqa doctor`
+- ✅ Native-dep rebuild detection → T12 (best-effort, surfaces candidates)
+- ✅ Port-collision footgun → T9 `allocatePort`
+- ✅ Workspace-only install → T19 `pnpm pack:host`
+- ✅ 5-target validation (§23.1) → 5 PASS verdicts across 5 stacks
 
-- **5-4-claude** (Vite + React + real Supabase auth) — would test
-  Phase 1's `SupabaseAuthAdapter` on a non-Next.js host, but needs a real
-  Supabase project to actually exercise the auth flow. Same blocker as
-  website-vercel-supabase.
+Findings DEFERRED to Phase 3:
+- `BackendAdapter` for HTTP-API-bypass test setup
+- `contractqa init` framework detection (Next.js / Vite / Astro / etc.)
+- pnpm-version-aware spawn helper (still documented, not coded)
+- `contractqa doctor --fix` one-shot remediation for native deps
+- HTTP-API contract surface (for api-only repos like the original `agent-poker-platform`)
+- Hybrid-auth scanner (`contractqa scan --detect-auth` from 5-4-claude finding)
+- SupabaseAuthAdapter v2 with default `loginAs` impl (Phase 1 throws)
+- Real-Supabase / real-NextAuth fixture (vs stub-env)
+- Public adapter API
+- Dashboard §15.3–§15.6
+- Persona dogfood agents
+- Property/model-based test generation
+
+## Targets considered but not used
+
 - **teamagent/dogfood-target** — pure static counter, no contracts apply
+- **agent-poker-platform** (no suffix) — api-only, no web for browser
+  contracts (would require Phase 3's HTTP-API surface)

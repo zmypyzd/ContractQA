@@ -40,6 +40,23 @@ Out of Phase 1 scope (documented in plan §1c risk register):
 - OpenClaw integration (permanently optional)
 - Adapter API opened to third-party providers (internal until v0.5+ per §7.6.5)
 
+## Phase 2 status (closes gaps surfaced by dogfooding 5 real repos)
+
+- [x] `runContract()` one-shot helper folding the dogfood glue (`packages/runner/src/run-contract.ts`)
+- [x] Schema breadth: `target.within`, `target.first`, `goto.locale`, `dom:` block (`contains_text` / `not_contains_text` / `role_count`)
+- [x] `snapshotBrowser.captureDom` + origin-less tolerance (works on `about:blank`)
+- [x] `ReporterOptions.alwaysBundle` for PASS-path bundling
+- [x] `contractqa doctor <target>` preflight (env vars, port allocation, native bindings, host-boot probe)
+- [x] `CustomCookieAuthAdapter` for cookie-session apps + `composeAuth` for multi-adapter stacks
+- [x] `pnpm pack:host` workflow for installing into host projects
+- [x] 5 dogfood targets validated (§23.1 acceptance): `dogfood/{5-4-codex,website-vercel-supabase,wolfmind,5-4-claude,agent-poker-platform-gpt}/`
+
+Out of Phase 2 (Phase 3+): `BackendAdapter` for HTTP-API contracts,
+framework-aware `contractqa init` / `scan`, persona dogfood agents,
+property/model-based generation, dashboard §15.3–§15.6, real-Supabase
+/ real-NextAuth fixtures, public adapter API. See
+[`dogfood/FINDINGS.md`](dogfood/FINDINGS.md) for the complete list.
+
 ## Quick start
 
 ```bash
@@ -68,8 +85,16 @@ pnpm --filter @contractqa/dashboard dev   # http://localhost:3000
 # 7. (Optional) Boot fixture app to drive a Playwright-backed run
 pnpm --filter @contractqa/fixture-app dev # http://localhost:4000
 
-# 8. Or run the full acceptance script
+# 8. Or run the full acceptance script (Phase 1)
 ./scripts/phase1-acceptance.sh
+
+# 9. Phase 2 acceptance (typecheck + tests + Phase 1 e2e + 5 dogfood targets + pack:host + doctor)
+./scripts/phase2-acceptance.sh
+
+# 10. (Optional) Install ContractQA into a host project
+pnpm pack:host             # produces tarballs in dist-host/
+# then in the host repo:
+# npm i ./path/to/dist-host/contractqa-runner-0.1.0.tgz @playwright/test
 ```
 
 ## Repo layout
