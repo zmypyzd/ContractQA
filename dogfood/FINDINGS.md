@@ -115,6 +115,7 @@ Findings RESOLVED in Phase 3:
 - ✅ Detector also handles `src/app/` and `src/pages/` layouts → inline fix during A9 dogfood (f0d8a2a)
 
 Findings STILL DEFERRED to Phase 4:
+- **Vendored Supabase docker stack is incomplete** — Phase 3's `fixtures/supabase-stack/docker-compose.yml` boots Postgres and Kong, but GoTrue and (in later iterations) other Supabase services fail their migrations because the minimal compose is missing init steps Supabase's full self-host setup normally provides. Specifically: the `supabase/postgres` image creates `supabase_admin` (not `postgres`) as superuser, the `auth` schema isn't auto-created, and GoTrue's migrations reference a `postgres` role that doesn't exist. Tried 3 patches before stopping the cascade. Phase 4 should either (a) rebuild on Supabase's official self-host compose at a pinned commit, or (b) switch to `supabase start` (CLI). Until then, `./scripts/phase3-acceptance.sh --real-cloud` fails at the `wait-for-health` step. Discovered 2026-05-14 during real-cloud validation. See `fixtures/supabase-stack/README.md` "STATUS — known broken in v0.3.0".
 - `BackendAdapter` for HTTP-API-bypass test setup (the candidate dropped from Phase 3's anchor vote)
 - HTTP-API contract surface (for api-only repos like the original `agent-poker-platform`)
 - Hybrid-auth scanner (`contractqa scan --detect-auth` from 5-4-claude finding) — basic detection landed in scan, hybrid multi-provider case still requires manual `composeAuth`
