@@ -3,11 +3,12 @@ import { ClerkAuthAdapter } from './auth/clerk.js';
 import { NextAuthAdapter } from './auth/next-auth.js';
 import { Auth0Adapter } from './auth/auth0.js';
 import { CustomCookieAuthAdapter, type CustomCookieAuthConfig } from './auth/custom-cookie.js';
+import { composeAuth } from './auth/composite.js';
 import { registerAuthAdapter } from './registry.js';
 
 export { DefaultAppAdapter } from './app/default.js';
 export type { DefaultAppAdapterOptions } from './app/default.js';
-export { SupabaseAuthAdapter, ClerkAuthAdapter, NextAuthAdapter, Auth0Adapter, CustomCookieAuthAdapter };
+export { SupabaseAuthAdapter, ClerkAuthAdapter, NextAuthAdapter, Auth0Adapter, CustomCookieAuthAdapter, composeAuth };
 export type { SupabaseAuthAdapterOptions, CustomCookieAuthConfig };
 export { registerAuthAdapter, getAuthAdapter } from './registry.js';
 export { computeAdapterLevel, meetsMinimum } from './level.js';
