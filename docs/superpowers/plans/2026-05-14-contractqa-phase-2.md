@@ -2419,6 +2419,7 @@ git tag v0.2.0
 - Public adapter API
 - Dashboard §15.3–§15.6
 - Real-Supabase + real-NextAuth integration tests (vs stubbed env)
+- TypeScript project references (`tsc -b`) — consumers resolve `@contractqa/core` from source, not `dist/*.d.ts`. Removes the stale-dist typecheck failure mode (surfaced 2026-05-14 on resume: `DomShape` / `AuthResponsibility` source additions weren't reflected in `dist/` because the acceptance script runs `typecheck` before `build`). Cheaper one-line mitigation: reorder the acceptance script to `build → typecheck → test`.
 
 ---
 

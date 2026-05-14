@@ -114,6 +114,7 @@ Findings DEFERRED to Phase 3:
 - Dashboard §15.3–§15.6
 - Persona dogfood agents
 - Property/model-based test generation
+- TypeScript project references (`tsc -b`) so consumers resolve `@contractqa/core` from source instead of `dist/*.d.ts` — eliminates the "did you rebuild core?" footgun (surfaced 2026-05-14: `DomShape` / `AuthResponsibility` added but `core` not rebuilt, so `phase2-acceptance.sh` typecheck stage saw stale `.d.ts` and tripped TS2305/TS2339)
 
 ## Targets considered but not used
 
