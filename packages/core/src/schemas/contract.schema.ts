@@ -48,8 +48,24 @@ const ExpectedBlock = z.object({
   cookies: z.object({ no_name_matches: SafeRegex.optional() }).optional(),
   dom: z
     .object({
+      // Phase 2: contains_text/not_contains_text + role_count. The older
+      // not_contains_any/contains_all aliases are retained for backward
+      // compatibility but are not exercised by the dom-classifier yet.
       not_contains_any: z.array(z.string()).optional(),
       contains_all: z.array(z.string()).optional(),
+      contains_text: z.array(z.string()).optional(),
+      not_contains_text: z.array(z.string()).optional(),
+      role_count: z
+        .array(
+          z.object({
+            role: z.string(),
+            name_regex: SafeRegex.optional(),
+            eq: z.number().int().nonnegative().optional(),
+            gte: z.number().int().nonnegative().optional(),
+            lte: z.number().int().nonnegative().optional(),
+          }),
+        )
+        .optional(),
     })
     .optional(),
   auth_state: z.object({ fully_logged_out: z.boolean() }).partial().optional(),

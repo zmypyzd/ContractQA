@@ -32,6 +32,14 @@ export interface CookieSummary {
   valueRedacted: true;
 }
 
+// Phase 2 schema: dom-shaped invariants. Populated by snapshotBrowser when
+// `captureDom: true` is set. Keys in roleCounts are normalized as
+// `<role>:<accessible name>`; counts include every match (not just first).
+export interface DomShape {
+  roleCounts: Record<string, number>;
+  visibleText: string;
+}
+
 export interface BrowserSnapshot {
   timestamp: string;
   url: string;
@@ -46,6 +54,7 @@ export interface BrowserSnapshot {
   console: ConsoleEntry[];
   network: NetworkEntry[];
   websocket: WebSocketEntry[];
+  dom?: DomShape;
 }
 
 export interface AuthStateAssertion {

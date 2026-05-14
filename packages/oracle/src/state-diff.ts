@@ -1,7 +1,10 @@
+import type { DomShape } from '@contractqa/core';
+
 export interface StateSlice {
   url: string;
   localStorageKeys: string[];
   cookies: string[];
+  dom?: DomShape;
 }
 
 export interface StateDiff {

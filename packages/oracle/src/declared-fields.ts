@@ -1,10 +1,12 @@
 import type { NoiseProfile } from '@contractqa/core';
 import type { StateDiff, StateSlice } from './state-diff.js';
+import { classifyDom, type DomExpected } from './dom-classifier.js';
 
 export interface Expected {
   url?: { matches?: string };
   localStorage?: { no_key_matches?: string; has_key_matches?: string };
   cookies?: { no_name_matches?: string };
+  dom?: DomExpected;
   watch_keys?: { localStorage?: string[]; cookies?: string[] };
 }
 
@@ -113,6 +115,19 @@ export function classifyDiff(
         });
       }
     }
+  }
+
+  if (expected.dom && afterState?.dom) {
+    const domRes = classifyDom(afterState.dom, expected.dom);
+    out.passContributions.push(...domRes.passContributions);
+    out.failContributions.push(...domRes.failContributions);
+  } else if (expected.dom && !afterState?.dom) {
+    out.failContributions.push({
+      field: 'dom',
+      detail:
+        'contract declares dom expectations but afterState has no DomShape — call snapshotBrowser with captureDom: true',
+      actual: null,
+    });
   }
 
   return out;
