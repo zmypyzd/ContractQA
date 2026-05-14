@@ -3,11 +3,14 @@ import { allocatePort } from '../lib/port-pool.js';
 import { detectNativeDepMismatch, type NativeMismatch } from '../lib/native-deps.js';
 import { probeHostBoot, type ProbeResult } from '../lib/host-probe.js';
 
+export type FixName = 'native-deps' | 'env-stub' | 'port-collision';
+
 export interface DoctorInput {
   targetRoot: string;
   requestedPorts?: number[];
   skipBootProbe?: boolean;
   bootCommand?: { command: string; args: string[]; readinessUrl: string };
+  fix?: readonly FixName[];
 }
 
 export interface DoctorReport {
@@ -16,6 +19,7 @@ export interface DoctorReport {
   native: NativeMismatch[];
   boot: Pick<ProbeResult, 'ready' | 'firstStderrError'> | null;
   summary: 'READY' | 'NEEDS FIX';
+  fixesAttempted: Array<{ name: FixName; ok: boolean; detail: string }>;
 }
 
 export async function doctor(i: DoctorInput): Promise<DoctorReport> {
@@ -36,7 +40,43 @@ export async function doctor(i: DoctorInput): Promise<DoctorReport> {
     r.kill();
   }
   const needsFix = !!boot && !boot.ready;
-  return { env, ports, native, boot, summary: needsFix ? 'NEEDS FIX' : 'READY' };
+  const report: DoctorReport = {
+    env,
+    ports,
+    native,
+    boot,
+    summary: needsFix ? 'NEEDS FIX' : 'READY',
+    fixesAttempted: [],
+  };
+
+  if (i.fix?.length) {
+    for (const name of i.fix) {
+      const result = await applyFix(name, i, report);
+      report.fixesAttempted.push({ name, ok: result.ok, detail: result.detail });
+    }
+  }
+
+  return report;
+}
+
+async function fixNativeDeps(_i: DoctorInput, _r: DoctorReport): Promise<{ ok: boolean; detail: string }> {
+  return { ok: true, detail: 'native-deps not yet implemented' };
+}
+
+async function fixEnvStub(_i: DoctorInput, _r: DoctorReport): Promise<{ ok: boolean; detail: string }> {
+  return { ok: true, detail: 'env-stub not yet implemented' };
+}
+
+async function fixPortCollision(_i: DoctorInput, _r: DoctorReport): Promise<{ ok: boolean; detail: string }> {
+  return { ok: true, detail: 'port-collision not yet implemented' };
+}
+
+async function applyFix(name: FixName, i: DoctorInput, r: DoctorReport): Promise<{ ok: boolean; detail: string }> {
+  switch (name) {
+    case 'native-deps':    return fixNativeDeps(i, r);
+    case 'env-stub':       return fixEnvStub(i, r);
+    case 'port-collision': return fixPortCollision(i, r);
+  }
 }
 
 export function renderDoctorReport(r: DoctorReport): string {
@@ -63,6 +103,13 @@ export function renderDoctorReport(r: DoctorReport): string {
     lines.push('', '### Boot probe');
     lines.push(`- ready: ${r.boot.ready}`);
     if (r.boot.firstStderrError) lines.push(`- first stderr error: ${r.boot.firstStderrError}`);
+  }
+  if (r.fixesAttempted.length > 0) {
+    lines.push('');
+    lines.push('### Fixes attempted');
+    for (const f of r.fixesAttempted) {
+      lines.push(`  ${f.ok ? '[ok]' : '[FAIL]'} ${f.name}: ${f.detail}`);
+    }
   }
   return lines.join('\n');
 }

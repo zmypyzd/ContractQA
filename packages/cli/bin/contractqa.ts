@@ -8,7 +8,7 @@ import { renderInvariantsMd } from '../src/commands/invariants-gen.js';
 import { runContracts } from '../src/commands/run.js';
 import { initProject } from '../src/commands/init.js';
 import { scanProject } from '../src/commands/scan.js';
-import { doctor, renderDoctorReport } from '../src/commands/doctor.js';
+import { doctor, renderDoctorReport, type FixName } from '../src/commands/doctor.js';
 const program = new Command('contractqa');
 
 program
@@ -76,12 +76,22 @@ program
   .description('preflight: env vars, ports, native deps, boot probe for a host project')
   .option('--port <p...>', 'port(s) to allocate', [])
   .option('--no-boot', 'skip boot probe (default: skip — wire bootCommand programmatically)')
-  .action(async (target: string, opts: { port: string[]; boot: boolean }) => {
+  .option('--fix [names]', 'comma-separated: native-deps,env-stub,port-collision (or "all")', '')
+  .action(async (target: string, opts: { port: string[]; boot: boolean; fix?: string }) => {
     const requestedPorts = (opts.port ?? []).map((p) => Number(p)).filter((n) => Number.isFinite(n));
+    const ALL_FIX_NAMES: FixName[] = ['native-deps', 'env-stub', 'port-collision'];
+    const fixList: FixName[] | undefined = !opts.fix
+      ? undefined
+      : opts.fix === 'all'
+        ? ALL_FIX_NAMES
+        : (opts.fix.split(',').filter((s): s is FixName =>
+            s === 'native-deps' || s === 'env-stub' || s === 'port-collision'
+          ));
     const report = await doctor({
       targetRoot: target,
       requestedPorts,
       skipBootProbe: !opts.boot,
+      fix: fixList,
     });
     console.log(renderDoctorReport(report));
     process.exit(report.summary === 'READY' ? 0 : 1);

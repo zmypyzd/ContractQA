@@ -33,3 +33,28 @@ describe('doctor', () => {
     expect(md).toContain('Port allocations');
   });
 });
+
+describe('doctor --fix (scaffolding)', () => {
+  it('returns fixesAttempted with placeholder entries when --fix specified', async () => {
+    const { doctor: doctorFn } = await import('../src/commands/doctor.js');
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'doctor-fix-'));
+    const report = await doctorFn({
+      targetRoot: dir,
+      skipBootProbe: true,
+      fix: ['native-deps', 'env-stub', 'port-collision'],
+    });
+    expect(report.fixesAttempted).toHaveLength(3);
+    expect(report.fixesAttempted.map((f) => f.name).sort()).toEqual(['env-stub', 'native-deps', 'port-collision']);
+    for (const f of report.fixesAttempted) {
+      expect(typeof f.ok).toBe('boolean');
+      expect(typeof f.detail).toBe('string');
+    }
+  });
+
+  it('returns empty fixesAttempted when --fix not specified', async () => {
+    const { doctor: doctorFn } = await import('../src/commands/doctor.js');
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'doctor-nofix-'));
+    const report = await doctorFn({ targetRoot: dir, skipBootProbe: true });
+    expect(report.fixesAttempted).toEqual([]);
+  });
+});
