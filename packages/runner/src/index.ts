@@ -14,3 +14,9 @@ export type { RunOracleInput } from './fixtures.js';
 export { defineConfig } from './config.js';
 export type { ContractQAConfig } from './config.js';
 export { registerContracts } from './playwright-entry.js';
+export { runContract } from './run-contract.js';
+export type {
+  RunContractInput,
+  RunContractResult,
+  RunContractAttachment,
+} from './run-contract.js';
