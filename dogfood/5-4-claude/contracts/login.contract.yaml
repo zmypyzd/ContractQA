@@ -1,0 +1,18 @@
+name: login-supabase
+description: User logs in via Supabase and lands on a logged-in view
+target:
+  url: /
+  within: null
+goto:
+  wait: networkidle
+auth:
+  loginAs: user
+oracle:
+  console:
+    error:
+      max: 0
+  dom:
+    not_contains_text:
+      - 'Sign in'
+      - 'Log in'
+      - '登录'
