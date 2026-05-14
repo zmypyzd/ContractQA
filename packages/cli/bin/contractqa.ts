@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { loadContractsFromDir } from '@contractqa/runner';
 import { renderInvariantsMd } from '../src/commands/invariants-gen.js';
 import { runContracts } from '../src/commands/run.js';
 import { initProject } from '../src/commands/init.js';
+import { scanProject } from '../src/commands/scan.js';
 import { doctor, renderDoctorReport } from '../src/commands/doctor.js';
 const program = new Command('contractqa');
 
@@ -36,6 +38,18 @@ program
     console.log(`Auth signals: ${report.detected.authSignals.join(', ') || '(none)'}`);
     console.log(`Wrote ${report.filesWritten.length} files:`);
     for (const f of report.filesWritten) console.log(`  ${f}`);
+  });
+
+program
+  .command('scan')
+  .description('Scan project and write qa/SCAN_REPORT.md with detected framework + suggested contracts')
+  .option('-o, --out <path>', 'output path', 'qa/SCAN_REPORT.md')
+  .action(async (opts: { out: string }) => {
+    const r = await scanProject({ cwd: process.cwd() });
+    await mkdir(path.dirname(opts.out), { recursive: true });
+    await writeFile(opts.out, r.markdown);
+    console.log(`Wrote ${opts.out}`);
+    console.log(`Framework: ${r.framework}, routes: ${r.routes.length}, auth signals: ${r.authSignals.length}`);
   });
 
 program
