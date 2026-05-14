@@ -1,4 +1,4 @@
-export const VERSION = '0.3.0';
+export const VERSION = '0.3.1';
 export { ContractSchema } from './schemas/contract.schema.js';
 export type { ContractDoc } from './types/contract.js';
 export { NoiseProfileSchema } from './schemas/noise-profile.schema.js';

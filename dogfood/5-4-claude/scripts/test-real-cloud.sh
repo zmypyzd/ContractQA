@@ -17,13 +17,14 @@ trap cleanup EXIT
 echo "==> Seeding fixture users"
 bash "$STACK_DIR/scripts/seed.sh"
 
-echo "==> Exporting client env"
-# shellcheck disable=SC1091
-source "$STACK_DIR/.env"
-export SUPABASE_URL=http://localhost:54321
+echo "==> Exporting client env from supabase status -o env"
+cd "$STACK_DIR"
+eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=')"
+export SUPABASE_URL="$API_URL"
 export SUPABASE_ANON_KEY="$ANON_KEY"
-export SUPABASE_PROJECT_REF=localhost
+export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+export SUPABASE_PROJECT_REF="localhost"
 
-echo "==> Running 5-4-claude contracts (real-cloud)"
+echo "==> Running dogfood contracts (real-cloud)"
 cd "$DOGFOOD_DIR"
 pnpm test

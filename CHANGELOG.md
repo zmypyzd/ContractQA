@@ -27,9 +27,9 @@ All notable changes to ContractQA are documented here.
 - **`scripts/phase2-acceptance.sh` reorders `build` before `typecheck`.** Downstream packages (oracle, adapters, …) typecheck against `@contractqa/core`'s emitted `dist/*.d.ts`, not source. Stale dist tripped typecheck with `TS2305 'no exported member'` when core source moved. Surfaced on 2026-05-14 during a session resume.
 - **Design doc §7.6.5 reversal.** Public adapter API opens in v0.3.0 (was: gated to v0.5+). Mitigations enumerated: `/public` is the only stable surface, `@experimental` escape hatch, `composeAuth`+`AuthResponsibility` composition primitive, 5-target Phase 2 dogfood pressure-test.
 
-### Known broken in v0.3.0
+### v0.3.1 — 2026-05-15 (post-release fix)
 
-- **`./scripts/phase3-acceptance.sh --real-cloud` fails.** The vendored Supabase compose at `fixtures/supabase-stack/` boots Postgres + Kong but GoTrue can't run its migrations — the `supabase/postgres` image creates `supabase_admin` as superuser (not `postgres`), the `auth` schema isn't auto-created, and a `postgres` role referenced by upstream migrations is absent. Discovered 2026-05-14 during real-cloud validation. The default (stub-env) acceptance is unaffected. Phase 4 will either rebuild on Supabase's official self-host compose at a pinned commit, or switch to `supabase start`. See `fixtures/supabase-stack/README.md` "STATUS — known broken in v0.3.0".
+- **`fixtures/supabase-stack/` rebuilt on the Supabase CLI.** The original Phase 3 minimal docker-compose was incomplete — `supabase/postgres` initializes a `supabase_admin` superuser (not `postgres`), the `auth` schema isn't auto-created, and GoTrue's own migrations reference roles that don't exist in a hand-rolled stack. Switched `up.sh` / `down.sh` / `seed.sh` to wrap `supabase start` / `supabase stop` / `curl … /auth/v1/admin/users` against keys from `supabase status -o env`. The 5-4-claude `test-real-cloud.sh` and `.github/workflows/real-cloud.yml` updated to match. New dependency: developers and CI need the Supabase CLI on PATH; the default (stub-env) acceptance lane is unaffected.
 
 ### Still deferred (Phase 4 candidates)
 

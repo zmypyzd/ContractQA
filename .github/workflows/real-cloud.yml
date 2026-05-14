@@ -36,6 +36,11 @@ jobs:
 
       - run: pnpm -r --filter './packages/**' build
 
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
       - name: Bring up Supabase stack
         run: bash fixtures/supabase-stack/scripts/up.sh
 
@@ -43,9 +48,6 @@ jobs:
         run: bash fixtures/supabase-stack/scripts/seed.sh
 
       - name: Run 5-4-claude real-cloud test
-        env:
-          SUPABASE_URL: http://localhost:54321
-          SUPABASE_PROJECT_REF: localhost
         run: bash dogfood/5-4-claude/scripts/test-real-cloud.sh
 
       - name: Tear down (always)

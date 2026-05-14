@@ -1,66 +1,73 @@
-# Vendored Supabase stack for ContractQA real-cloud tests
+# Local Supabase stack for ContractQA real-cloud tests
 
-A minimal, pinned-tag Supabase stack: Postgres + GoTrue (auth) + PostgREST + Kong.
-Used by Phase 3 real-cloud dogfooding (5-4-claude target). Not for production.
+Backed by the official [Supabase CLI](https://supabase.com/docs/guides/cli).
+Used by the `--real-cloud` lane of Phase 3 acceptance and by 5-4-claude
+dogfooding when exercising real auth flows. Not for production.
 
-## STATUS — known broken in v0.3.0
+## Why the CLI
 
-Validated 2026-05-14 via `./scripts/phase3-acceptance.sh --real-cloud` and found
-to be incomplete: GoTrue cannot run its migrations because the `supabase/postgres`
-image initializes a `supabase_admin` superuser (not `postgres`), and GoTrue's own
-migrations grant on a `postgres` role that doesn't exist. Earlier in the same
-boot, the `auth` schema also has to be created by us (this stack does it via
-`volumes/db/init/00-roles.sh`; the full Supabase self-host compose creates it
-via a separate analytics initdb container we don't include).
+Phase 3 originally vendored a minimal docker-compose stack here. It worked far
+enough to surface that the `supabase/postgres` image's role/schema initialization
+isn't compatible with a hand-rolled compose — you need either the full
+self-host docker-compose (15+ services, several init containers) or the CLI.
+Switching to the CLI removed the cascading init bugs and gave us a path that
+upstream maintains.
 
-The current compose is therefore a starting point, not a working stack. Two
-paths forward, both Phase 4 candidates:
+Trade-off: requires the `supabase` CLI on the developer's machine. The
+default acceptance lane (stub-env) doesn't need it.
 
-1. **Rebuild on Supabase's official self-host compose** (`supabase/docker/docker-compose.yml`)
-   — pull in their full initdb scripts that create `postgres` role, `auth`,
-   `storage`, `realtime`, `pgbouncer` and `analytics` schemas. Vendor at a
-   pinned commit.
+## Prerequisites
 
-2. **Switch to `supabase start` (CLI-based)** — let the Supabase CLI manage
-   the local stack. Loses the "vendored, no external dependency" property
-   but gains an officially-supported path.
+- Docker Desktop running
+- Supabase CLI installed:
+  - macOS: `brew install supabase/tap/supabase`
+  - npm: `npm install -g supabase`
+  - Other: <https://supabase.com/docs/guides/cli>
 
-Until Phase 4 picks one, the `--real-cloud` lane in `scripts/phase3-acceptance.sh`
-will fail at the `wait-for-health` step with `auth (via Kong) never became
-reachable`. The default (stub-env) acceptance path is unaffected.
+## Quick start
 
-## Pinned versions
+```
+bash scripts/up.sh      # supabase start (idempotent)
+bash scripts/seed.sh    # creates admin@example.test + user@example.test
+# ... run your tests, e.g. SUPABASE_URL=... pnpm test ...
+bash scripts/down.sh    # supabase stop --no-backup
+```
 
-- supabase/postgres:15.6.1.146
-- supabase/gotrue:v2.171.0
-- postgrest/postgrest:v12.2.0
-- kong:2.8.1
+The CLI manages everything under `supabase/` (config.toml is committed;
+`.branches/`, `.temp/`, local env files are gitignored). Live keys are read
+from `supabase status -o env` at runtime — no `.env` to maintain.
 
-## Ports
+## Ports (CLI defaults, match Phase 3's earlier vendored compose)
 
-- 54321 — Kong gateway (this is what clients should hit; equivalent to `https://<project>.supabase.co`)
+- 54321 — Kong gateway (API: `/auth/v1/`, `/rest/v1/`, etc.)
 - 54322 — Postgres (direct, for psql / migrations)
+- 54323 — Studio (web UI)
+- 54324 — Mailpit (captured auth emails)
 
-## Quick start (after B2 ships the scripts)
+## How tests pick up the keys
 
+`dogfood/5-4-claude/scripts/test-real-cloud.sh` does:
+
+```bash
+eval "$(supabase status -o env)"
+export SUPABASE_URL=$API_URL
+export SUPABASE_ANON_KEY=$ANON_KEY
+export SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY
 ```
-cp .env.example .env
-bash scripts/up.sh
-bash scripts/seed.sh
-# ... run your tests ...
-bash scripts/down.sh
-```
 
-## Secrets
-
-The `.env.example` ships safe development-only secrets. They only protect a local docker
-stack. Real Supabase tokens are NOT used here.
-
-If you copy `.env.example` to `.env` and modify, the `.env` file is gitignored.
+Then runs the dogfood tests. `SupabaseAuthAdapter` v2 picks up the env and
+exercises the GoTrue admin API for `loginAs`.
 
 ## Upgrading
 
-To bump an image, change the tag in `docker-compose.yml`, rerun `up.sh`, and verify
-`scripts/wait-for-health.sh` still passes within 30 seconds. Run the 5-4-claude
-real-cloud dogfood (`bash dogfood/5-4-claude/scripts/test-real-cloud.sh`) to confirm
-no breaking schema changes.
+Bump the CLI version (`brew upgrade supabase`) and run `bash scripts/up.sh`
+to pull updated images. The CLI manages pinned tags internally; we don't
+pin them ourselves. To verify nothing regressed, run the 5-4-claude
+real-cloud dogfood (`bash dogfood/5-4-claude/scripts/test-real-cloud.sh`).
+
+## What's committed vs gitignored
+
+- `supabase/config.toml` — committed (project config)
+- `supabase/.gitignore` — committed (CLI-managed; excludes runtime state)
+- `supabase/.branches/`, `supabase/.temp/`, `supabase/.env*` — gitignored
+- `scripts/*.sh` — committed (wrappers around the CLI)
