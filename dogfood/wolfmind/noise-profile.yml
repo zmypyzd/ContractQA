@@ -1,0 +1,14 @@
+project: wolfmind
+generated_at: 2026-05-14T10:00:00Z
+# WolfMind's WS client may write transient connection state. Ignore those
+# so the auth-token check doesn't false-fire.
+ignore:
+  localStorage_keys:
+    - "^vue-devtools"
+    - "^wolfmind:"
+  sessionStorage_keys: []
+  cookies: []
+  network_url_patterns:
+    - "ws://localhost:8000"
+  console_patterns:
+    - "WebSocket"

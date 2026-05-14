@@ -4,6 +4,19 @@ Per-target details live in each subdir's `FINDINGS.md`. This file collects
 findings that appeared across **two or more** targets — those are the
 strongest signals for Phase 2.
 
+## Headline (after 3 targets)
+
+**Phase 1's core is genuinely framework-agnostic.** Three dogfoods
+on three distinct stacks (React+react-router+cookie, Next.js+NextAuth+Supabase,
+Vue+Vite+no-auth) — same `compileContract`, same `snapshotBrowser`,
+same `runOracle`. Zero core code had to change to drive a Vue app. The
+issues we hit are all in the **glue around the core** (CLI scaffold,
+auth adapters, preflight, ergonomics), not in the contract→verdict
+pipeline itself.
+
+This is the single most important framing for the Phase 2 plan: budget
+~zero for the core, all investment in the glue.
+
 ## Cross-cutting (≥2 targets)
 
 ### Schema is too thin for real-app DOM (5-4-codex, website-vercel-supabase)
@@ -33,16 +46,16 @@ Phase 2 task: `contractqa doctor <target>` that runs through:
    docker-compose snippets
 5. Try to boot once, capture stderr, surface first non-noise error line
 
-### Reporter doesn't bundle on PASS (both targets)
+### Reporter doesn't bundle on PASS (all 3 targets)
 
 Phase 1's `ContractQAReporter` early-returns when `result.status !== 'failed'`.
-Both dogfoods wanted bundles on PASS (proof of run, drift baseline). We
+Every dogfood wanted bundles on PASS (proof of run, drift baseline). We
 worked around by calling `writeEvidenceBundle` directly. Phase 2:
 `ReporterOptions.alwaysBundle?: boolean`.
 
-### Standalone (non-Playwright-runner) driver pattern emerging (both targets)
+### Standalone (non-Playwright-runner) driver pattern emerging (all 3 targets)
 
-Both dogfoods drive contracts via plain vitest + `chromium.launch()` +
+Every dogfood drives contracts via plain vitest + `chromium.launch()` +
 manual `compileContract` + manual `writeEvidenceBundle`. The
 @playwright/test runner is not used. This pattern is so consistent it
 should be a first-class API:
@@ -64,15 +77,16 @@ Today this is ~70 lines of glue per dogfood.
 
 | Target | Stack | Auth | Result |
 |---|---|---|---|
-| [5-4-codex](./5-4-codex/FINDINGS.md) | Vite + React + react-router + Fastify | Custom cookie session | PASS + 1 oracle bug fixed |
-| [website-vercel-supabase](./website-vercel-supabase/FINDINGS.md) | Next.js 16 + NextAuth v5 + Supabase | NextAuth+Supabase composite | PASS + schema change required |
+| [5-4-codex](./5-4-codex/FINDINGS.md) | Vite + React + react-router + Fastify | Custom cookie session | PASS + 1 oracle bug fixed (cookie classifier) |
+| [website-vercel-supabase](./website-vercel-supabase/FINDINGS.md) | Next.js 16 + NextAuth v5 + Supabase | NextAuth+Supabase composite | PASS + schema change required (`target.first`) |
+| [wolfmind](./wolfmind/FINDINGS.md) | Vue 3 + Vite + FastAPI | None | PASS — no new findings beyond what targets 1-2 already surfaced |
 
 ## What's NOT in dogfood scope yet
 
 Targets we considered but skipped, with why:
 
-- **WolfMind** (Vue 3 + FastAPI, no auth) — no auth means no interesting
-  Phase 1 invariants until the schema grows DOM/game-state assertions
-- **5-4-claude** (Vite + Supabase + custom-cookie) — likely yields similar
-  findings to 5-4-codex; queue when bored
+- **5-4-claude** (Vite + React + real Supabase auth) — would test
+  Phase 1's `SupabaseAuthAdapter` on a non-Next.js host, but needs a real
+  Supabase project to actually exercise the auth flow. Same blocker as
+  website-vercel-supabase.
 - **teamagent/dogfood-target** — pure static counter, no contracts apply
