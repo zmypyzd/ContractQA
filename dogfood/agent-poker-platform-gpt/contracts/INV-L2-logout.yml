@@ -1,0 +1,28 @@
+id: INV-L2
+title: Logout reaches /login and clears the apk_sid session cookie (gpt variant)
+area: auth
+severity: P0
+owner: dogfood
+risk_tags: [auth, session, protected-route]
+
+# Same shape as INV-L1 in dogfood/5-4-codex, run against the agent-poker-platform-gpt
+# variant. Different LLM author, same project goal — confirms the
+# framework runs identically across nominally identical implementations.
+preconditions:
+  auth_state: logged_in
+  role: normal_user
+
+actions:
+  - { type: goto, path: /lobby }
+  - type: click
+    target: { role: button, name_regex: "log\\s*out" }
+  - { type: goto, path: /agents }
+
+expected:
+  url: { matches: "^/login" }
+  cookies: { no_name_matches: "^apk_sid$" }
+
+verification:
+  wait_ms: 1500
+  retries: 1
+  evidence_required: [state_diff]
