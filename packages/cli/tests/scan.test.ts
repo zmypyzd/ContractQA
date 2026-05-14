@@ -27,4 +27,18 @@ describe('scanProject', () => {
     expect(report.markdown).toContain('**Auth signals:** next-auth');
     expect(report.markdown).toContain('`/login`');
   });
+
+  it('derives routes from src/app layout', async () => {
+    await writeFile(path.join(tmp, 'package.json'), JSON.stringify({
+      dependencies: { next: '^16' },
+    }));
+    await writeFile(path.join(tmp, 'next.config.ts'), '');
+    await mkdir(path.join(tmp, 'src', 'app'), { recursive: true });
+    await writeFile(path.join(tmp, 'src', 'app', 'page.tsx'), '');
+    await mkdir(path.join(tmp, 'src', 'app', 'login'), { recursive: true });
+    await writeFile(path.join(tmp, 'src', 'app', 'login', 'page.tsx'), '');
+    const report = await scanProject({ cwd: tmp });
+    expect(report.framework).toBe('next-app');
+    expect(report.routes).toEqual(expect.arrayContaining(['/', '/login']));
+  });
 });

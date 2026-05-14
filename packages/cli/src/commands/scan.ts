@@ -26,18 +26,18 @@ async function walk(root: string, prefix = ''): Promise<string[]> {
 function deriveRoutes(framework: DetectResult['framework'], files: readonly string[]): string[] {
   if (framework === 'next-app') {
     return files
-      .filter((f) => /^app\/(.*\/)?page\.(tsx|ts|jsx|js)$/.test(f))
+      .filter((f) => /^(src\/)?app\/.*page\.(tsx|ts|jsx|js)$/.test(f))
       .map((f) => {
-        // Strip leading 'app/' and trailing '/page.ext' (or 'page.ext' for root)
-        const seg = f.replace(/^app\//, '').replace(/(\/)?page\.[^.]+$/, '');
+        // Strip leading 'app/' or 'src/app/' and trailing '/page.ext' (or 'page.ext' for root)
+        const seg = f.replace(/^(src\/)?app\//, '').replace(/(\/)?page\.[^.]+$/, '');
         return seg === '' ? '/' : `/${seg}`;
       })
       .sort();
   }
   if (framework === 'next-pages') {
     return files
-      .filter((f) => /^pages\/.*\.(tsx|ts|jsx|js)$/.test(f) && !/_app|_document|api\//.test(f))
-      .map((f) => '/' + f.replace(/^pages\//, '').replace(/\.[^.]+$/, '').replace(/index$/, ''))
+      .filter((f) => /^(src\/)?pages\/.*\.(tsx|ts|jsx|js)$/.test(f) && !/_app|_document|api\//.test(f))
+      .map((f) => '/' + f.replace(/^(src\/)?pages\//, '').replace(/\.[^.]+$/, '').replace(/index$/, ''))
       .map((r) => (r === '/' ? '/' : r.replace(/\/$/, '')))
       .sort();
   }

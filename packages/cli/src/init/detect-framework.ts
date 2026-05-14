@@ -37,8 +37,12 @@ const RULES: Rule[] = [
       if (hasDep) { score += 0.4; evidence.push('next in dependencies'); }
       const cfg = i.files.find((f) => /^next\.config\.(ts|js|mjs|cjs)$/.test(f));
       if (cfg) { score += 0.3; evidence.push(`${cfg} present`); }
-      const hasApp = i.files.some((f) => f.startsWith('app/'));
-      if (hasApp) { score += 0.3; evidence.push('app/ directory present'); }
+      const hasApp = i.files.some((f) => f.startsWith('app/') || f.startsWith('src/app/'));
+      if (hasApp) {
+        score += 0.3;
+        const appEvidence = i.files.some((f) => f.startsWith('src/app/')) ? 'src/app/ directory present' : 'app/ directory present';
+        evidence.push(appEvidence);
+      }
       return { matched: score >= 0.6 && hasApp, evidence, confidence: Math.min(score, 1) };
     },
   },
@@ -51,8 +55,12 @@ const RULES: Rule[] = [
       if (hasDep) { score += 0.4; evidence.push('next in dependencies'); }
       const cfg = i.files.find((f) => /^next\.config\.(ts|js|mjs|cjs)$/.test(f));
       if (cfg) { score += 0.3; evidence.push(`${cfg} present`); }
-      const hasPages = i.files.some((f) => f.startsWith('pages/'));
-      if (hasPages) { score += 0.3; evidence.push('pages/ directory present'); }
+      const hasPages = i.files.some((f) => f.startsWith('pages/') || f.startsWith('src/pages/'));
+      if (hasPages) {
+        score += 0.3;
+        const pagesEvidence = i.files.some((f) => f.startsWith('src/pages/')) ? 'src/pages/ directory present' : 'pages/ directory present';
+        evidence.push(pagesEvidence);
+      }
       return { matched: score >= 0.6 && hasPages, evidence, confidence: Math.min(score, 1) };
     },
   },

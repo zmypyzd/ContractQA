@@ -50,4 +50,21 @@ describe('detectFramework', () => {
     });
     expect(r.authSignals).toContain('supabase');
   });
+
+  it('detects Next.js app-router with src/app layout', async () => {
+    const r = await detectFramework({
+      packageJson: { dependencies: { next: '^16.0.0' } },
+      files: ['next.config.ts', 'src/app/page.tsx', 'src/app/layout.tsx'],
+    });
+    expect(r.framework).toBe('next-app');
+    expect(r.evidence).toContain('src/app/ directory present');
+  });
+
+  it('detects Next.js pages-router with src/pages layout', async () => {
+    const r = await detectFramework({
+      packageJson: { dependencies: { next: '^14.0.0' } },
+      files: ['next.config.ts', 'src/pages/index.tsx', 'src/pages/about.tsx'],
+    });
+    expect(r.framework).toBe('next-pages');
+  });
 });
