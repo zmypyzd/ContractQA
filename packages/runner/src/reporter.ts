@@ -5,6 +5,9 @@ import { writeEvidenceBundle, type WriteBundleInput } from '@contractqa/evidence
 export interface ReporterOptions {
   artifactsRoot: string;
   writer?: (i: WriteBundleInput) => Promise<unknown>;
+  // When true, write an evidence bundle for PASS runs too (drift baseline /
+  // dogfood proof-of-run). Default false (preserves Phase 1 behavior).
+  alwaysBundle?: boolean;
 }
 
 const ATTACHMENT_MAP: Record<string, string> = {
@@ -28,7 +31,8 @@ export class ContractQAReporter implements Reporter {
   }
 
   async onTestEnd(test: TestCase, result: TestResult): Promise<void> {
-    if (result.status !== 'failed' && result.status !== 'timedOut') return;
+    const isFail = result.status === 'failed' || result.status === 'timedOut';
+    if (!isFail && !this.opts.alwaysBundle) return;
     const idMatch = test.title.match(/^(INV-[A-Z0-9-]+)/);
     const contractId = idMatch?.[1] ?? 'UNKNOWN';
     const runId = `${new Date().toISOString().replace(/[:.]/g, '-')}_${contractId}`;
