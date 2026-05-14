@@ -112,8 +112,16 @@ async function fixEnvStub(i: DoctorInput, _r: DoctorReport): Promise<{ ok: boole
   }
 }
 
-async function fixPortCollision(_i: DoctorInput, _r: DoctorReport): Promise<{ ok: boolean; detail: string }> {
-  return { ok: true, detail: 'port-collision not yet implemented' };
+async function fixPortCollision(i: DoctorInput, _r: DoctorReport): Promise<{ ok: boolean; detail: string }> {
+  if (!i.requestedPorts?.length) return { ok: true, detail: 'no ports requested' };
+  const swaps: string[] = [];
+  for (const p of i.requestedPorts) {
+    const free = await allocatePort(p);
+    if (free !== p) swaps.push(`${p} → ${free}`);
+  }
+  return swaps.length === 0
+    ? { ok: true, detail: 'all requested ports free' }
+    : { ok: true, detail: `reallocated: ${swaps.join(', ')}` };
 }
 
 async function applyFix(name: FixName, i: DoctorInput, r: DoctorReport): Promise<{ ok: boolean; detail: string }> {
