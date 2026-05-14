@@ -56,4 +56,52 @@ describe('snapshotBrowser', () => {
     expect(snap.viewport).toEqual({ width: 1280, height: 720 });
     expect(snap.cookies[0]).toMatchObject({ name: 'sb-xyz', valueRedacted: true });
   });
+
+  it('captureDom: true populates dom.roleCounts and dom.visibleText', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'cqa-snap-'));
+    // For the dom-capture test we override `evaluate` to return canned
+    // shapes — the body inside snapshotBrowser is browser-side code, so
+    // we can't run it in node. The dom result we return shapes the
+    // snapshot output directly.
+    const page = {
+      ...mockPage(),
+      evaluate: async <T,>(fn: () => T): Promise<T> => {
+        // Distinguish dom-capture callbacks from storage callbacks by
+        // poking at the function source. The dom callback returns an
+        // object with roleCounts; storage callbacks return key-value maps.
+        const src = String(fn);
+        if (src.includes('roleCounts')) {
+          return { roleCounts: { 'link:Login': 2 }, visibleText: 'Hi WolfMind' } as unknown as T;
+        }
+        return {} as T;
+      },
+    };
+    const snap = await snapshotBrowser(page, {
+      screenshotPath: path.join(dir, 'x.png'),
+      captureDom: true,
+    });
+    expect(snap.dom?.roleCounts['link:Login']).toBe(2);
+    expect(snap.dom?.visibleText).toContain('WolfMind');
+  });
+
+  it('captureDom default false: snap.dom is undefined', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'cqa-snap-'));
+    const snap = await snapshotBrowser(mockPage(), { screenshotPath: path.join(dir, 'x.png') });
+    expect(snap.dom).toBeUndefined();
+  });
+
+  it('returns empty storage maps when evaluate rejects with SecurityError', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'cqa-snap-'));
+    const page = {
+      ...mockPage(),
+      evaluate: async () => {
+        // Real Playwright surfaces these as plain Errors with the message
+        // text Chromium emits — simulate that.
+        throw new Error("Failed to read the 'localStorage' property from 'Window'");
+      },
+    };
+    const snap = await snapshotBrowser(page, { screenshotPath: path.join(dir, 'x.png') });
+    expect(snap.localStorage).toEqual({});
+    expect(snap.sessionStorage).toEqual({});
+  });
 });
