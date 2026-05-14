@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "pretest": "playwright install chromium",
     "test": "vitest run"
   },
   "dependencies": {
@@ -11,8 +12,10 @@
     "@contractqa/runner": "workspace:*",
     "@contractqa/oracle": "workspace:*",
     "@contractqa/evidence": "workspace:*",
+    "@contractqa/probes": "workspace:*",
     "@contractqa/repro": "workspace:*",
     "@contractqa/orchestrator": "workspace:*",
+    "@playwright/test": "^1.49.0",
     "contractqa": "workspace:*",
     "yaml": "^2.6.1"
   },

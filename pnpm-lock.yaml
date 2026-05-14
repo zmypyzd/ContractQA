@@ -118,12 +118,18 @@ importers:
       '@contractqa/orchestrator':
         specifier: workspace:*
         version: link:../packages/orchestrator
+      '@contractqa/probes':
+        specifier: workspace:*
+        version: link:../packages/probes
       '@contractqa/repro':
         specifier: workspace:*
         version: link:../packages/repro
       '@contractqa/runner':
         specifier: workspace:*
         version: link:../packages/runner
+      '@playwright/test':
+        specifier: ^1.49.0
+        version: 1.60.0
       contractqa:
         specifier: workspace:*
         version: link:../packages/cli

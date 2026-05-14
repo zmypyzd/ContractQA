@@ -31,7 +31,7 @@ Next.js dashboard scaffold, and an end-to-end fixture that proves the loop.
 - [x] CLI: `init`, `invariants:gen`, `run --changed` (`packages/cli`)
 - [x] Claude Code shadow-fix pipeline: worktree isolation + `claude --bare -p` + maxAttempts loop + contract-revision escape valve (`packages/orchestrator`)
 - [x] Dashboard: Run Overview + Issue Detail with StateDiffViewer (`apps/dashboard`)
-- [x] End-to-end loop on the §24 Logout Bug fixture (`e2e/phase1-loop.test.ts`)
+- [x] End-to-end loop on the §24 Logout Bug fixture, **real Playwright + real Next.js fixture-app** (`e2e/phase1-loop.test.ts` — boots `next dev`, drives `compileContract` against `chromium`, exercises `snapshotBrowser` + `ContractQAReporter` on the on-disk bundle)
 
 Out of Phase 1 scope (documented in plan §1c risk register):
 - BackendAdapter (L2 — types exist in `core`, no impl yet)
@@ -57,7 +57,8 @@ pnpm -r --filter './packages/**' build
 node packages/cli/dist/bin/contractqa.js invariants:gen \
   --contracts qa/contracts --out qa/INVARIANTS.md
 
-# 5. End-to-end Phase 1 loop test
+# 5. End-to-end Phase 1 loop test (boots fixture-app, real Chromium via Playwright;
+#    the first run downloads Chromium via the e2e package's pretest hook).
 pnpm --filter @contractqa/e2e test
 
 # 6. (Optional) Boot dashboard + Postgres + MinIO
