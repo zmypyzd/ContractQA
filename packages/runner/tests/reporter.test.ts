@@ -43,4 +43,14 @@ describe('ContractQAReporter', () => {
     );
     expect(writer).not.toHaveBeenCalled();
   });
+
+  it('alwaysBundle: true writes a bundle even on PASS', async () => {
+    const writer = vi.fn().mockResolvedValue({ bundle_id: 'b', files: [] });
+    const r = new ContractQAReporter({ artifactsRoot: '/tmp', writer, alwaysBundle: true });
+    await (r as unknown as { onTestEnd(t: unknown, r: unknown): Promise<void> }).onTestEnd(
+      { title: 'INV-X1: ok' },
+      { status: 'passed', attachments: [] },
+    );
+    expect(writer).toHaveBeenCalled();
+  });
 });
