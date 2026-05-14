@@ -7,3 +7,4 @@ export type * from './types/snapshot.js';
 export type * from './types/verdict.js';
 export type * from './types/evidence.js';
 export type * from './types/adapter.js';
+export type { Page, PageContext } from './types/page-shim.js';
