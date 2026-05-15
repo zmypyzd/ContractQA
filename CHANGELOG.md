@@ -2,6 +2,37 @@
 
 All notable changes to ContractQA are documented here.
 
+## v0.9.0 — 2026-05-15 (Phase 9)
+
+Phase 9 closes the family-wide tenant-placeholder gap on `BackendAdapter` (Postgres + Mongo) plus 3 Phase 8 follow-ups.
+
+### Added
+
+- **Tenant-placeholder body reference check** on both `PostgresBackendAdapter` and `MongoBackendAdapter`. Construction-time guard rejects named queries where `params[tenantField]` is declared but the placeholder is not actually referenced in the SQL body / Mongo filter / pipeline. Closes a "silent guard, bypassable scope" hole flagged by Phase 8's opus review. Per-adapter implementation:
+  - Postgres: word-boundary regex on the `sql` string for the declared placeholder token.
+  - Mongo: deep-walk over `filter` / `pipeline` checking for any string equal to the placeholder.
+- **Real-Mongo integration test** via `mongodb-memory-server` (new devDep). End-to-end exercise of `MongoBackendAdapter` against an actual Mongo instance. Skips cleanly when `MONGOMS_SKIP=1` (CI lanes without binary download).
+
+### Changed
+
+- **No breaking changes.**
+- `MongoBackendAdapter.getDb()` memoizes a single connecting promise to prevent concurrent-init races (two simultaneous `query()` calls now share one `MongoClient`).
+- `.gitignore` now excludes `apps/dashboard/next-env.d.ts` (Next.js regenerates on every build).
+
+### Still deferred (Phase 10 candidates)
+
+- Mongo named-placeholder substitution (`:user_id` instead of `$1`) — removes declaration-order coupling.
+- Firestore / custom `BackendAdapter` implementations.
+- HTTP-API contract surface (B5) — still no Postgres-wired target.
+- File-content parsing for auth detection (verify `cookies()` usage for `custom-cookie`).
+- Persona dogfood agents.
+- Property/model-based test generation.
+- Dashboard §15.3–§15.6.
+- TypeScript project references (`tsc -b`).
+- pnpm-version-aware spawn helper.
+- Dynamic `$session.userId` resolution.
+- Publishing to npm.
+
 ## v0.8.0 — 2026-05-15 (Phase 8)
 
 Phase 8 ships `MongoBackendAdapter` (second member of the `BackendAdapter` family) plus a deps-only `custom-cookie` auth detector and the Next 15 dashboard `params` migration.
