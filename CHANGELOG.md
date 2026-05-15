@@ -2,6 +2,36 @@
 
 All notable changes to ContractQA are documented here.
 
+## v0.11.0 — 2026-05-15 (Phase 11)
+
+Phase 11 completes the `BackendAdapter` family by shipping `FirestoreBackendAdapter` (third member alongside Postgres + Mongo). Plus 3 Phase 10 lifecycle/UX follow-ups.
+
+### Added
+
+- **`FirestoreBackendAdapter`** (`@stable since v0.11.0`). Read-only Firestore adapter via `@google-cloud/firestore`. Construction-time guards: named queries with `where: [field, op, value]` triples, tenant field must appear in `where` with `==` op, supported operators whitelist (==, !=, <, <=, >, >=, array-contains, array-contains-any, in, not-in), optional `orderBy` / `limit`. Supports both `$N` and `:name` placeholder styles (parity with Mongo). Unit tests via mocked client; real-Firestore emulator integration → Phase 12. New dep: `@google-cloud/firestore ^8.x`. Completes the `BackendAdapter` family (kind union `'postgres' | 'mongo' | 'firestore' | 'custom'` now has 3 of 4 shipped).
+- **`custom-cookie` detector recognizes pages-router routes.** Adds `(src/)?pages/api/<route>.<ext>` to the auth-file regex list, alongside `middleware.ts` and `app/api/<route>/route.ts`.
+
+### Changed
+
+- **No breaking changes.**
+- `MongoBackendAdapter.close()` now drains in-flight queries (up to 5s timeout) before terminating the client. Prevents the documented race where a `query()` mid-call could run against a client `close()` was tearing down.
+- `MongoNamedQuery.params` JSDoc documents both `$N` and `:name` placeholder styles.
+- `MongoBackendAdapter.close()` JSDoc documents the close lifecycle.
+
+### Still deferred (Phase 12 candidates)
+
+- Real-Firestore emulator integration test.
+- File-content `cookies()` body parsing for `custom-cookie`.
+- `MongoClient.db()` orphan-leak path (low probability).
+- HTTP-API contract surface (B5) — still no Postgres-wired target.
+- Persona dogfood agents.
+- Property/model-based test generation.
+- Dashboard §15.3–§15.6.
+- TypeScript project references (`tsc -b`).
+- pnpm-version-aware spawn helper.
+- Dynamic `$session.userId` resolution.
+- Publishing to npm.
+
 ## v0.10.0 — 2026-05-15 (Phase 10)
 
 Phase 10 lands Mongo named-placeholder syntax (forward-compatible) plus 3 Phase 9 lifecycle/UX follow-ups.
