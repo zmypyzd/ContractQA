@@ -228,9 +228,14 @@ export async function runHttpContract(input: RunHttpContractInput): Promise<RunH
   let lastBody = '';
   for (const a of contract.actions) {
     if (a.type !== 'http') continue; // satisfies TS narrowing
-    const headers: Record<string, string> = { ...(a.headers ?? {}) };
-    if (a.body !== undefined && !headers['Content-Type'] && !headers['content-type']) {
-      headers['Content-Type'] = 'application/json';
+    // Normalize incoming header names to lowercase so the default Content-Type
+    // check below is case-insensitive (HTTP headers are case-insensitive by RFC).
+    const headers: Record<string, string> = {};
+    for (const [k, v] of Object.entries(a.headers ?? {})) {
+      headers[k.toLowerCase()] = v;
+    }
+    if (a.body !== undefined && headers['content-type'] === undefined) {
+      headers['content-type'] = 'application/json';
     }
     const init: RequestInit = {
       method: a.method,

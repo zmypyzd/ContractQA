@@ -98,4 +98,38 @@ describe('runHttpContract', () => {
     });
     expect(r.verdict.verdict).toBe('INCONCLUSIVE');
   });
+
+  it('does not re-apply application/json default when header is "Content-Type" (any case)', async () => {
+    for (const headerName of ['Content-Type', 'content-type', 'CONTENT-TYPE', 'Content-type']) {
+      const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }));
+      global.fetch = fetchMock as any;
+
+      await runHttpContract({
+        contract: {
+          id: 'INV-CT',
+          title: 'ct case',
+          area: 'backend',
+          severity: 'P1',
+          actions: [{
+            type: 'http',
+            method: 'POST',
+            path: '/api/x',
+            body: { x: 1 },
+            headers: { [headerName]: 'application/xml' },
+          }],
+          expected: {},
+          risk_tags: [], preconditions: {}, verification: { wait_ms: 0, retries: 0, evidence_required: [] },
+        } as any,
+        baseUrl: 'http://x',
+      });
+
+      const callArgs = fetchMock.mock.calls[0]![1] as RequestInit;
+      const headers = callArgs.headers as Record<string, string>;
+      const ctVals = Object.entries(headers)
+        .filter(([k]) => k.toLowerCase() === 'content-type')
+        .map(([, v]) => v);
+      expect(ctVals).toContain('application/xml');
+      expect(ctVals).not.toContain('application/json');
+    }
+  });
 });
