@@ -190,16 +190,26 @@ Findings RESOLVED in Phase 8:
 - **`custom-cookie` AuthSignal detector** (was: Phase 7 documented as missing). Deps-only heuristic: `bcryptjs` or `bcrypt` presence triggers the signal. Advisory; false positives accepted.
 - **Dashboard Next 15 `params: Promise` migration** (was: Phase 7 surfaced as a Next 15 typecheck error). `app/issues/[id]/page.tsx` now awaits `params` before destructuring.
 
-Findings STILL DEFERRED to Phase 9:
+Findings STILL DEFERRED to Phase 10:
 - HTTP-API contract surface (B5) — still no Postgres-wired target identified.
-- Real-Mongo integration tests (`mongodb-memory-server` or docker fixture).
 - Firestore BackendAdapter.
-- File-content parsing for `custom-cookie` (cookies() usage verification).
 - Persona dogfood agents, property/model-based test generation, dashboard §15.3–§15.6.
 - pnpm-version-aware spawn helper.
 - File-content parsing for auth detection.
 - Dynamic `$session.userId` resolution.
 - Publishing to npm (still user-gated).
+
+## Phase 9 resolution status (v0.9.0)
+
+Findings RESOLVED in Phase 9:
+- **Tenant-placeholder body reference check** (was: Phase 8 opus reviewer's #1 Minor — family-wide gap). Both `PostgresBackendAdapter` and `MongoBackendAdapter` now reject at construction if `params[tenantField]` is declared but the placeholder is not referenced in the query body (SQL / filter / pipeline). Closes the "guard passes silently while tenant scope is bypassable" hole.
+- **Real-Mongo integration test** (was: Phase 8 deferred). `tests/mongo-integration.test.ts` spins up `mongodb-memory-server`, seeds two docs, runs a `find` named query, asserts tenant scoping works end-to-end. Skips on `MONGOMS_SKIP=1` for CI without binary download.
+- **MongoBackendAdapter getDb concurrent-init race** (was: Phase 8 opus reviewer's #3 Minor). `getDb()` now memoizes a single connecting promise so two simultaneous `query()` calls share one `MongoClient` instance.
+- **`apps/dashboard/next-env.d.ts` gitignored** (was: Phase 8 opus reviewer's #5 Minor). Next.js regenerates this file on every build; no longer surfaces as working-tree noise.
+
+Findings STILL DEFERRED to Phase 10:
+- Mongo named-placeholder substitution (`:user_id` instead of `$1`) — removes declaration-order coupling. Phase 8 opus reviewer's #2.
+- File-content `cookies()` verification for `custom-cookie`.
 
 ## Targets considered but not used
 
