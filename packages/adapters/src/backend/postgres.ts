@@ -15,11 +15,20 @@ export interface PostgresBackendAdapterOptions {
 
 const READ_VERBS = /^(SELECT|WITH)\b/i;
 
-// Postgres allows DML inside CTEs: `WITH del AS (DELETE FROM t WHERE …) SELECT …`.
-// The READ_VERBS check passes such statements at the top level, so we also
-// reject any DML/DDL keyword token anywhere in the body. False-positive risk
-// on string literals (e.g. SELECT 'INSERT INTO foo') is accepted — a contract
-// asserting on user-controlled SQL fragments is itself a smell.
+/**
+ * Forbidden token regex for read-only DSN guard.
+ *
+ * Body-wide \b-anchored match. This is intentionally a syntactic guard, not
+ * a SQL parser — it WILL produce false positives for queries that legitimately
+ * contain DML/DDL tokens inside string literals or column aliases (e.g.,
+ * `SELECT msg FROM logs WHERE msg LIKE '%DELETE%'`). Affected queries should
+ * be rewritten to avoid the token. A full Postgres parser is a Phase 7+
+ * candidate if false positives become a practical pain point.
+ *
+ * Note: Postgres allows DML inside CTEs (`WITH del AS (DELETE FROM t WHERE …) SELECT …`).
+ * The READ_VERBS check passes such statements at the top level, so we also
+ * reject any DML/DDL keyword token anywhere in the body.
+ */
 const FORBIDDEN_DML_DDL = /\b(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|GRANT|REVOKE|MERGE|CALL|DO)\b/i;
 
 /**
