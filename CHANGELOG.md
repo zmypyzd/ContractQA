@@ -2,6 +2,35 @@
 
 All notable changes to ContractQA are documented here.
 
+## v0.10.0 — 2026-05-15 (Phase 10)
+
+Phase 10 lands Mongo named-placeholder syntax (forward-compatible) plus 3 Phase 9 lifecycle/UX follow-ups.
+
+### Added
+
+- **Mongo `:name`-style placeholders.** `MongoBackendAdapter` now recognizes `:name` placeholders that resolve by name lookup from `params`. Coexists with the existing `$N` positional style; either or both can appear in a single named query. Removes the declaration-order coupling between `params` keys and `$N` indices that's been load-bearing since Phase 8.
+- **`custom-cookie` AuthSignal graduates to deps+file detection.** Detector now requires BOTH `bcryptjs`/`bcrypt` in deps AND at least one of `middleware.ts` or `app/api/<route>/route.ts`. Path-presence only; file-content parsing for `cookies()` usage is a Phase 11 candidate.
+
+### Changed
+
+- **No breaking changes.**
+- `MongoBackendAdapter.getDb()` clears `connectingP` on rejection so subsequent `query()` calls retry rather than permanently re-throwing the same error.
+- `MongoBackendAdapter.close()` awaits any in-flight `connect()` promise before closing — prevents orphan client leak. A `closed` flag fail-fasts any post-close `query()`.
+
+### Still deferred (Phase 11 candidates)
+
+- File-content `cookies()` body parsing for `custom-cookie`.
+- Firestore / custom `BackendAdapter` implementations.
+- HTTP-API contract surface (B5) — still no Postgres-wired target.
+- Persona dogfood agents.
+- Property/model-based test generation.
+- Dashboard §15.3–§15.6.
+- TypeScript project references (`tsc -b`).
+- pnpm-version-aware spawn helper.
+- Dynamic `$session.userId` resolution.
+- Mongo bulk-write rejection guard.
+- Publishing to npm.
+
 ## v0.9.0 — 2026-05-15 (Phase 9)
 
 Phase 9 closes the family-wide tenant-placeholder gap on `BackendAdapter` (Postgres + Mongo) plus 3 Phase 8 follow-ups.
