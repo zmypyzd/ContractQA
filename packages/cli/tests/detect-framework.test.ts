@@ -71,7 +71,7 @@ describe('detectFramework', () => {
   it('flags custom-cookie when bcryptjs is in deps', async () => {
     const r = await detectFramework({
       packageJson: { dependencies: { next: '*', bcryptjs: '^3.0.0' } },
-      files: ['package.json'],
+      files: ['package.json', 'middleware.ts'],
     });
     expect(r.authSignals).toContain('custom-cookie');
   });
@@ -79,7 +79,7 @@ describe('detectFramework', () => {
   it('flags custom-cookie when bcrypt is in deps', async () => {
     const r = await detectFramework({
       packageJson: { dependencies: { next: '*', bcrypt: '^5.0.0' } },
-      files: ['package.json'],
+      files: ['package.json', 'middleware.ts'],
     });
     expect(r.authSignals).toContain('custom-cookie');
   });
@@ -87,6 +87,30 @@ describe('detectFramework', () => {
   it('does not flag custom-cookie when neither bcrypt variant is present', async () => {
     const r = await detectFramework({
       packageJson: { dependencies: { next: '*' } },
+      files: ['package.json'],
+    });
+    expect(r.authSignals).not.toContain('custom-cookie');
+  });
+
+  it('flags custom-cookie when bcryptjs + middleware.ts both present', async () => {
+    const r = await detectFramework({
+      packageJson: { dependencies: { next: '*', bcryptjs: '^3.0.0' } },
+      files: ['package.json', 'middleware.ts'],
+    });
+    expect(r.authSignals).toContain('custom-cookie');
+  });
+
+  it('flags custom-cookie when bcrypt + app/api route handler both present', async () => {
+    const r = await detectFramework({
+      packageJson: { dependencies: { next: '*', bcrypt: '^5.0.0' } },
+      files: ['package.json', 'app/api/login/route.ts'],
+    });
+    expect(r.authSignals).toContain('custom-cookie');
+  });
+
+  it('does NOT flag custom-cookie when bcryptjs is present without middleware/route', async () => {
+    const r = await detectFramework({
+      packageJson: { dependencies: { next: '*', bcryptjs: '^3.0.0' } },
       files: ['package.json'],
     });
     expect(r.authSignals).not.toContain('custom-cookie');

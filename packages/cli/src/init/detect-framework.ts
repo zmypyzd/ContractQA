@@ -9,13 +9,11 @@ export type Framework =
   | 'unknown';
 
 /**
- * Auth provider signals detected via package.json deps.
+ * Auth provider signals detected via package.json deps (+ file presence for custom-cookie).
  *
- * `'custom-cookie'` is a heuristic signal: presence of `bcryptjs` or `bcrypt`
- * in deps suggests a hand-rolled cookie-auth setup. Advisory only — false
- * positives are acceptable (a project might use bcrypt for non-auth password
- * hashing). Phase 9 candidate: layer in file-presence verification (look for
- * `cookies()` usage in middleware or route handlers).
+ * `'custom-cookie'` requires BOTH `bcryptjs`/`bcrypt` in deps AND at least one
+ * of `middleware.ts` or `app/api/<route>/route.ts`. Path-presence only — Phase 11
+ * candidate: parse file contents to verify `cookies()` usage explicitly.
  */
 export type AuthSignal = 'next-auth' | 'supabase' | 'clerk' | 'auth0' | 'custom-cookie';
 
@@ -115,17 +113,33 @@ const RULES: Rule[] = [
   },
 ];
 
-const AUTH_RULES: Array<{ signal: AuthSignal; test: (deps: Record<string, string>) => boolean }> = [
+interface AuthRule {
+  signal: AuthSignal;
+  test: (deps: Record<string, string>, files: readonly string[]) => boolean;
+}
+
+const AUTH_RULES: AuthRule[] = [
   { signal: 'next-auth', test: (d) => !!d['next-auth'] || !!d['@auth/core'] },
   { signal: 'supabase', test: (d) => !!d['@supabase/supabase-js'] || !!d['@supabase/ssr'] },
   { signal: 'clerk', test: (d) => !!d['@clerk/nextjs'] || !!d['@clerk/clerk-sdk-node'] },
   { signal: 'auth0', test: (d) => !!d['@auth0/nextjs-auth0'] },
-  { signal: 'custom-cookie', test: (d) => !!d['bcryptjs'] || !!d['bcrypt'] },
+  {
+    signal: 'custom-cookie',
+    test: (d, files) => {
+      const hasBcrypt = !!d['bcryptjs'] || !!d['bcrypt'];
+      if (!hasBcrypt) return false;
+      return files.some((f) =>
+        /^(src\/)?middleware\.(ts|tsx|js|jsx|mjs)$/.test(f) ||
+        /^(src\/)?app\/api\/.+\.(ts|tsx|js|jsx|mjs)$/.test(f)
+      );
+    },
+  },
 ];
 
 export async function detectFramework(input: DetectInput): Promise<DetectResult> {
   const deps = { ...input.packageJson.dependencies, ...input.packageJson.devDependencies };
-  const authSignals = AUTH_RULES.filter((r) => r.test(deps)).map((r) => r.signal);
+  const files = input.files;
+  const authSignals = AUTH_RULES.filter((r) => r.test(deps, files)).map((r) => r.signal);
 
   const matches = RULES.map((r) => ({ rule: r, result: r.test(input) }))
     .filter((x) => x.result.matched)
