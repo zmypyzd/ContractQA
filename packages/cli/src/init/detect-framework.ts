@@ -8,6 +8,14 @@ export type Framework =
   | 'sveltekit'
   | 'unknown';
 
+/**
+ * Auth provider signals detected via package.json deps.
+ *
+ * `'custom-cookie'` is reserved for future use — no automatic detector exists yet
+ * (would need an opinionated heuristic like co-occurrence of `bcrypt`/`bcryptjs` +
+ * Next.js `cookies()` usage). Consumers may construct `AuthDiagnostic` with this
+ * signal manually if they have their own detection logic. Phase 8 candidate.
+ */
 export type AuthSignal = 'next-auth' | 'supabase' | 'clerk' | 'auth0' | 'custom-cookie';
 
 export interface DetectInput {
