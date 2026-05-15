@@ -1,6 +1,6 @@
 {
   "name": "contractqa",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "bin": { "contractqa": "./dist/bin/contractqa.js" },
   "main": "./dist/src/index.js",

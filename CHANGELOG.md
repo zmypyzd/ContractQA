@@ -2,6 +2,36 @@
 
 All notable changes to ContractQA are documented here.
 
+## v0.5.0 — 2026-05-15 (Phase 5)
+
+Phase 5 is a focused QA pass closing 5 of the 7 final-review follow-ups from Phase 4. Phase 5's planned anchor (B5: HTTP-API contract surface) was **deferred to Phase 6** after target-repo recon — the `agent-poker-platform` candidate is hard-wired to in-memory stores and lacks the Postgres schema the planned dogfood would query. See `dogfood/FINDINGS.md` for the recon writeup.
+
+### Added
+
+- **README Phase 3 + Phase 4 + Phase 5 status sections.** Replaces the stale "Out of Phase 2" deferred-list paragraph with a "Out of Phase 5 (Phase 6+)" version that names current deferrals and the B5 deferral rationale.
+- **Scoped-package + symlink safety in `detectFrameworkInRepo`.** Walker now descends one extra level when an entry starts with `@` (catches `apps/@org/pkg` layouts) and uses `lstat` + `isDirectory()` guards to skip symlinked workspace entries (e.g., pnpm injection). Cached `lstat` result avoids redundant syscalls.
+- **`contractqa doctor` UX hint when no install script is present.** When `npm run install` exits non-zero with `Missing script: install` (or npm 10's quoted form `Missing script: "install"`), the doctor detail now appends `(package has no install script — try \`pnpm rebuild <pkg>\` or \`npm rebuild <pkg>\`)`. Multi-version pnpm dedup test asserts `findPnpmPkgDir` picks the alphabetically-first version deterministically (e.g., `better-sqlite3@11.10.0` over `9.6.0`).
+- **`fixNativeDeps` result includes resolved version.** Output lines now read `pkg@<version>: rebuilt OK` / `pkg@<version>: failed — <detail>` (was: `pkg: ...`). Resolved from the `.pnpm/<pkg>@<ver>` directory entry.
+- **`PostgresBackendAdapter` writable-CTE regression tests.** Two new cases assert nested writable CTEs (`WITH a AS (..), b AS (DELETE ...)`) and `WITH RECURSIVE ... UPDATE` throw at construction. Existing body-wide forbidden-DML regex from v0.4.0 catches both without modification.
+- **Bounded `extractAbiHint` regression test.** Adversarial 100k-char stderr with no closing token returns `null` in <100ms; in-window input still extracts `{ built, runtime }`. Asserts the `[^]{0,512}` bound from v0.4.0 holds.
+
+### Changed
+
+- No breaking changes. v0.5.0 is additive QA hardening.
+
+### Still deferred (Phase 6 candidates)
+
+- **HTTP-API contract surface (B5).** Originally Phase 5's anchor; deferred to Phase 6 after target-repo recon (see header note + `dogfood/FINDINGS.md`).
+- Mongo / Firestore / custom `BackendAdapter` implementations.
+- Hybrid-auth scanner (`contractqa scan --detect-auth`).
+- Dashboard §15.3–§15.6.
+- Persona dogfood agents.
+- Property/model-based test generation.
+- TypeScript project references (`tsc -b`).
+- pnpm-version-aware spawn helper.
+- Dynamic `$session.userId` resolution (was tied to B5; rolls into Phase 6).
+- Publishing to npm — `pnpm publish` is user-gated.
+
 ## v0.4.0 — 2026-05-15 (Phase 4)
 
 ### Added
