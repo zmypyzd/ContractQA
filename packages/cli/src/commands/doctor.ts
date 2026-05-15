@@ -21,7 +21,7 @@ export interface DoctorReport {
   env: RequiredVar[];
   ports: Array<{ requested: number; allocated: number }>;
   native: NativeMismatch[];
-  boot: Pick<ProbeResult, 'ready' | 'firstStderrError'> | null;
+  boot: Pick<ProbeResult, 'ready' | 'firstStderrError' | 'abiHint'> | null;
   summary: 'READY' | 'NEEDS FIX';
   fixesAttempted: Array<{ name: FixName; ok: boolean; detail: string }>;
 }
@@ -40,7 +40,7 @@ export async function doctor(i: DoctorInput): Promise<DoctorReport> {
       cwd: i.targetRoot,
       timeoutMs: 30_000,
     });
-    boot = { ready: r.ready, firstStderrError: r.firstStderrError };
+    boot = { ready: r.ready, firstStderrError: r.firstStderrError, abiHint: r.abiHint };
     r.kill();
   }
   const needsFix = !!boot && !boot.ready;
@@ -198,6 +198,9 @@ export function renderDoctorReport(r: DoctorReport): string {
     lines.push('', '### Boot probe');
     lines.push(`- ready: ${r.boot.ready}`);
     if (r.boot.firstStderrError) lines.push(`- first stderr error: ${r.boot.firstStderrError}`);
+    if (r.boot?.abiHint) {
+      lines.push(`- ABI mismatch hint: built ${r.boot.abiHint.built}, runtime ${r.boot.abiHint.runtime} → run \`contractqa doctor --fix=native-deps <target>\``);
+    }
   }
   if (r.fixesAttempted.length > 0) {
     lines.push('');

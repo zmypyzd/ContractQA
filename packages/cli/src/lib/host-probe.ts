@@ -12,6 +12,7 @@ export interface ProbeInput {
 export interface ProbeResult {
   ready: boolean;
   firstStderrError: string | null;
+  abiHint?: { built: string; runtime: string };
   kill: () => void;
 }
 
@@ -31,7 +32,13 @@ function isError(line: string): boolean {
   return /error|exception|cannot find|not found|enoent/i.test(line);
 }
 
+export function extractAbiHint(stderr: string): { built: string; runtime: string } | null {
+  const m = stderr.match(/NODE_MODULE_VERSION\s+(\d+)\.[\s\S]*?requires\s*\n?\s*NODE_MODULE_VERSION\s+(\d+)/);
+  return m ? { built: m[1]!, runtime: m[2]! } : null;
+}
+
 export async function probeHostBoot(i: ProbeInput): Promise<ProbeResult> {
+  let allStderr = '';
   let firstStderrError: string | null = null;
   const proc: ChildProcess = spawn(i.command, i.args, {
     cwd: i.cwd,
@@ -39,8 +46,10 @@ export async function probeHostBoot(i: ProbeInput): Promise<ProbeResult> {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   proc.stderr?.on('data', (b: Buffer) => {
+    const chunk = b.toString();
+    allStderr += chunk;
     if (firstStderrError) return;
-    for (const line of b.toString().split('\n')) {
+    for (const line of chunk.split('\n')) {
       if (isError(line)) {
         firstStderrError = line.trim();
         break;
@@ -54,12 +63,12 @@ export async function probeHostBoot(i: ProbeInput): Promise<ProbeResult> {
     try {
       const r = await fetch(i.readinessUrl, { redirect: 'manual' });
       if (r.status === 200) {
-        return { ready: true, firstStderrError: null, kill: () => proc.kill('SIGINT') };
+        return { ready: true, firstStderrError: null, abiHint: undefined, kill: () => proc.kill('SIGINT') };
       }
     } catch {
       // not up yet
     }
     await new Promise((r) => setTimeout(r, 250));
   }
-  return { ready: false, firstStderrError, kill: () => proc.kill('SIGINT') };
+  return { ready: false, firstStderrError, abiHint: extractAbiHint(allStderr) ?? undefined, kill: () => proc.kill('SIGINT') };
 }
