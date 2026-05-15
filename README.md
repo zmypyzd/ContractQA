@@ -57,6 +57,28 @@ property/model-based generation, dashboard §15.3–§15.6, real-Supabase
 / real-NextAuth fixtures, public adapter API. See
 [`dogfood/FINDINGS.md`](dogfood/FINDINGS.md) for the complete list.
 
+### `doctor --fix=native-deps` (Phase 4)
+
+Walks `package.json`, `apps/*/package.json`, and `packages/*/package.json`
+for declarations of the known-native dependencies (`better-sqlite3`,
+`sqlite3`, `bcrypt`, `sharp`, `canvas`, `node-gyp`). For each detected dep,
+runs `npm run install` inside `node_modules/.pnpm/<pkg>@<ver>/node_modules/<pkg>`
+— the only path that triggers `prebuild-install` reliably under pnpm 10.
+
+`pnpm rebuild <pkg>` is silently a no-op for transitive workspace deps in
+pnpm 10 and is **not** what this fix runs.
+
+When a boot probe fails with `ERR_DLOPEN_FAILED ... NODE_MODULE_VERSION X
+... requires NODE_MODULE_VERSION Y`, the rendered report includes an ABI
+mismatch hint pointing directly at this fix command.
+
+Worked example — 5-4-codex on Node 22 (binary built for Node 20):
+
+```bash
+contractqa doctor --fix=native-deps /path/to/5-4-codex
+# [ok] native-deps: better-sqlite3: rebuilt OK
+```
+
 ## Quick start
 
 ```bash
