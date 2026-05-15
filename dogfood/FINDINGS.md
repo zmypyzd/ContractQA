@@ -123,10 +123,9 @@ Findings RESOLVED in Phase 4:
 - ✅ Monorepo / polyglot subdirectory detection in `contractqa init` — new `detectFrameworkInRepo` walks `apps/*`, `packages/*`, `web`, `frontend`, `client`, `site`. `init` and `scan` both gain `--target <subdir>` flag and auto-select the highest-confidence candidate. AmbiguousTarget thrown on tied confidence. Resolves the 5-4-codex / WolfMind / 5-4-claude `unknown`-detection regression. → C1, C2, C3
 - ✅ True per-responsibility routing in `composeAuth` — `currentUser` now routes to `'user-store'` owner (falling back to `'session'`); `expectFullyLoggedOut` runs against ALL adapters and AND-merges `fullyLoggedOut` + UNIONs `leaked_keys`. Phase 3 B4's "adjusted to match observed bug" test reverted. → D1, D2
 
-Findings STILL DEFERRED to Phase 6:
-These were originally Phase 5 candidates; after target-repo recon during Phase 5 the HTTP-API surface anchor was pushed to Phase 6, and the remaining items carry forward unchanged.
-- HTTP-API contract surface (for api-only repos like `agent-poker-platform`) — originally planned as Phase 5 B5. **Deferred to Phase 6 on 2026-05-15** after target-repo recon found `pnpm dev` hard-wired to in-memory stores (no Postgres) and schema mismatches (`live_rooms` / `created_by` instead of `tables` / `owner_user_id`). Making it work needs upstream PRs to the target repo, which falls outside Phase 5 scope. Phase 6 either (a) wires `PostgresLiveStore` via env switch and rewrites the named query against `live_rooms`, or (b) picks a different api-only Postgres-wired target.
-- Hybrid-auth scanner (`contractqa scan --detect-auth` from 5-4-claude finding) — basic detection landed in scan, hybrid multi-provider case still requires manual `composeAuth`
+Findings STILL DEFERRED to Phase 7:
+Phase 6 closed the hybrid-auth scanner anchor and the 5 minor follow-ups from Phase 5's final review. The HTTP-API surface anchor and the remaining items carry forward to Phase 7 unchanged.
+- (Still) HTTP-API contract surface (for api-only repos like `agent-poker-platform`) — originally planned as Phase 5 B5. **Deferred to Phase 6 on 2026-05-15** after target-repo recon found `pnpm dev` hard-wired to in-memory stores (no Postgres) and schema mismatches (`live_rooms` / `created_by` instead of `tables` / `owner_user_id`). Making it work needs upstream PRs to the target repo. Phase 7 either (a) wires `PostgresLiveStore` via env switch and rewrites the named query against `live_rooms`, or (b) picks a different api-only Postgres-wired target.
 - Dashboard §15.3–§15.6
 - Persona dogfood agents
 - Property/model-based test generation
@@ -134,6 +133,9 @@ These were originally Phase 5 candidates; after target-repo recon during Phase 5
 - pnpm-version-aware spawn helper (still documented, not coded)
 - Publishing to npm — Phase 3 prepares the surface; `pnpm publish` is user-gated
 - Mongo / Firestore / custom `BackendAdapter` implementations (Phase 4 only shipped Postgres; design doc §7.6.3 declares 4 kinds)
+- Semver-aware `findPnpmPkgDir` (currently lexicographic — correct by accident for 9.x vs 11.x)
+- File-content parsing for auth detection (currently path-presence only — false negatives possible)
+- Dynamic `$session.userId` resolution
 
 ## Phase 5 resolution status (v0.5.0)
 
@@ -145,6 +147,18 @@ Findings / final-review follow-ups RESOLVED in Phase 5 (QA pass):
 - Bounded `extractAbiHint` regression test asserts <100ms termination on adversarial 100k-char stderr.
 
 Phase 5 has no new anchor (Part A B5 deferred — see above). Phase 6 candidates are the same as v0.4.0's "Still deferred" list minus the items closed here.
+
+## Phase 6 resolution status (v0.6.0)
+
+Findings RESOLVED in Phase 6:
+- **Hybrid-auth scanner**: `contractqa scan --detect-auth` inspects file paths (NextAuth route, Supabase SSR helpers, Clerk middleware, etc.) and emits a structured `## Hybrid auth` markdown section with per-provider evidence, a heuristic-picked session owner, and a paste-ready `composeAuth` config snippet using identifier placeholders. Path-presence only (no file-content parsing); false negatives acceptable, scanner is advisory.
+
+5 minor follow-ups from Phase 5 final review RESOLVED:
+- `findPnpmPkgDir` comment-vs-behavior drift (comment now matches lexicographic sort; semver-aware selection deferred to Phase 7)
+- `host-probe-bounded` 100ms → 250ms threshold (CI flake headroom)
+- `detectFrameworkInRepo` records `skipped N symlinked subdir(s); pass --target to inspect them explicitly` diagnostic in evidence
+- `FORBIDDEN_DML_DDL` regex documents false-positive risk in JSDoc
+- `scripts/phase6-acceptance.sh` parameterizes TARGET via `PHASE_TARGET` env var (forward-only; phase5-acceptance.sh not retro-touched)
 
 ## Targets considered but not used
 
