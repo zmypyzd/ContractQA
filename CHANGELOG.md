@@ -2,6 +2,35 @@
 
 All notable changes to ContractQA are documented here.
 
+## v0.8.0 — 2026-05-15 (Phase 8)
+
+Phase 8 ships `MongoBackendAdapter` (second member of the `BackendAdapter` family) plus a deps-only `custom-cookie` auth detector and the Next 15 dashboard `params` migration.
+
+### Added
+
+- **`MongoBackendAdapter`** (`@stable since v0.8.0`). Read-only Mongo `BackendAdapter` mirroring the `PostgresBackendAdapter` shape from Phase 4. Construction-time guards: named-queries-only; `find` / `aggregate` operations only (no `insertOne`/`updateOne`/`deleteOne`/`replaceOne`); mandatory tenant field in every query's `params`; deep-walk rejection of forbidden operators (`$where`, `$function`, `$accumulator`, `$out`, `$merge`, `$listLocalSessions`). Positional placeholder substitution: `$1`, `$2`, ... map to params in declaration order. New dep: `mongodb ^7.x`. Unit tests via mocked client; integration tests against real Mongo are a Phase 9 candidate.
+- **`custom-cookie` AuthSignal detector.** Deps-only heuristic: presence of `bcryptjs` or `bcrypt` triggers the signal. Closes the Phase 7 "no detector yet" JSDoc gap. Advisory only; false positives accepted.
+
+### Changed
+
+- **No breaking changes.**
+- `apps/dashboard/app/issues/[id]/page.tsx` migrated to Next.js 15's `params: Promise<{ id }>` typing. Awaits `params` before destructuring.
+- `AuthSignal['custom-cookie']` JSDoc updated to describe the new detector + Phase 9 next-step.
+
+### Still deferred (Phase 9 candidates)
+
+- Real-Mongo integration tests (`mongodb-memory-server` or docker fixture).
+- Firestore / custom `BackendAdapter` implementations.
+- HTTP-API contract surface (B5) — still no Postgres-wired target.
+- File-content parsing for auth detection (currently deps + path-presence only).
+- Persona dogfood agents.
+- Property/model-based test generation.
+- Dashboard §15.3–§15.6.
+- TypeScript project references (`tsc -b`).
+- pnpm-version-aware spawn helper.
+- Dynamic `$session.userId` resolution.
+- Publishing to npm.
+
 ## v0.7.0 — 2026-05-15 (Phase 7 — maintenance release)
 
 Anchor-less maintenance release. Unblocks `apps/dashboard` build + closes 4 final-review follow-ups from Phase 6.
