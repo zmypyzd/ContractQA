@@ -1,4 +1,4 @@
-import { readdir, stat } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 export interface NativeMismatch {
@@ -37,30 +37,61 @@ export async function detectNativeDepMismatch(
   if (opts._stubFiles) {
     return opts._stubFiles
       .filter((s) => s.abi !== runtimeAbi)
-      .map((s) => ({
-        binding: path.basename(s.path),
-        packagePath: path.dirname(s.path),
-        builtAbi: s.abi,
-        runtimeAbi,
-        suggestion: `built for ABI ${s.abi}, current is ${runtimeAbi}. run: npm --prefix ${path.dirname(s.path)} rebuild`,
-      }));
+      .map((s) => {
+        const pkgDir = derivePnpmPkgDir(s.path);
+        return {
+          binding: path.basename(s.path),
+          packagePath: path.dirname(s.path),
+          builtAbi: s.abi,
+          runtimeAbi,
+          suggestion: `built for ABI ${s.abi}, current is ${runtimeAbi}. run: cd ${pkgDir} && npm run install`,
+        };
+      });
   }
 
   const nodeModules = path.join(repoRoot, 'node_modules');
-  try {
-    await stat(nodeModules);
-  } catch {
-    return [];
-  }
+  try { await stat(nodeModules); } catch { return []; }
   const bindings = await walk(nodeModules);
-  // We can't reliably read NODE_MODULE_VERSION from a .node file without
-  // parsing Mach-O/ELF. Phase 2 surfaces every .node binary as a candidate
-  // and lets the operator decide. False-positive-leaning, acceptable.
-  return bindings.map((b) => ({
-    binding: path.basename(b),
-    packagePath: path.dirname(b),
-    builtAbi: null,
-    runtimeAbi,
-    suggestion: `native binding present. if dev-server boot fails with "bindings not found", run: npm --prefix ${path.dirname(b)} rebuild`,
-  }));
+  const out: NativeMismatch[] = [];
+  for (const b of bindings) {
+    const builtAbi = await sniffAbiFromBinary(b);
+    if (builtAbi !== null && builtAbi === runtimeAbi) continue;
+    out.push({
+      binding: path.basename(b),
+      packagePath: path.dirname(b),
+      builtAbi,
+      runtimeAbi,
+      suggestion: builtAbi
+        ? `built for ABI ${builtAbi}, current is ${runtimeAbi}. run: cd ${derivePnpmPkgDir(b)} && npm run install`
+        : `native binding present (ABI unknown). if dev-server boot fails, run: cd ${derivePnpmPkgDir(b)} && npm run install`,
+    });
+  }
+  return out;
+}
+
+// node-gyp embeds "NODE_MODULE_VERSION" as a symbol in the binary's data section.
+// Grepping for it and the numeric literal that follows is best-effort but
+// avoids a full Mach-O/ELF parser dependency. Returns null when not found.
+async function sniffAbiFromBinary(file: string): Promise<string | null> {
+  try {
+    const buf = await readFile(file);
+    const idx = buf.indexOf('NODE_MODULE_VERSION');
+    if (idx < 0) return null;
+    // The version literal appears within ~256 bytes after the symbol;
+    // grep for the first 3-digit ABI number (current ABIs are 108–127).
+    const window = buf.slice(idx, idx + 256).toString('binary');
+    const m = window.match(/\b(1\d{2})\b/);
+    return m ? m[1] : null;
+  } catch { return null; }
+}
+
+// Given /…/node_modules/.pnpm/<pkg>@<ver>/node_modules/<pkg>/build/Release/foo.node,
+// return /…/node_modules/.pnpm/<pkg>@<ver>/node_modules/<pkg>.
+// pnpm rebuild is silently a no-op for transitive workspace deps; only
+// `npm run install` from inside the .pnpm package dir triggers prebuild-install.
+function derivePnpmPkgDir(nodePath: string): string {
+  const m = nodePath.match(/^(.*\/node_modules\/\.pnpm\/[^/]+\/node_modules\/[^/]+)\//);
+  if (m) return m[1];
+  // Fallback: walk up two dirs from build/Release/foo.node → build/ → <pkg>
+  return path.dirname(path.dirname(path.dirname(nodePath)));
 }

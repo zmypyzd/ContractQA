@@ -13,7 +13,7 @@ describe('detectNativeDepMismatch', () => {
       _runtimeAbi: '115',
     });
     expect(out.length).toBe(1);
-    expect(out[0]!.suggestion).toContain('rebuild');
+    expect(out[0]!.suggestion).toContain('npm run install');
     expect(out[0]!.builtAbi).toBe('108');
     expect(out[0]!.runtimeAbi).toBe('115');
   });
