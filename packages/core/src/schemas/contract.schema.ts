@@ -37,6 +37,15 @@ const Action = z.discriminatedUnion('type', [
   z.object({ type: z.literal('wait'), ms: z.number().int().nonnegative() }),
 ]);
 
+const BackendState = z.object({
+  named_query: z.string().min(1),
+  params: z.record(z.string(), z.unknown()).default({}),
+  assert: z.union([
+    z.object({ rowCount: z.number().int().nonnegative() }).strict(),
+    z.object({ rows: z.array(z.record(z.string(), z.unknown())) }).strict(),
+  ]),
+}).strict();
+
 const ExpectedBlock = z.object({
   url: z.object({ matches: SafeRegex }).partial().optional(),
   localStorage: z
@@ -72,6 +81,7 @@ const ExpectedBlock = z.object({
     })
     .optional(),
   auth_state: z.object({ fully_logged_out: z.boolean() }).partial().optional(),
+  backend_state: BackendState.optional(),
   watch_keys: z
     .object({
       localStorage: z.array(SafeRegex).optional(),
