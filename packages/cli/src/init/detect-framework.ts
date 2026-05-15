@@ -130,7 +130,8 @@ const AUTH_RULES: AuthRule[] = [
       if (!hasBcrypt) return false;
       return files.some((f) =>
         /^(src\/)?middleware\.(ts|tsx|js|jsx|mjs)$/.test(f) ||
-        /^(src\/)?app\/api\/.+\.(ts|tsx|js|jsx|mjs)$/.test(f)
+        /^(src\/)?app\/api\/.+\.(ts|tsx|js|jsx|mjs)$/.test(f) ||
+        /^(src\/)?pages\/api\/.+\.(ts|tsx|js|jsx|mjs)$/.test(f)
       );
     },
   },

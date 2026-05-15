@@ -115,4 +115,12 @@ describe('detectFramework', () => {
     });
     expect(r.authSignals).not.toContain('custom-cookie');
   });
+
+  it('flags custom-cookie when bcrypt + pages/api route handler both present', async () => {
+    const r = await detectFramework({
+      packageJson: { dependencies: { next: '*', bcrypt: '^5.0.0' } },
+      files: ['package.json', 'pages/api/login.ts'],
+    });
+    expect(r.authSignals).toContain('custom-cookie');
+  });
 });
