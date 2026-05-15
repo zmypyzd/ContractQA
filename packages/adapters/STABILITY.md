@@ -1,5 +1,20 @@
 # `@contractqa/adapters` Stability Policy
 
+## Versioned change log
+
+### v0.4.0 — composeAuth routing (breaking for 2+ adapter compositions)
+
+`composeAuth` now routes per-responsibility:
+
+- `loginAs` / `isAuthenticated` → owner of `'session'` (unchanged)
+- `currentUser` → owner of `'user-store'`, falling back to `'session'` (was: always session-owner)
+- `expectFullyLoggedOut` → ALL adapters; AND-merges `fullyLoggedOut`, UNIONs `leaked_keys` (was: only session-owner)
+- `sessionKeyPatterns` → UNION across all (unchanged)
+
+Both routing changes were silent bugs in v0.2.x–v0.3.x — Phase 3 B4 documented and tolerated them. Single-adapter callers are unaffected. Callers composing 2+ adapters now get the documented behavior they expected; this is technically a runtime-behavior break per the policy below, but reverts to spec.
+
+`PostgresBackendAdapter` was promoted from `@experimental` to `@stable` (real Postgres-backed implementation, read-only DSN guard, mandatory tenant scope, named-queries-only).
+
 ## Public surface
 
 The only stable, semver-protected surface is what is re-exported from `@contractqa/adapters/public`. Importing from `@contractqa/adapters` (root) or from any deep path is **internal** and may change without notice.
