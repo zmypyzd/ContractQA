@@ -6,7 +6,8 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" },
-    "./reporter": { "import": "./dist/reporter.js", "types": "./dist/reporter.d.ts" }
+    "./reporter": { "import": "./dist/reporter.js", "types": "./dist/reporter.d.ts" },
+    "./http": { "import": "./dist/http.js", "types": "./dist/http.d.ts" }
   },
   "publishConfig": {
     "access": "public"
@@ -29,10 +30,16 @@
     "@contractqa/oracle": "workspace:*",
     "@contractqa/evidence": "workspace:*",
     "@contractqa/probes": "workspace:*",
-    "yaml": "^2.6.1",
+    "yaml": "^2.6.1"
+  },
+  "peerDependencies": {
     "@playwright/test": "^1.49.0"
   },
+  "peerDependenciesMeta": {
+    "@playwright/test": { "optional": true }
+  },
   "devDependencies": {
+    "@playwright/test": "^1.49.0",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   }
