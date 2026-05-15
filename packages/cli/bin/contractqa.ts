@@ -27,12 +27,14 @@ program
   .option('-y, --yes', 'skip confirmation prompts')
   .option('-f, --force', 'overwrite existing files')
   .option('--framework <name>', 'force a specific framework (next-app, next-pages, vite-react, vite-vue, astro, unknown)')
-  .action(async (opts: { yes?: boolean; force?: boolean; framework?: string }) => {
+  .option('--target <subdir>', 'monorepo subdir to scaffold into (e.g. apps/web)')
+  .action(async (opts: { yes?: boolean; force?: boolean; framework?: string; target?: string }) => {
     const report = await initProject({
       cwd: process.cwd(),
       yes: opts.yes,
       force: opts.force,
       framework: opts.framework as never,
+      target: opts.target,
     });
     console.log(`Detected: ${report.detected.framework} (confidence ${report.detected.confidence.toFixed(2)})`);
     console.log(`Auth signals: ${report.detected.authSignals.join(', ') || '(none)'}`);
