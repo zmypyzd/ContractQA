@@ -2,6 +2,37 @@
 
 All notable changes to ContractQA are documented here.
 
+## v0.6.0 — 2026-05-15 (Phase 6)
+
+Phase 6 ships the hybrid-auth scanner anchor (`contractqa scan --detect-auth`) plus 5 minor follow-ups from Phase 5's final review. HTTP-API contract surface (B5) remains deferred — see `dogfood/FINDINGS.md`.
+
+### Added
+
+- **`contractqa scan --detect-auth` flag.** Off by default. When set AND ≥1 auth provider detected via deps, runs `inspectAuthWiring()` — a pure path-presence inspector that matches concrete wiring files (`app/api/auth/[...nextauth]/route.ts`, `lib/supabase/*`, `app/sign-in/*`, etc.) and the presence of `middleware.ts`. Surfaces `authDiagnostics: AuthDiagnostic[]` on `ScanReport`.
+- **`## Hybrid auth` markdown section** in `scan` report when ≥2 providers detected with `--detect-auth`. Per-provider `### <provider>` block showing wiring files + `Has middleware`; a heuristic-picked `Suggested session owner` (priority order: next-auth > clerk > supabase > auth0 > custom-cookie, but providers with middleware win first; ties broken by priority); a paste-ready `composeAuth([adapter1, adapter2])` snippet using camelCase identifier placeholders (e.g., `nextAuthAdapter`, `supabaseAdapter`).
+- **`detectFrameworkInRepo` symlink-skipped diagnostic.** When the walker skips ≥1 symlinked subdir, surfaces `skipped N symlinked subdir(s); pass --target to inspect them explicitly` in the result's `evidence` array. Counter resets per-call. Makes the Phase 5 silent-skip visible to users.
+
+### Changed
+
+- **No breaking changes.** v0.6.0 is additive.
+- `findPnpmPkgDir` source comment now matches actual lexicographic-sort behavior (Phase 5 had a stale "lowest-versioned" claim).
+- `host-probe-bounded` test threshold raised from 100ms to 250ms for cold-V8 CI headroom.
+- `FORBIDDEN_DML_DDL` regex annotated with a JSDoc warning about false positives on DML tokens inside string literals (behavior unchanged; full Postgres parser is Phase 7+).
+
+### Still deferred (Phase 7 candidates)
+
+- HTTP-API contract surface (B5) — still no Postgres-wired api-only target identified.
+- Mongo / Firestore / custom `BackendAdapter` implementations.
+- Persona dogfood agents.
+- Property/model-based test generation.
+- Dashboard §15.3–§15.6.
+- TypeScript project references (`tsc -b`).
+- Semver-aware `findPnpmPkgDir` (currently lexicographic; correct by accident for 9.x vs 11.x).
+- pnpm-version-aware spawn helper.
+- File-content parsing for auth detection (currently path-presence only — false negatives possible).
+- Dynamic `$session.userId` resolution.
+- Publishing to npm — `pnpm publish` is user-gated.
+
 ## v0.5.0 — 2026-05-15 (Phase 5)
 
 Phase 5 is a focused QA pass closing 5 of the 7 final-review follow-ups from Phase 4. Phase 5's planned anchor (B5: HTTP-API contract surface) was **deferred to Phase 6** after target-repo recon — the `agent-poker-platform` candidate is hard-wired to in-memory stores and lacks the Postgres schema the planned dogfood would query. See `dogfood/FINDINGS.md` for the recon writeup.
