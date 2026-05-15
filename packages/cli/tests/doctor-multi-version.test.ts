@@ -24,5 +24,11 @@ describe('doctor — pnpm dedup edge cases', () => {
     expect(fix).toBeDefined();
     // Should attempt rebuild on one of them (alphabetic sort picks 11.10.0 since '1'<'9' in ASCII)
     expect(fix!.detail).toMatch(/better-sqlite3/);
+    // Verify the correct version was selected (sorted-first: '1' < '9' in ASCII)
+    expect(fix!.detail).toMatch(/11\.10\.0/);
+    // Hint must fire: npm outputs "Missing script: install" (or quoted form for npm 10+)
+    expect(fix!.detail).toContain('package has no install script');
+    // Fix must report failure (no install script means npm run install exits non-zero)
+    expect(fix!.ok).toBe(false);
   }, 60_000);
 });

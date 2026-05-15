@@ -110,11 +110,11 @@ async function runNpmInstallScript(cwd: string): Promise<{ ok: boolean; detail: 
         resolve({ ok: true, detail: 'npm run install OK' });
         return;
       }
-      const trimmed = stderr.slice(0, 200).replace(/\s+/g, ' ').trim();
-      const hint = /Missing script: install/i.test(trimmed)
+      const base = stderr.slice(0, 200).replace(/\s+/g, ' ').trim();
+      const hint = /Missing script:\s*["']?install["']?/i.test(base)
         ? ' (package has no install script — try `pnpm rebuild <pkg>` or `npm rebuild <pkg>`)'
         : '';
-      resolve({ ok: false, detail: trimmed + hint });
+      resolve({ ok: false, detail: (base + hint).slice(0, 300) });
     });
     child.on('error', (err) => resolve({ ok: false, detail: err.message }));
   });
@@ -137,8 +137,12 @@ async function fixNativeDeps(i: DoctorInput, _r: DoctorReport): Promise<{ ok: bo
       allOk = false;
       continue;
     }
+    // Extract the resolved version from the .pnpm dir entry (e.g. better-sqlite3@11.10.0)
+    const pnpmEntry = path.basename(path.dirname(path.dirname(installDir)));
+    const resolvedVersion = pnpmEntry.includes('@') ? pnpmEntry.split('@').pop() ?? '' : '';
+    const versionTag = resolvedVersion ? `@${resolvedVersion}` : '';
     const r = await runNpmInstallScript(installDir);
-    results.push(`${pkg}: ${r.ok ? 'rebuilt OK' : `failed — ${r.detail}`}`);
+    results.push(`${pkg}${versionTag}: ${r.ok ? 'rebuilt OK' : `failed — ${r.detail}`}`);
     if (!r.ok) allOk = false;
   }
   return { ok: allOk, detail: results.join('; ') };
