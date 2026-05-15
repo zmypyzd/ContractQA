@@ -63,6 +63,7 @@ function assertNoForbiddenOperators(node: unknown, namedQueryName: string): void
 export class MongoBackendAdapter implements BackendAdapter {
   readonly kind = 'mongo' as const;
   private client: MongoClient | null = null;
+  private connectingP: Promise<MongoClient> | null = null;
   private opts: MongoBackendAdapterOptions;
 
   constructor(opts: MongoBackendAdapterOptions) {
@@ -136,13 +137,20 @@ export class MongoBackendAdapter implements BackendAdapter {
     if (this.client) {
       await this.client.close();
       this.client = null;
+      this.connectingP = null;
     }
   }
 
   private async getDb(): Promise<Db> {
     if (!this.client) {
-      this.client = this.opts._clientOverride ?? new MongoClient(this.opts.uri);
-      if (!this.opts._clientOverride) await this.client.connect();
+      if (!this.connectingP) {
+        this.connectingP = (async () => {
+          const client = this.opts._clientOverride ?? new MongoClient(this.opts.uri);
+          if (!this.opts._clientOverride) await client.connect();
+          return client;
+        })();
+      }
+      this.client = await this.connectingP;
     }
     return this.client.db(this.opts.database);
   }
