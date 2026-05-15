@@ -165,14 +165,18 @@ export async function detectFrameworkInRepo(root: string): Promise<RepoDetectRes
       const subs = await readdir(hintPath);
       for (const s of subs) {
         const subPath = path.join(hintPath, s);
-        if ((await lstat(subPath)).isSymbolicLink()) continue;
+        const subLst = await lstat(subPath);
+        if (subLst.isSymbolicLink()) continue;
         if (s.startsWith('@')) {
           // Scoped package: walk one more level (e.g. apps/@org/pkg)
+          if (!subLst.isDirectory()) continue;
           const scopedSubs = await readdir(subPath);
-          for (const ss of scopedSubs) {
-            const scopedPath = path.join(subPath, ss);
-            if ((await lstat(scopedPath)).isSymbolicLink()) continue;
-            const r = await tryDir(scopedPath, `${hint}/${s}/${ss}`);
+          for (const pkg of scopedSubs) {
+            const scopedPath = path.join(subPath, pkg);
+            const scopedLst = await lstat(scopedPath);
+            if (scopedLst.isSymbolicLink()) continue;
+            if (!scopedLst.isDirectory()) continue;
+            const r = await tryDir(scopedPath, `${hint}/${s}/${pkg}`);
             if (r) candidates.push(r);
           }
         } else {

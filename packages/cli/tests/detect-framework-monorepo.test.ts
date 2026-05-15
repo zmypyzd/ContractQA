@@ -64,10 +64,13 @@ describe('detectFrameworkInRepo — monorepo subdirectory walking', () => {
     await writeFile(path.join(root, 'apps/@org/web/package.json'), JSON.stringify({ dependencies: { vite: '*', react: '*' } }));
     await writeFile(path.join(root, 'apps/@org/web/vite.config.ts'), '');
     const r = await detectFrameworkInRepo(root);
-    expect(r.candidates.find((c) => c.subdir === 'apps/@org/web')).toBeDefined();
+    const found = r.candidates.find((c) => c.subdir === 'apps/@org/web');
+    expect(found).toBeDefined();
+    expect(found!.framework).toBe('vite-react');
   });
 
   it('skips symlinked subdirs to avoid descending into pnpm injection', async () => {
+    if (process.platform === 'win32') return; // symlink() needs elevated rights on Windows
     const root = await mkdtemp(path.join(os.tmpdir(), 'cqa-init-symlink-'));
     await writeFile(path.join(root, 'package.json'), JSON.stringify({ name: 'root' }));
     await mkdir(path.join(root, 'apps'), { recursive: true });
