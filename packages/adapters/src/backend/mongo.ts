@@ -65,6 +65,7 @@ export class MongoBackendAdapter implements BackendAdapter {
   private client: MongoClient | null = null;
   private connectingP: Promise<MongoClient> | null = null;
   private closed = false;
+  private inFlight = 0;
   private opts: MongoBackendAdapterOptions;
 
   constructor(opts: MongoBackendAdapterOptions) {
@@ -106,45 +107,58 @@ export class MongoBackendAdapter implements BackendAdapter {
   }
 
   async query(namedQuery: string, params: Record<string, unknown>): Promise<unknown[]> {
-    const q = this.opts.namedQueries[namedQuery];
-    if (!q) throw new Error(`unknown named query: ${namedQuery}`);
+    // Check closed before incrementing so post-close callers throw immediately.
+    // In-flight queries already past this point are drained by close().
+    if (this.closed) throw new Error('MongoBackendAdapter is closed');
+    this.inFlight++;
+    try {
+      const q = this.opts.namedQueries[namedQuery];
+      if (!q) throw new Error(`unknown named query: ${namedQuery}`);
 
-    const db = await this.getDb();
-    const col = db.collection(q.collection);
-    const substitute = (val: unknown): unknown => {
-      if (typeof val === 'string') {
-        if (/^\$\d+$/.test(val)) {
-          const idx = Number.parseInt(val.slice(1), 10) - 1;
-          const paramName = Object.keys(q.params)[idx];
-          if (!paramName) throw new Error(`named query "${namedQuery}" placeholder ${val} has no matching param`);
-          return params[paramName];
+      const db = await this.getDb();
+      const col = db.collection(q.collection);
+      const substitute = (val: unknown): unknown => {
+        if (typeof val === 'string') {
+          if (/^\$\d+$/.test(val)) {
+            const idx = Number.parseInt(val.slice(1), 10) - 1;
+            const paramName = Object.keys(q.params)[idx];
+            if (!paramName) throw new Error(`named query "${namedQuery}" placeholder ${val} has no matching param`);
+            return params[paramName];
+          }
+          if (/^:[a-zA-Z_][a-zA-Z0-9_]*$/.test(val)) {
+            const name = val.slice(1);
+            if (!(name in params)) throw new Error(`named query "${namedQuery}" placeholder ${val} has no matching param`);
+            return params[name];
+          }
         }
-        if (/^:[a-zA-Z_][a-zA-Z0-9_]*$/.test(val)) {
-          const name = val.slice(1);
-          if (!(name in params)) throw new Error(`named query "${namedQuery}" placeholder ${val} has no matching param`);
-          return params[name];
+        if (Array.isArray(val)) return val.map(substitute);
+        if (val && typeof val === 'object') {
+          return Object.fromEntries(Object.entries(val).map(([k, v]) => [k, substitute(v)]));
         }
-      }
-      if (Array.isArray(val)) return val.map(substitute);
-      if (val && typeof val === 'object') {
-        return Object.fromEntries(Object.entries(val).map(([k, v]) => [k, substitute(v)]));
-      }
-      return val;
-    };
+        return val;
+      };
 
-    if (q.operation === 'find') {
-      const filter = substitute(q.filter ?? {}) as Record<string, unknown>;
-      return col.find(filter).toArray();
-    } else {
-      const pipeline = (substitute(q.pipeline ?? []) as Array<Record<string, unknown>>);
-      return col.aggregate(pipeline).toArray();
+      if (q.operation === 'find') {
+        const filter = substitute(q.filter ?? {}) as Record<string, unknown>;
+        return await col.find(filter).toArray();
+      } else {
+        const pipeline = (substitute(q.pipeline ?? []) as Array<Record<string, unknown>>);
+        return await col.aggregate(pipeline).toArray();
+      }
+    } finally {
+      this.inFlight--;
     }
   }
 
   async close(): Promise<void> {
     this.closed = true;
     if (this.connectingP) {
-      try { await this.connectingP; } catch { /* ignore: caller wants to close anyway */ }
+      try { await this.connectingP; } catch { /* ignore */ }
+    }
+    // Drain in-flight queries (up to 5s hard timeout).
+    const deadline = Date.now() + 5_000;
+    while (this.inFlight > 0 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 10));
     }
     if (this.client) {
       await this.client.close();
@@ -154,7 +168,6 @@ export class MongoBackendAdapter implements BackendAdapter {
   }
 
   private async getDb(): Promise<Db> {
-    if (this.closed) throw new Error('MongoBackendAdapter is closed');
     if (this.client) {
       return this.client.db(this.opts.database);
     }

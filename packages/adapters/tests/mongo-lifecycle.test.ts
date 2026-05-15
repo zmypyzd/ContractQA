@@ -61,4 +61,39 @@ describe('MongoBackendAdapter — lifecycle edge cases', () => {
     await adapter.close();
     await expect(adapter.query('q', { user_id: 'u' })).rejects.toThrow(/closed/i);
   });
+
+  it('close() waits for in-flight queries to drain before closing client', async () => {
+    let resolveToArray: (rows: unknown[]) => void = () => {};
+    const slowToArray = vi.fn(() => new Promise<unknown[]>((res) => { resolveToArray = res; }));
+    const client = {
+      db: vi.fn(() => ({
+        collection: vi.fn(() => ({
+          find: vi.fn(() => ({ toArray: slowToArray })),
+        })),
+      })),
+      close: vi.fn(async () => {}),
+    };
+    const adapter = new MongoBackendAdapter({
+      uri: 'mongodb://x',
+      database: 'test',
+      tenantField: 'user_id',
+      namedQueries: {
+        q: { description: '', collection: 'r', operation: 'find', filter: { user_id: '$1' }, params: { user_id: '$1' } },
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      _clientOverride: client as any,
+    });
+
+    const queryP = adapter.query('q', { user_id: 'u' });
+    const closeP = adapter.close();
+
+    await new Promise((r) => setTimeout(r, 30));
+    expect(client.close).not.toHaveBeenCalled();
+
+    resolveToArray([{ ok: true }]);
+    const rows = await queryP;
+    expect(rows).toEqual([{ ok: true }]);
+    await closeP;
+    expect(client.close).toHaveBeenCalled();
+  });
 });
