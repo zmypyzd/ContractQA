@@ -2,6 +2,41 @@
 
 All notable changes to ContractQA are documented here.
 
+## v0.4.0 — 2026-05-15 (Phase 4)
+
+### Added
+
+- **`contractqa doctor --fix=native-deps` walks workspace packages.** Phase 3's fix only scanned the root `package.json` for the 6 hardcoded native deps; transitive deps living in `packages/persistence/package.json` (or any other workspace package) were silently missed. v0.4.0 walks `apps/*/package.json` and `packages/*/package.json` in addition to root, then for each detected dep runs `npm run install` inside `node_modules/.pnpm/<pkg>@<ver>/node_modules/<pkg>` — the only path that triggers `prebuild-install` reliably under pnpm 10. `pnpm rebuild <pkg>` is silently a no-op for transitive workspace deps.
+- **`detectNativeDepMismatch` reads ABI from `.node` binaries.** Phase 3's detector flagged every `.node` as a candidate (`builtAbi: null`). v0.4.0 sniffs the `NODE_MODULE_VERSION` symbol from the binary's first 64 KB and only flags actual mismatches. Bounded read keeps memory steady; sniff is best-effort (returns `null` and falls back to "candidate" suggestion when the symbol isn't found).
+- **Boot-probe → ABI hint synthesis.** `probeHostBoot` now accumulates full stderr and runs `extractAbiHint(stderr)` on timeout. When `ERR_DLOPEN_FAILED ... NODE_MODULE_VERSION X ... requires NODE_MODULE_VERSION Y` is detected, `DoctorReport.boot.abiHint = { built, runtime }` is surfaced and `renderDoctorReport` prints `→ run \`contractqa doctor --fix=native-deps <target>\``. Closes the detection→remediation loop.
+- **`PostgresBackendAdapter` real implementation** (promoted from `@experimental` stub to `@stable`). Honors design doc §7.6.3 safety rails: read-only DSN guarded at construction (`SELECT` and `WITH ... SELECT` only — rejects `INSERT`/`UPDATE`/`DELETE`/`DROP`/`CREATE`/`TRUNCATE`/`GRANT`); mandatory tenant scope (every `query()` requires the configured tenant field in params); named queries only (no raw SQL from contracts). New deps: `pg ^8.13.0`, `@types/pg ^8.11.0`.
+- **`backend_state` block in contract schema.** Contracts can now express backend assertions: `expected.backend_state.named_query`, `params`, and `assert: { rowCount } | { rows }`. The block is `.strict()`-validated — raw `sql` keys are rejected. Backward compatible: contracts without `backend_state` parse unchanged.
+- **Runner `evaluateBackendState`.** `runContract` accepts optional `backend?: BackendAdapter`. When the contract has `backend_state` but no backend is provided, the verdict is downgraded to `INCONCLUSIVE` with `missingCapabilities: ['backend_probe']`. When backend is provided, rows are fetched via `backend.query(...)` and asserted against `rowCount` or `rows`. Severity merge: backend `FAIL` overrides; `INCONCLUSIVE` only downgrades a frontend `PASS`.
+- **`contractqa init` walks monorepo subdirectories.** New `detectFrameworkInRepo(root)` walks `apps/*`, `packages/*`, `web`, `frontend`, `client`, `site` (apps/packages recursed one level deeper). Returns ranked candidates by confidence. `init` and `scan` both gain `--target <subdir>` flag for explicit selection. With ambiguous tied-confidence candidates and no `--target`, `init` throws `AmbiguousTarget` listing the candidates. Resolves the 5-4-codex / WolfMind / 5-4-claude `unknown`-detection regression.
+- **`scan` per-candidate report.** When detection finds multiple candidates, the report includes a `## Other detected candidates` section listing each with confidence.
+
+### Changed
+
+- **`composeAuth` routes per-responsibility (BREAKING for 2+ adapter compositions).** Phase 1–3 routed every method to the `'session'`-owning adapter; only `sessionKeyPatterns` was unioned. v0.4.0:
+  - `loginAs` / `isAuthenticated` → owner of `'session'` (unchanged)
+  - `currentUser` → owner of `'user-store'`, falling back to `'session'`
+  - `expectFullyLoggedOut` → ALL adapters; AND-merges `fullyLoggedOut`, UNIONs `leaked_keys`
+  - `sessionKeyPatterns` → UNION across all (unchanged)
+
+  Single-adapter callers are unaffected. The Phase 3 B4 test that documented the old (buggy) behavior has been reverted to assert the new (correct) routing. See `packages/adapters/STABILITY.md` for the full break note.
+
+### Still deferred (Phase 5 candidates)
+
+- HTTP-API contract surface (for api-only repos like the original `agent-poker-platform`) — `PostgresBackendAdapter` is the prerequisite (shipped here); the consumer-side wiring (`action.kind: 'http'` runner support + dogfood test) is Phase 5.
+- Mongo / Firestore / custom `BackendAdapter` implementations (design doc §7.6.3 declares 4 kinds; Phase 4 only shipped Postgres).
+- Hybrid-auth scanner (`contractqa scan --detect-auth`).
+- Dashboard §15.3–§15.6.
+- Persona dogfood agents.
+- Property/model-based test generation.
+- TypeScript project references (`tsc -b`).
+- pnpm-version-aware spawn helper.
+- Publishing to npm — `pnpm publish` is user-gated.
+
 ## v0.3.0 — 2026-05-14 (Phase 3)
 
 ### Added
