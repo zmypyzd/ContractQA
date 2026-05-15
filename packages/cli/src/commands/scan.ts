@@ -31,6 +31,12 @@ const SESSION_OWNER_PRIORITY: readonly AuthSignal[] = [
   'next-auth', 'clerk', 'supabase', 'auth0', 'custom-cookie',
 ];
 
+function adapterIdentifier(provider: AuthSignal): string {
+  // next-auth → nextAuthAdapter; custom-cookie → customCookieAdapter
+  const camel = provider.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+  return `${camel}Adapter`;
+}
+
 function pickSessionOwner(diagnostics: readonly AuthDiagnostic[]): AuthSignal {
   const withMw = diagnostics.filter((d) => d.hasMiddleware);
   if (withMw.length === 1) return withMw[0]!.provider;
@@ -150,7 +156,10 @@ export async function scanProject(opts: { cwd: string; target?: string; detectAu
       `// Each adapter declares its own responsibilities. The adapter you give`,
       `// responsibilities: ['session'] (currently suggested: ${owner}) becomes the session owner.`,
       `const auth = composeAuth([`,
-      ...authDiagnostics.map((d) => `  /* ${d.provider}Adapter — responsibilities: [${d.provider === owner ? "'session', " : ""}'user-store'] */`),
+      ...authDiagnostics.map((d) => {
+        const resps = d.provider === owner ? `['session', 'user-store']` : `['user-store']`;
+        return `  ${adapterIdentifier(d.provider)}, // responsibilities: ${resps}`;
+      }),
       `]);`,
       '```',
       '',

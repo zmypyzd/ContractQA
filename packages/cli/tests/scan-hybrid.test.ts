@@ -25,6 +25,8 @@ describe('scan — hybrid auth markdown', () => {
     expect(r.markdown).toContain('currently suggested: next-auth');
     expect(r.markdown).toContain('app/api/auth/[...nextauth]/route.ts');
     expect(r.markdown).toContain('lib/supabase/server.ts');
+    expect(r.markdown).toContain('nextAuthAdapter, // responsibilities:');
+    expect(r.markdown).toContain('supabaseAdapter, // responsibilities:');
   });
 
   it('omits Hybrid auth section when only 1 provider', async () => {
