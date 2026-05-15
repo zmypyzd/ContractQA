@@ -93,7 +93,7 @@ async function findPnpmPkgDir(targetRoot: string, pkg: string): Promise<string |
       .filter((d) => d.startsWith(`${pkg}@`))
       .sort();
     if (matches.length === 0) return null;
-    return path.join(dotPnpm, matches[0], 'node_modules', pkg);
+    return path.join(dotPnpm, matches[0]!, 'node_modules', pkg);
   } catch { return null; }
 }
 

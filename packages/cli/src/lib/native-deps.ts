@@ -86,7 +86,7 @@ async function sniffAbiFromBinary(file: string): Promise<string | null> {
     // grep for the first 3-digit ABI number (current ABIs are 108–127).
     const region = slice.slice(idx, idx + 256).toString('binary');
     const m = region.match(/\b(1\d{2})\b/);
-    return m ? m[1] : null;
+    return m ? m[1]! : null;
   } catch { return null; }
   finally { await handle?.close().catch(() => {}); }
 }
@@ -97,7 +97,7 @@ async function sniffAbiFromBinary(file: string): Promise<string | null> {
 // `npm run install` from inside the .pnpm package dir triggers prebuild-install.
 function derivePnpmPkgDir(nodePath: string): string {
   const m = nodePath.match(/^(.*\/node_modules\/\.pnpm\/[^/]+\/node_modules\/(?:@[^/]+\/)?[^/]+)\//);
-  if (m) return m[1];
+  if (m) return m[1]!;
   // Fallback: walk up two dirs from build/Release/foo.node → build/ → <pkg>
   return path.dirname(path.dirname(path.dirname(nodePath)));
 }
