@@ -31,7 +31,9 @@ export interface FirestoreBackendAdapterOptions {
 }
 
 /**
- * @stable since v0.11.0. Read-only Firestore-backed BackendAdapter.
+ * @experimental
+ *
+ * Read-only Firestore-backed BackendAdapter.
  *
  * Enforces design-doc §7.6.3 safety rails:
  *  - Named queries only (no raw `.where()` chains from contracts).
@@ -48,6 +50,7 @@ export class FirestoreBackendAdapter implements BackendAdapter {
   private opts: FirestoreBackendAdapterOptions;
   private closed = false;
 
+  /** @experimental — see class-level note. */
   constructor(opts: FirestoreBackendAdapterOptions) {
     for (const [name, q] of Object.entries(opts.namedQueries)) {
       if (!(opts.tenantField in q.params)) {
@@ -89,6 +92,7 @@ export class FirestoreBackendAdapter implements BackendAdapter {
     };
   }
 
+  /** @experimental — see class-level note. */
   async query(namedQuery: string, params: Record<string, unknown>): Promise<unknown[]> {
     if (this.closed) throw new Error('FirestoreBackendAdapter is closed');
     const q = this.opts.namedQueries[namedQuery];

@@ -200,6 +200,8 @@ export interface RunHttpContractResult {
 }
 
 /**
+ * @experimental
+ *
  * Sibling to `runContract` for HTTP-API contracts (no Playwright).
  *
  * All actions in the contract MUST be `type: 'http'`. Iterates them in order,
