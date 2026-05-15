@@ -1,5 +1,7 @@
 # contractqa
 
+<!-- TODO(v1.0): confirm github.com/zmy/contractqa URL matches actual git remote before publishing -->
+
 > Product-invariant QA platform — verifies behavioural contracts (not just screenshots), captures evidence on failure, and hands minimal repros to Claude Code for auto-fix.
 
 Install:

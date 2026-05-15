@@ -42,6 +42,7 @@ If your code imports directly from any of these packages' root entries, you are 
 JSDoc tags on exports document their level:
 
 - `@stable` — semver-protected (default for any documented public export).
+<!-- Maintainers: update this experimental list when promoting/removing @experimental exports. -->
 - `@experimental` — may change in any minor release. v1.0.0 experimental list: `runHttpContract` (`@contractqa/runner/http`), `FirestoreBackendAdapter` (`@contractqa/adapters/public`).
 - `@deprecated` — kept for at least one full minor cycle after announcement; removed only in the next major.
 

@@ -1,5 +1,7 @@
 # @contractqa/adapters
 
+<!-- TODO(v1.0): confirm github.com/zmy/contractqa URL matches actual git remote before publishing -->
+
 > AuthAdapter and BackendAdapter implementations for the [contractqa](https://www.npmjs.com/package/contractqa) platform.
 
 Install:
@@ -31,6 +33,8 @@ Importing from the root entry (`@contractqa/adapters`) or any deep path is **int
 | `PostgresBackendAdapter` | `@stable` |
 | `MongoBackendAdapter` | `@stable` |
 | `FirestoreBackendAdapter` | `@experimental` (mocked-only tests; real-emulator integration deferred to a future release) |
+
+Note: `Auth0Adapter` and `ClerkAuthAdapter` exist in this package but are not currently part of the `./public` semver surface. They will be promoted to the public surface in a future release once their dogfood coverage matches the other adapters. Until then, importing them directly from `@contractqa/adapters` is unsupported.
 
 ## Optional dependency
 

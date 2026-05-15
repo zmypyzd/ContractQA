@@ -21,18 +21,10 @@ Both routing changes were silent bugs in v0.2.x–v0.3.x — Phase 3 B4 document
 
 - `MongoBackendAdapter` — read-only Mongo `BackendAdapter`. Construction-time guards: named-queries-only, `find`/`aggregate` operations only, mandatory tenant field, forbidden operators (`$where`, `$function`, `$accumulator`, `$out`, `$merge`, `$listLocalSessions`) rejected via deep walk. Mirrors `PostgresBackendAdapter` API surface.
 
-## Stable since v0.11.0
+## Experimental at v1.0.0 (shipped v0.11.0)
 
-- `FirestoreBackendAdapter` — read-only Firestore `BackendAdapter`. Server-side via `@google-cloud/firestore`. Construction-time guards: named-queries-only with `where: [field, op, value]` triples, tenant field must appear in `where` with `==` op, supported operators whitelist (==, !=, <, <=, >, >=, array-contains, array-contains-any, in, not-in). Supports both `$N` and `:name` placeholder styles (parity with `MongoBackendAdapter`). Completes the `BackendAdapter` family (Postgres + Mongo + Firestore).
+- `FirestoreBackendAdapter` — read-only Firestore `BackendAdapter`. Server-side via `@google-cloud/firestore`. Construction-time guards: named-queries-only with `where: [field, op, value]` triples, tenant field must appear in `where` with `==` op, supported operators whitelist (==, !=, <, <=, >, >=, array-contains, array-contains-any, in, not-in). Supports both `$N` and `:name` placeholder styles (parity with `MongoBackendAdapter`). Completes the `BackendAdapter` family (Postgres + Mongo + Firestore). **Status: `@experimental`** — the API may change in any minor release until a real-Firestore-emulator integration test lands. Mocked-only tests today.
 
 ## Public surface
 
-The only stable, semver-protected surface is what is re-exported from `@contractqa/adapters/public`. Importing from `@contractqa/adapters` (root) or from any deep path is **internal** and may change without notice.
-
-Exports marked `@stable` follow semver:
-
-- **Patch:** bug fixes that don't change the type signature
-- **Minor:** additive type changes (new methods, optional fields, new exports)
-- **Major:** removals, renames, narrowing of existing types, or behavior changes that would break a consumer following the public docs
-
-Exports marked `@experimental` may break in any minor release. They are documented in the changelog with a deprecation note when promoted to `@stable` or removed. `PostgresBackendAdapter` was promoted from `@experimental` to `@stable` in v0.4.0.
+The semver-protected surface is documented in [README.md](./README.md) and the repo-level [`STABILITY.md`](../../STABILITY.md).
