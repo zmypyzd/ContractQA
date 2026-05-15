@@ -1,6 +1,6 @@
 # Design — `contractqa v1.0.0` Preparation (Phase 13)
 
-**Status:** Draft v2 — pending user review (revised after independent opus review)
+**Status:** Draft v3 — pending user review (revised after two independent opus reviews)
 **Date:** 2026-05-15
 **Author:** Claude (brainstorming session) + zmy
 **Successor of:** Phase 12 (v0.12.0 — HTTP runner + adapter polish)
@@ -29,7 +29,7 @@ Eleven discrete work items, executed inside a single worktree by a bundled sonne
    (a) Add `./http` subpath to `@contractqa/runner`. New file `packages/runner/src/http.ts` re-exports only `runHttpContract` and its associated types (`RunHttpContractInput`, `RunHttpContractResult`) from `./run-contract.js`. Verified by independent review: `run-contract.ts` has **zero** `@playwright` imports (its `page` parameter is structurally typed via `Parameters<typeof snapshotBrowser>[0]` from `@contractqa/probes`, which is also Playwright-free). Update `packages/runner/package.json` `exports` to register `./http`.
    (b) Move `@playwright/test` from `dependencies` to `peerDependencies` with `peerDependenciesMeta["@playwright/test"].optional = true`.
    Pair together is load-bearing: HTTP-only consumers must `import { runHttpContract } from '@contractqa/runner/http'` (not from the root barrel `@contractqa/runner`) to actually skip the Playwright runtime. The root barrel still statically imports `playwright-entry.ts` and will crash at module load without `@playwright/test` installed.
-3. CLI runtime Playwright check: at the entry of browser-using CLI commands, detect `@playwright/test` and fail-fast with a one-line install hint if missing. Current CLI command list (from `packages/cli/src/commands/`): `doctor`, `init`, `invariants-gen`, `run`, `scan`. The implementer reads each `commands/*.ts` to determine which transitively `import` from `@contractqa/runner` root (browser-required) vs `@contractqa/runner/http` (HTTP-only) vs neither. Best-guess from filenames: only `run` triggers the browser path. The check is injected only into browser-required command entries. Non-browser commands (e.g., `doctor`, `scan`, `init`, `invariants-gen`) MUST NOT invoke the check.
+3. CLI runtime Playwright check: at the entry of browser-using CLI commands, detect `@playwright/test` and fail-fast with a one-line install hint if missing. Current CLI command list (from `packages/cli/src/commands/`): `doctor`, `init`, `invariants-gen`, `run`, `scan`. **Classification rule**: a command is "browser-required" if it spawns Playwright (`spawn('pnpm', ['exec', 'playwright', ...])` or similar) OR imports any module that statically pulls `@playwright/test`. Verified: `packages/cli/src/commands/run.ts` spawns Playwright as a child process at lines ~39–41 (see `import { spawn } from 'node:child_process'` at top); it does NOT `import` `@contractqa/runner`. No other current CLI command spawns or imports a Playwright path. Therefore the check is injected only in `run.ts`, immediately before the `spawn` call.
 4. Add an "internal package" warning block to the README of the 7 internal packages (`core`, `runner`, `oracle`, `evidence`, `probes`, `orchestrator`, `repro`). The block tells consumers to install `contractqa` (CLI) or `@contractqa/adapters` instead.
 5. Create the repo-root `STABILITY.md` containing: public/internal package classification, `@stable` vs `@experimental` tag policy, deprecation window, breaking-change taxonomy.
 6. Trim `packages/adapters/STABILITY.md`: remove sections that are now covered by the root `STABILITY.md` (deprecation window, "What counts as a break", "What does NOT count as a break", "Reporting a break", "How to consume"). Keep adapter-specific content: composeAuth routing change log, per-adapter "Stable since" timeline, Mongo/Firestore-specific rules. Add a header link pointing to the root doc.
@@ -44,7 +44,7 @@ Eleven discrete work items, executed inside a single worktree by a bundled sonne
 
 Plus one supporting deliverable:
 
-12. `scripts/phase13-acceptance.sh` — release-lane validation script (build, typecheck, test, version uniformity check, publish dry-run for 8 packages, CLI tarball spot-check).
+12. `scripts/phase13-acceptance.sh` — release-lane validation script (build, typecheck, test, version uniformity check, publish dry-run for all 9 publishable packages, CLI tarball spot-check, runner tarball `/http` subpath spot-check, `workspace:*` rewrite verification).
 
 ## 4. Package configuration matrix
 
@@ -90,7 +90,7 @@ Consequences:
 - `npm install contractqa` no longer pulls Playwright by default.
 - **HTTP-only consumers who import from `@contractqa/runner/http` save ~200MB** of browser binaries. If they instead import from `@contractqa/runner` root, the static import of `playwright-entry.ts` will crash at module load — they must use the `/http` subpath.
 - Browser-using consumers must run `npm install @playwright/test && npx playwright install chromium` once.
-- The CLI detects `@playwright/test` at the entry of browser-using commands and prints a one-line fail-fast if it's missing. Non-browser CLI commands (`doctor`, `scan`, `init`, `invariants-gen`) must NOT call the check.
+- The CLI detects `@playwright/test` immediately before any `spawn` of Playwright (or static import of a Playwright path) and prints a one-line fail-fast if it's missing. Current monorepo state: only `packages/cli/src/commands/run.ts` triggers this (it spawns `pnpm exec playwright test`); `doctor`, `scan`, `init`, `invariants-gen` do not spawn or import Playwright and must NOT call the check.
 - **TypeScript users importing `ContractQAReporter` or `ReporterOptions` from the runner root still need `@playwright/test` installed** to resolve the type imports in `reporter.ts`. This is unchanged from v0.12.0 (it's a type-only requirement, not a runtime one) but is called out in the CHANGELOG.
 - `apps/dashboard` and the contractqa monorepo's own tests still install `@playwright/test` via `devDependencies` of `@contractqa/runner` (or explicit install) — no behavior change for development.
 
@@ -125,9 +125,7 @@ Delete (moved to root):
 
 ## 8. CLI Playwright runtime check
 
-Current CLI commands (from `packages/cli/src/commands/`): `doctor`, `init`, `invariants-gen`, `run`, `scan`. Best-guess browser-required set: just `run`. The implementer verifies by reading each `commands/*.ts` and checking which transitively `import` from `@contractqa/runner` root (browser path) vs `@contractqa/runner/http` (HTTP path) vs neither. The check is injected only into the browser-required entries.
-
-At the entry of those browser-using commands:
+Current CLI commands (from `packages/cli/src/commands/`): `doctor`, `init`, `invariants-gen`, `run`, `scan`. **Browser-required set: just `run`** — verified by reading the actual command sources. `run.ts` `import { spawn } from 'node:child_process'` and then `spawn('pnpm', ['exec', 'playwright', 'test', ...])` around lines 39–41. The other 4 commands do not spawn Playwright or import any Playwright-touching code path. The check is injected immediately before the `spawn` call in `run.ts`:
 
 ```ts
 function requirePlaywright() {
@@ -205,8 +203,11 @@ Phase 13, the v1.0.0 milestone — the public API is now frozen under semver.
   `runHttpContract` and its associated types.
 - Root `STABILITY.md`
 - `engines.node >= 18` on all 9 publishable packages
-- CLI runtime check for `@playwright/test` (browser commands only — currently
-  just `run`)
+- CLI runtime check for `@playwright/test` — fail-fast with install hint if
+  missing. Placed immediately before the `pnpm exec playwright test` spawn in
+  `packages/cli/src/commands/run.ts`. `run` is the only browser-required
+  command at v1.0; the other 4 (`doctor`/`init`/`invariants-gen`/`scan`) do
+  not spawn or import Playwright.
 - `.strict()` enforcement on 4 non-http Action schema variants (goto/click/
   fill/wait)
 - Content-Type case-insensitive normalization in `runHttpContract`
@@ -302,7 +303,7 @@ MONGOMS_SKIP=1 pnpm -r test
 # .version via node to avoid grep matching nested "version" fields.
 unique=$(
   for f in packages/*/package.json; do
-    node -e "console.log(require('./$f').version)"
+    node -e "const v=require('./$f').version; if(!v){console.error('missing version: $f'); process.exit(1);} console.log(v)"
   done | sort -u | wc -l | tr -d ' '
 )
 if [[ "$unique" != "1" ]]; then
@@ -390,7 +391,7 @@ Phase 13 is complete when all of:
 | # | Risk | Mitigation |
 |---|---|---|
 | 1 | pnpm dry-run replacing `workspace:*` with an unexpected format | Acceptance script (§13.2) captures CLI dry-run stdout and greps for literal `"workspace:"`; non-zero matches fail the script. |
-| 2 | CLI Playwright check fires on non-browser commands (`doctor`/`scan`/`init`/`invariants-gen`) | Implementer reads each `packages/cli/src/commands/*.ts` and tags by which runner subpath it imports from. Check injected only into browser-required entries. Unit test asserts a non-browser command (e.g., `scan`) does NOT invoke the check; another asserts `run` does. |
+| 2 | CLI Playwright check fires on non-browser commands (`doctor`/`scan`/`init`/`invariants-gen`) | Classification rule (spec §3 item 3, §8): "browser-required" = command spawns Playwright OR statically imports a Playwright-touching path. Only `run.ts` qualifies (it spawns `pnpm exec playwright test` via `child_process.spawn`). Check is placed in `run.ts` immediately before the `spawn` call. Unit test asserts a non-browser command (e.g., `scan`) does NOT invoke the check; another asserts `run` does. |
 | 3 | adapters/STABILITY.md trim breaks an existing inbound link | Keep section headings as anchor points; only delete the five sub-sections listed in §7.2. Verify README references after edit. |
 | 4 | `engines.node >= 18` is technically a tightening for consumers on v0.x | v1.0.0 is a new major; engines constraint at a major boundary is permitted by semver. Documented in CHANGELOG under "Added". Note: root `package.json` retains `engines.node >= 20.18` as a dev-environment constraint (intentional asymmetry: stricter for contributors, looser for consumers). |
 | 5 | Missing one of the 9 packages in version bump | Acceptance script's `unique` count fails fast if any of the 9 `packages/*/package.json` reports a different `.version`. |
@@ -421,6 +422,9 @@ Total: 2.0–2.5 hours, conservatively 3 hours if opus review surfaces non-trivi
 
 ## 18. Open questions for user review
 
-None at spec time — all design decisions are settled. Independent opus review (round 1) surfaced 3 Critical + 8 Important issues, all addressed in this v2 spec: (a) `@contractqa/runner/http` subpath added to actually deliver Playwright-free HTTP path; (b) `FirestoreBackendAdapter` file path corrected to `packages/adapters/src/backend/firestore.ts`; (c) CLI command references updated to actual command list (`doctor`/`init`/`invariants-gen`/`run`/`scan`); (d) acceptance script hardened for bash robustness, ephemeral working dirs, and `workspace:*` rewrite verification; (e) package count standardized to 9 throughout; (f) reporter-types peer-dep caveat documented in CHANGELOG.
+None at spec time. Two rounds of independent opus review have been incorporated:
 
-The implementer-time questions (specific CLI command enumeration for the Playwright check by reading each `commands/*.ts`; exact JSDoc wording for `@experimental` tags; the exact `core` schema file containing the 4 Action variants) are routine and resolved by reading the relevant source files inside the worktree.
+- **Round 1** (3 Critical + 8 Important): `/http` subpath added to make the Playwright-free HTTP path real; Firestore path corrected to `packages/adapters/src/backend/firestore.ts`; CLI command names corrected; acceptance script hardened; package count standardized to 9; reporter-types caveat documented.
+- **Round 2** (1 New Important + 3 New Minor): CLI Playwright check classification rule corrected — `run.ts` spawns Playwright via `child_process.spawn`, doesn't `import @contractqa/runner`. The check is now specified to be placed immediately before the `spawn` call in `run.ts`. Acceptance script's `node -e` version extraction now fails if `.version` is missing. §3 item 12 count fixed from 8 to 9.
+
+Implementer-time questions (exact JSDoc wording for `@experimental` tags; the exact `core` schema file containing the 4 Action variants) are routine and resolved by reading the source files inside the worktree.
