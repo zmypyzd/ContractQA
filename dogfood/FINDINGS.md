@@ -115,21 +115,24 @@ Findings RESOLVED in Phase 3:
 - ✅ Acceptance-script ordering bug (build → typecheck → test) → D1 (cheap mitigation for the tsc -b backlog item)
 - ✅ Detector also handles `src/app/` and `src/pages/` layouts → inline fix during A9 dogfood (f0d8a2a)
 
-Phase 4 LOCKED-IN anchors (committed pre-planning):
-- **`contractqa doctor` hardening — native-deps ABI mismatch detection + auto-fix.** Phase 3 T12 was best-effort surface-only (logs candidates). Concrete regression case from 2026-05-15 dogfood: 5-4-codex and agent-poker-platform-gpt both ship `better_sqlite3.node` prebuilt for `NODE_MODULE_VERSION 115` (Node 20); user runs Node 22 by default (`NODE_MODULE_VERSION 127`); api crashes at `openDatabase()` → `bindings()` → `dlopen()` with `ERR_DLOPEN_FAILED`. `pnpm rebuild better-sqlite3` is silently a no-op in pnpm 10 — actual fix requires `cd <node_modules/.pnpm/<pkg>@<ver>/node_modules/<pkg>> && npm run install` to trigger `prebuild-install`. Phase 4 doctor must (a) detect the ABI mismatch via boot-probe pattern, (b) recommend the correct rebuild command for pnpm 10, (c) optionally auto-execute under `--fix`.
+## Phase 4 resolution status (v0.4.0)
 
-Findings STILL DEFERRED to Phase 4 (candidate pool — pick 1-2 alongside the locked-in doctor anchor):
-- `BackendAdapter` for HTTP-API-bypass test setup (the candidate dropped from Phase 3's anchor vote)
-- HTTP-API contract surface (for api-only repos like the original `agent-poker-platform`)
+Findings RESOLVED in Phase 4:
+- ✅ `contractqa doctor` hardening — workspace-aware native-dep scanner walks `apps/*` + `packages/*` package.jsons; `--fix=native-deps` runs `cd node_modules/.pnpm/<pkg>@<ver>/node_modules/<pkg> && npm run install` (the only path that triggers `prebuild-install` reliably under pnpm 10); boot-probe extracts `NODE_MODULE_VERSION X requires Y` from stderr and surfaces an ABI-mismatch hint pointing at the fix command. Today's regression case (5-4-codex / agent-poker-platform-gpt better-sqlite3 ABI 115 vs 127) becomes detectable + auto-fixable. → A1, A2, A3, A5
+- ✅ `BackendAdapter` real impl — `PostgresBackendAdapter` promoted from `@experimental` stub to `@stable`. Read-only DSN guarded at construction (rejects INSERT/UPDATE/DELETE/DROP/CREATE/TRUNCATE/GRANT; accepts SELECT and WITH...SELECT). Mandatory tenant scope — `query()` throws when tenant field absent from params. Named queries only (no raw SQL). → B1, B2, B3, B4
+- ✅ Monorepo / polyglot subdirectory detection in `contractqa init` — new `detectFrameworkInRepo` walks `apps/*`, `packages/*`, `web`, `frontend`, `client`, `site`. `init` and `scan` both gain `--target <subdir>` flag and auto-select the highest-confidence candidate. AmbiguousTarget thrown on tied confidence. Resolves the 5-4-codex / WolfMind / 5-4-claude `unknown`-detection regression. → C1, C2, C3
+- ✅ True per-responsibility routing in `composeAuth` — `currentUser` now routes to `'user-store'` owner (falling back to `'session'`); `expectFullyLoggedOut` runs against ALL adapters and AND-merges `fullyLoggedOut` + UNIONs `leaked_keys`. Phase 3 B4's "adjusted to match observed bug" test reverted. → D1, D2
+
+Findings STILL DEFERRED to Phase 5:
+- HTTP-API contract surface (for api-only repos like the original `agent-poker-platform`) — Phase 4 B5 deferred. Requires `action.kind: 'http'` support in runner + schema, plus a non-Playwright execution path. The `PostgresBackendAdapter` shipped in Phase 4 is the prerequisite; B5 is the consumer-side wiring.
 - Hybrid-auth scanner (`contractqa scan --detect-auth` from 5-4-claude finding) — basic detection landed in scan, hybrid multi-provider case still requires manual `composeAuth`
 - Dashboard §15.3–§15.6
 - Persona dogfood agents
 - Property/model-based test generation
 - TypeScript project references (`tsc -b`) — Phase 3 D1 reorder is the cheap mitigation; project references is the real fix
-- True per-responsibility routing in `composeAuth` (currently all calls route to the session owner; `sessionKeyPatterns` is the only unioned method; gap discovered during Phase 3 B4)
-- Monorepo / polyglot subdirectory detection in `contractqa init` (currently returns `unknown` for projects whose Vite/Next app lives in `frontend/` or a pnpm workspace package; surfaced during Phase 3 A9 dogfood for 5-4-codex / WolfMind / 5-4-claude)
 - pnpm-version-aware spawn helper (still documented, not coded)
 - Publishing to npm — Phase 3 prepares the surface; `pnpm publish` is user-gated
+- Mongo / Firestore / custom `BackendAdapter` implementations (Phase 4 only shipped Postgres; design doc §7.6.3 declares 4 kinds)
 
 ## Targets considered but not used
 
