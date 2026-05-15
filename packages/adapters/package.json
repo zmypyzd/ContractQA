@@ -30,9 +30,11 @@
   },
   "dependencies": {
     "@contractqa/core": "workspace:*",
-    "@google-cloud/firestore": "^8.6.0",
     "mongodb": "^7.2.0",
     "pg": "^8.13.0"
+  },
+  "optionalDependencies": {
+    "@google-cloud/firestore": "^8.6.0"
   },
   "devDependencies": {
     "@types/pg": "^8.11.0",
