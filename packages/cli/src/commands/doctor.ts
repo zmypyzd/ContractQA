@@ -43,7 +43,10 @@ export async function doctor(i: DoctorInput): Promise<DoctorReport> {
     boot = { ready: r.ready, firstStderrError: r.firstStderrError, abiHint: r.abiHint };
     r.kill();
   }
-  const needsFix = !!boot && !boot.ready;
+  // 'NEEDS FIX' fires on either a failed boot probe OR detected native
+  // mismatches (the latter matters when callers pass skipBootProbe — common
+  // in CI).
+  const needsFix = (!!boot && !boot.ready) || native.length > 0;
   const report: DoctorReport = {
     env,
     ports,

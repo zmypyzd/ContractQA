@@ -33,6 +33,20 @@ describe('PostgresBackendAdapter — read-only enforcement', () => {
     })).not.toThrow();
   });
 
+  it('rejects writable CTE (WITH ... DELETE/INSERT/UPDATE)', () => {
+    for (const sql of [
+      'WITH del AS (DELETE FROM orders WHERE id = $1 RETURNING *) SELECT * FROM del',
+      'WITH ins AS (INSERT INTO logs VALUES (1) RETURNING id) SELECT * FROM ins',
+      'WITH upd AS (UPDATE users SET active = false WHERE id = $1 RETURNING *) SELECT * FROM upd',
+    ]) {
+      expect(() => new PostgresBackendAdapter({
+        dsn: 'postgres://x',
+        tenantField: 'user_id',
+        namedQueries: { cte: { description: 'writable CTE', sql, params: {} } },
+      })).toThrow(/writable CTEs|DML\/DDL/);
+    }
+  });
+
   it('describe() returns SchemaDescriptor with tenantField and namedQueries', () => {
     const a = new PostgresBackendAdapter({
       dsn: 'postgres://x',

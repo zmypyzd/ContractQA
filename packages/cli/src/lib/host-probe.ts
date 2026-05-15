@@ -33,9 +33,13 @@ function isError(line: string): boolean {
 }
 
 export function extractAbiHint(stderr: string): { built: string; runtime: string } | null {
-  const m = stderr.match(/NODE_MODULE_VERSION\s+(\d+)\.[\s\S]*?requires\s*\n?\s*NODE_MODULE_VERSION\s+(\d+)/);
+  // Bound the lazy span to 512 chars so misbehaving stderr can't cause
+  // catastrophic backtracking.
+  const m = stderr.match(/NODE_MODULE_VERSION\s+(\d+)\.[^]{0,512}?requires\s*\n?\s*NODE_MODULE_VERSION\s+(\d+)/);
   return m ? { built: m[1]!, runtime: m[2]! } : null;
 }
+
+const STDERR_BUDGET = 64 * 1024;
 
 export async function probeHostBoot(i: ProbeInput): Promise<ProbeResult> {
   let allStderr = '';
@@ -47,7 +51,9 @@ export async function probeHostBoot(i: ProbeInput): Promise<ProbeResult> {
   });
   proc.stderr?.on('data', (b: Buffer) => {
     const chunk = b.toString();
-    allStderr += chunk;
+    if (allStderr.length < STDERR_BUDGET) {
+      allStderr += chunk.slice(0, STDERR_BUDGET - allStderr.length);
+    }
     if (firstStderrError) return;
     for (const line of chunk.split('\n')) {
       if (isError(line)) {

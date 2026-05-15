@@ -15,6 +15,13 @@ export interface PostgresBackendAdapterOptions {
 
 const READ_VERBS = /^(SELECT|WITH)\b/i;
 
+// Postgres allows DML inside CTEs: `WITH del AS (DELETE FROM t WHERE …) SELECT …`.
+// The READ_VERBS check passes such statements at the top level, so we also
+// reject any DML/DDL keyword token anywhere in the body. False-positive risk
+// on string literals (e.g. SELECT 'INSERT INTO foo') is accepted — a contract
+// asserting on user-controlled SQL fragments is itself a smell.
+const FORBIDDEN_DML_DDL = /\b(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|GRANT|REVOKE|MERGE|CALL|DO)\b/i;
+
 /**
  * @stable since v0.4.0. Read-only Postgres-backed BackendAdapter.
  *
@@ -34,6 +41,11 @@ export class PostgresBackendAdapter implements BackendAdapter {
       if (!READ_VERBS.test(trimmed)) {
         throw new Error(
           `PostgresBackendAdapter: named query "${name}" must start with SELECT or WITH; got: ${trimmed.slice(0, 40)}…`,
+        );
+      }
+      if (FORBIDDEN_DML_DDL.test(trimmed)) {
+        throw new Error(
+          `PostgresBackendAdapter: named query "${name}" contains a DML/DDL token (INSERT/UPDATE/DELETE/DROP/CREATE/ALTER/TRUNCATE/GRANT/REVOKE/MERGE/CALL/DO); writable CTEs are rejected.`,
         );
       }
     }
