@@ -6,12 +6,14 @@ describe('@contractqa/runner/http subpath', () => {
     expect(typeof mod.runHttpContract).toBe('function');
   });
 
-  it('module text contains no static @playwright import', async () => {
+  it('run-contract.ts (the underlying module) has no static @playwright import', async () => {
     const { readFile } = await import('node:fs/promises');
     const { fileURLToPath } = await import('node:url');
     const { dirname, resolve } = await import('node:path');
     const here = dirname(fileURLToPath(import.meta.url));
-    const src = await readFile(resolve(here, '../src/http.ts'), 'utf8');
-    expect(src).not.toMatch(/@playwright/);
+    const src = await readFile(resolve(here, '../src/run-contract.ts'), 'utf8');
+    // Match real import statements only (anchored to a line start, requires a quoted module specifier).
+    // Comments that happen to mention @playwright are fine.
+    expect(src).not.toMatch(/^\s*import\s.*from\s*['"]@playwright/m);
   });
 });

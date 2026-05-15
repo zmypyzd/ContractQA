@@ -10,7 +10,7 @@
  * playwright installed will throw at module init.
  *
  * This subpath only re-exports `runHttpContract` and its types from `./run-contract.js`.
- * `run-contract.ts` has zero playwright imports (verified at v1.0.0).
+ * `run-contract.ts` has zero playwright imports — this invariant is asserted by the http-subpath smoke test.
  */
 export { runHttpContract } from './run-contract.js';
 export type {

@@ -30,14 +30,14 @@ export interface PlaywrightResolver {
 const defaultPlaywrightResolver: PlaywrightResolver = createRequire(import.meta.url);
 
 /**
- * Verify `@playwright/test` is installed and resolvable.
+ * Verify `@playwright/test` is resolvable from this module.
  *
- * `runContracts` calls this immediately before spawning Playwright. Returns
- * `{ ok: false, error: '...' }` with a one-line install hint if missing;
- * `runContracts` then surfaces the error and returns exit code 1 instead of
- * letting the `spawn` fail with a confusing "playwright: command not found".
+ * Returns `{ ok: true }` when the package is installed and importable, or
+ * `{ ok: false, error }` with a one-line install hint otherwise. Callers
+ * should treat a `false` result as a fatal precondition and surface the
+ * error to the user before attempting any operation that loads Playwright.
  *
- * Pure function — accepts an optional resolver for test injection.
+ * Pure — accepts an optional resolver for test injection.
  */
 export function checkPlaywright(
   resolver: PlaywrightResolver = defaultPlaywrightResolver,
