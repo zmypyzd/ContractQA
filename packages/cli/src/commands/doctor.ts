@@ -106,9 +106,15 @@ async function runNpmInstallScript(cwd: string): Promise<{ ok: boolean; detail: 
     let stderr = '';
     child.stderr.on('data', (d) => { stderr += d.toString(); });
     child.on('close', (code) => {
-      resolve(code === 0
-        ? { ok: true, detail: 'npm run install OK' }
-        : { ok: false, detail: stderr.slice(0, 200).replace(/\s+/g, ' ').trim() });
+      if (code === 0) {
+        resolve({ ok: true, detail: 'npm run install OK' });
+        return;
+      }
+      const trimmed = stderr.slice(0, 200).replace(/\s+/g, ' ').trim();
+      const hint = /Missing script: install/i.test(trimmed)
+        ? ' (package has no install script — try `pnpm rebuild <pkg>` or `npm rebuild <pkg>`)'
+        : '';
+      resolve({ ok: false, detail: trimmed + hint });
     });
     child.on('error', (err) => resolve({ ok: false, detail: err.message }));
   });
