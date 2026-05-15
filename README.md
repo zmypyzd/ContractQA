@@ -51,11 +51,11 @@ Out of Phase 1 scope (documented in plan §1c risk register):
 - [x] `pnpm pack:host` workflow for installing into host projects
 - [x] 5 dogfood targets validated (§23.1 acceptance): `dogfood/{5-4-codex,website-vercel-supabase,wolfmind,5-4-claude,agent-poker-platform-gpt}/`
 
-Out of Phase 5 (Phase 6+): HTTP-API contract surface for api-only repos
-(B5 — deferred 2026-05-15 after target-repo recon found no Postgres-wired api-only dogfood candidate), Mongo / Firestore
-BackendAdapter, hybrid-auth scanner, persona dogfood agents,
-property/model-based generation, dashboard §15.3–§15.6, TypeScript
-project references via `tsc -b`. See
+Out of Phase 6 (Phase 7+): HTTP-API contract surface for api-only repos
+(B5 — still deferred; no Postgres-wired target identified yet), Mongo /
+Firestore BackendAdapter, persona dogfood agents, property/model-based
+generation, dashboard §15.3–§15.6, TypeScript project references via
+`tsc -b`, semver-aware `findPnpmPkgDir` (currently lexicographic). See
 [`dogfood/FINDINGS.md`](dogfood/FINDINGS.md) for the complete list.
 
 ## Phase 3 status (CLI onboarding + real-cloud Supabase + public adapter API)
@@ -106,6 +106,16 @@ Worked example — 5-4-codex on Node 22 (binary built for Node 20):
 contractqa doctor --fix=native-deps /path/to/5-4-codex
 # [ok] native-deps: better-sqlite3: rebuilt OK
 ```
+
+## Phase 6 status (hybrid-auth scanner + QA pass — v0.6.0)
+
+- [x] `contractqa scan --detect-auth` flag with path-presence rules per provider
+- [x] `## Hybrid auth` markdown section: per-provider evidence + suggested session owner + `composeAuth` config snippet (identifier placeholders, not empty-array comments)
+- [x] `findPnpmPkgDir` comment now matches lexicographic-sort behavior
+- [x] `host-probe-bounded` test threshold raised to 250ms for CI headroom
+- [x] `detectFrameworkInRepo` records symlink-skipped diagnostic in evidence
+- [x] `FORBIDDEN_DML_DDL` regex documents false-positive risk in JSDoc
+- [ ] HTTP-API contract surface (B5 of Phase 5 plan) — **still deferred** pending a Postgres-wired api-only target
 
 ## Quick start
 
