@@ -17,6 +17,7 @@ interface InspectInput {
 const WIRING_RULES: Record<AuthSignal, RegExp[]> = {
   'next-auth': [
     /^(src\/)?app\/api\/auth\/\[\.\.\.nextauth\]\/route\.(ts|tsx|js|jsx|mjs)$/,
+    /^(src\/)?app\/(\([^)]+\)\/)?api\/auth\/\[\.\.\.nextauth\]\/route\.(ts|tsx|js|jsx|mjs)$/,
     /^(src\/)?pages\/api\/auth\/\[\.\.\.nextauth\]\.(ts|tsx|js|jsx|mjs)$/,
     /^(src\/)?auth\.(ts|tsx|js|jsx|mjs)$/,
     /^(src\/)?lib\/auth\.(ts|tsx|js|jsx|mjs)$/,

@@ -49,4 +49,12 @@ describe('inspectAuthWiring — path-presence per provider', () => {
     });
     expect(r[0]!.wiringFiles).toEqual(['pages/api/auth/[...nextauth].ts']);
   });
+
+  it('detects next-auth with App Router route-groups', () => {
+    const r = inspectAuthWiring({
+      files: ['app/(auth)/api/auth/[...nextauth]/route.ts'],
+      signals: ['next-auth'],
+    });
+    expect(r[0]!.wiringFiles).toEqual(['app/(auth)/api/auth/[...nextauth]/route.ts']);
+  });
 });
