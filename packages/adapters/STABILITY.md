@@ -10,7 +10,7 @@ Exports marked `@stable` follow semver:
 - **Minor:** additive type changes (new methods, optional fields, new exports)
 - **Major:** removals, renames, narrowing of existing types, or behavior changes that would break a consumer following the public docs
 
-Exports marked `@experimental` may break in any minor release. They are documented in the changelog with a deprecation note when promoted to `@stable` or removed. `PostgresBackendAdapter` (v0.3.0) is the current example — its body is a Phase 4 stub.
+Exports marked `@experimental` may break in any minor release. They are documented in the changelog with a deprecation note when promoted to `@stable` or removed. `PostgresBackendAdapter` was promoted from `@experimental` to `@stable` in v0.4.0.
 
 ## Deprecation window
 

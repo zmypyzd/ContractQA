@@ -186,7 +186,13 @@ importers:
       '@contractqa/core':
         specifier: workspace:*
         version: link:../core
+      pg:
+        specifier: ^8.13.0
+        version: 8.20.0
     devDependencies:
+      '@types/pg':
+        specifier: ^8.11.0
+        version: 8.20.0
       typescript:
         specifier: ^5.7.2
         version: 5.9.3

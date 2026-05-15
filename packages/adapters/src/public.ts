@@ -31,5 +31,5 @@ export { CustomCookieAuthAdapter } from './auth/custom-cookie.js';
 /** @stable */
 export { composeAuth } from './auth/composite.js';
 
-/** @stable @experimental Phase 4 will fill in the body. */
-export { PostgresBackendAdapter } from './backend/postgres-stub.js';
+/** @stable */
+export { PostgresBackendAdapter } from './backend/postgres.js';
