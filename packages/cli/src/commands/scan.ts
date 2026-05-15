@@ -1,6 +1,6 @@
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { detectFramework, type DetectResult } from '../init/detect-framework.js';
+import { detectFramework, detectFrameworkInRepo, type DetectResult } from '../init/detect-framework.js';
 
 export interface ScanReport {
   framework: DetectResult['framework'];
@@ -9,6 +9,8 @@ export interface ScanReport {
   routes: string[];
   evidence: readonly string[];
   markdown: string;
+  scanRoot: string;
+  candidates?: ReadonlyArray<{ subdir: string; framework: DetectResult['framework']; confidence: number }>;
 }
 
 async function walk(root: string, prefix = ''): Promise<string[]> {
@@ -44,20 +46,46 @@ function deriveRoutes(framework: DetectResult['framework'], files: readonly stri
   return ['/'];
 }
 
-export async function scanProject(opts: { cwd: string }): Promise<ScanReport> {
-  const pkg = await readFile(path.join(opts.cwd, 'package.json'), 'utf8')
+export async function scanProject(opts: { cwd: string; target?: string }): Promise<ScanReport> {
+  let scanRoot = opts.cwd;
+  let candidates: ScanReport['candidates'];
+
+  if (opts.target) {
+    scanRoot = path.join(opts.cwd, opts.target);
+  } else {
+    const repo = await detectFrameworkInRepo(opts.cwd);
+    if (repo.candidates.length > 0) {
+      const top = repo.candidates[0]!;
+      if (top.subdir !== '.') scanRoot = path.join(opts.cwd, top.subdir);
+      candidates = repo.candidates.map((c) => ({
+        subdir: c.subdir, framework: c.framework, confidence: c.confidence,
+      }));
+    }
+  }
+
+  const pkg = await readFile(path.join(scanRoot, 'package.json'), 'utf8')
     .then((raw) => JSON.parse(raw) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> })
     .catch(() => ({} as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> }));
-  const files = await walk(opts.cwd);
+  const files = await walk(scanRoot);
   const detected = await detectFramework({ packageJson: pkg, files });
   const routes = deriveRoutes(detected.framework, files);
 
   const lines: string[] = [
     '# ContractQA scan report',
     '',
+    `**Scan root:** ${path.relative(opts.cwd, scanRoot) || '.'}`,
     `**Framework:** ${detected.framework} (confidence ${detected.confidence.toFixed(2)})`,
     `**Auth signals:** ${detected.authSignals.join(', ') || '(none)'}`,
     '',
+  ];
+  if (candidates && candidates.length > 1) {
+    lines.push('## Other detected candidates');
+    for (const c of candidates.slice(1)) {
+      lines.push(`- \`${c.subdir}\`: ${c.framework} (confidence ${c.confidence.toFixed(2)})`);
+    }
+    lines.push('');
+  }
+  lines.push(
     '## Routes',
     ...routes.map((r) => `- \`${r}\``),
     '',
@@ -66,7 +94,7 @@ export async function scanProject(opts: { cwd: string }): Promise<ScanReport> {
     '',
     '## Evidence',
     ...detected.evidence.map((e) => `- ${e}`),
-  ];
+  );
 
   return {
     framework: detected.framework,
@@ -75,5 +103,7 @@ export async function scanProject(opts: { cwd: string }): Promise<ScanReport> {
     routes,
     evidence: detected.evidence,
     markdown: lines.join('\n'),
+    scanRoot,
+    candidates,
   };
 }
