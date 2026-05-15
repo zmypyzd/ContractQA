@@ -35,6 +35,13 @@ const Action = z.discriminatedUnion('type', [
   z.object({ type: z.literal('click'), target: Target }),
   z.object({ type: z.literal('fill'), target: Target, value: z.string() }),
   z.object({ type: z.literal('wait'), ms: z.number().int().nonnegative() }),
+  z.object({
+    type: z.literal('http'),
+    method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']),
+    path: z.string().min(1),
+    body: z.unknown().optional(),
+    headers: z.record(z.string(), z.string()).optional(),
+  }).strict(),
 ]);
 
 const BackendState = z.object({
