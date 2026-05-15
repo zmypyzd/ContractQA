@@ -31,10 +31,10 @@ const Action = z.discriminatedUnion('type', [
   // `locale` sets the Accept-Language header before navigation, so i18n
   // contracts can pin DOM text to a known language (e.g. `locale: 'en'`
   // makes "Login" stable rather than "登录").
-  z.object({ type: z.literal('goto'), path: z.string(), locale: z.string().optional() }),
-  z.object({ type: z.literal('click'), target: Target }),
-  z.object({ type: z.literal('fill'), target: Target, value: z.string() }),
-  z.object({ type: z.literal('wait'), ms: z.number().int().nonnegative() }),
+  z.object({ type: z.literal('goto'), path: z.string(), locale: z.string().optional() }).strict(),
+  z.object({ type: z.literal('click'), target: Target }).strict(),
+  z.object({ type: z.literal('fill'), target: Target, value: z.string() }).strict(),
+  z.object({ type: z.literal('wait'), ms: z.number().int().nonnegative() }).strict(),
   z.object({
     type: z.literal('http'),
     method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']),
