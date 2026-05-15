@@ -11,10 +11,11 @@ export type Framework =
 /**
  * Auth provider signals detected via package.json deps.
  *
- * `'custom-cookie'` is reserved for future use — no automatic detector exists yet
- * (would need an opinionated heuristic like co-occurrence of `bcrypt`/`bcryptjs` +
- * Next.js `cookies()` usage). Consumers may construct `AuthDiagnostic` with this
- * signal manually if they have their own detection logic. Phase 8 candidate.
+ * `'custom-cookie'` is a heuristic signal: presence of `bcryptjs` or `bcrypt`
+ * in deps suggests a hand-rolled cookie-auth setup. Advisory only — false
+ * positives are acceptable (a project might use bcrypt for non-auth password
+ * hashing). Phase 9 candidate: layer in file-presence verification (look for
+ * `cookies()` usage in middleware or route handlers).
  */
 export type AuthSignal = 'next-auth' | 'supabase' | 'clerk' | 'auth0' | 'custom-cookie';
 
@@ -119,6 +120,7 @@ const AUTH_RULES: Array<{ signal: AuthSignal; test: (deps: Record<string, string
   { signal: 'supabase', test: (d) => !!d['@supabase/supabase-js'] || !!d['@supabase/ssr'] },
   { signal: 'clerk', test: (d) => !!d['@clerk/nextjs'] || !!d['@clerk/clerk-sdk-node'] },
   { signal: 'auth0', test: (d) => !!d['@auth0/nextjs-auth0'] },
+  { signal: 'custom-cookie', test: (d) => !!d['bcryptjs'] || !!d['bcrypt'] },
 ];
 
 export async function detectFramework(input: DetectInput): Promise<DetectResult> {

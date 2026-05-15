@@ -67,4 +67,28 @@ describe('detectFramework', () => {
     });
     expect(r.framework).toBe('next-pages');
   });
+
+  it('flags custom-cookie when bcryptjs is in deps', async () => {
+    const r = await detectFramework({
+      packageJson: { dependencies: { next: '*', bcryptjs: '^3.0.0' } },
+      files: ['package.json'],
+    });
+    expect(r.authSignals).toContain('custom-cookie');
+  });
+
+  it('flags custom-cookie when bcrypt is in deps', async () => {
+    const r = await detectFramework({
+      packageJson: { dependencies: { next: '*', bcrypt: '^5.0.0' } },
+      files: ['package.json'],
+    });
+    expect(r.authSignals).toContain('custom-cookie');
+  });
+
+  it('does not flag custom-cookie when neither bcrypt variant is present', async () => {
+    const r = await detectFramework({
+      packageJson: { dependencies: { next: '*' } },
+      files: ['package.json'],
+    });
+    expect(r.authSignals).not.toContain('custom-cookie');
+  });
 });
