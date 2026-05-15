@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 import type { ContractDoc } from '@contractqa/core';
 
 const PATH_AREA_MAP: Array<{ pattern: RegExp; area: string }> = [
@@ -22,12 +23,50 @@ export function selectChangedContracts(
   return contracts.filter((c) => areas.has(c.area));
 }
 
+export interface PlaywrightResolver {
+  resolve(id: string): string;
+}
+
+const defaultPlaywrightResolver: PlaywrightResolver = createRequire(import.meta.url);
+
+/**
+ * Verify `@playwright/test` is installed and resolvable.
+ *
+ * `runContracts` calls this immediately before spawning Playwright. Returns
+ * `{ ok: false, error: '...' }` with a one-line install hint if missing;
+ * `runContracts` then surfaces the error and returns exit code 1 instead of
+ * letting the `spawn` fail with a confusing "playwright: command not found".
+ *
+ * Pure function — accepts an optional resolver for test injection.
+ */
+export function checkPlaywright(
+  resolver: PlaywrightResolver = defaultPlaywrightResolver,
+): { ok: true } | { ok: false; error: string } {
+  try {
+    resolver.resolve('@playwright/test');
+    return { ok: true };
+  } catch {
+    return {
+      ok: false,
+      error:
+        '@playwright/test is not installed.\n' +
+        'Install it with:  npm install @playwright/test && npx playwright install chromium',
+    };
+  }
+}
+
 export async function runContracts(opts: {
   contractsDir: string;
   artifactsRoot: string;
   changedFiles?: string[];
   baseUrl?: string;
 }): Promise<{ exitCode: number }> {
+  const check = checkPlaywright();
+  if (!check.ok) {
+    console.error(check.error);
+    return { exitCode: 1 };
+  }
+
   const env = {
     ...process.env,
     CONTRACTQA_CONTRACTS_DIR: opts.contractsDir,
