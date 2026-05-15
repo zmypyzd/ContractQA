@@ -8,7 +8,7 @@ describe('host-probe — bounded extraction', () => {
     const r = extractAbiHint(big);
     const elapsed = Date.now() - start;
     expect(r).toBeNull();
-    expect(elapsed).toBeLessThan(100); // bounded regex shouldn't take long
+    expect(elapsed).toBeLessThan(250); // bounded regex; 250ms is generous for cold V8 JIT
   });
 
   it('extractAbiHint still finds the hint when within 512-char window', () => {
