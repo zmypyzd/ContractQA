@@ -133,7 +133,7 @@ export async function detectFramework(input: DetectInput): Promise<DetectResult>
   };
 }
 
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { lstat, readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 export interface RepoDetectCandidate {
@@ -164,8 +164,21 @@ export async function detectFrameworkInRepo(root: string): Promise<RepoDetectRes
       // Walk one level deeper.
       const subs = await readdir(hintPath);
       for (const s of subs) {
-        const r = await tryDir(path.join(hintPath, s), `${hint}/${s}`);
-        if (r) candidates.push(r);
+        const subPath = path.join(hintPath, s);
+        if ((await lstat(subPath)).isSymbolicLink()) continue;
+        if (s.startsWith('@')) {
+          // Scoped package: walk one more level (e.g. apps/@org/pkg)
+          const scopedSubs = await readdir(subPath);
+          for (const ss of scopedSubs) {
+            const scopedPath = path.join(subPath, ss);
+            if ((await lstat(scopedPath)).isSymbolicLink()) continue;
+            const r = await tryDir(scopedPath, `${hint}/${s}/${ss}`);
+            if (r) candidates.push(r);
+          }
+        } else {
+          const r = await tryDir(subPath, `${hint}/${s}`);
+          if (r) candidates.push(r);
+        }
       }
     } else {
       const r = await tryDir(hintPath, hint);

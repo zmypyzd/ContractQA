@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, symlink } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { detectFrameworkInRepo } from '../src/init/detect-framework.js';
@@ -55,5 +55,27 @@ describe('detectFrameworkInRepo — monorepo subdirectory walking', () => {
     await writeFile(path.join(root, 'package.json'), JSON.stringify({ name: 'empty' }));
     const r = await detectFrameworkInRepo(root);
     expect(r.candidates).toEqual([]);
+  });
+
+  it('walks scoped workspace packages (apps/@scope/pkg)', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'cqa-init-scoped-'));
+    await writeFile(path.join(root, 'package.json'), JSON.stringify({ name: 'root', private: true }));
+    await mkdir(path.join(root, 'apps/@org/web'), { recursive: true });
+    await writeFile(path.join(root, 'apps/@org/web/package.json'), JSON.stringify({ dependencies: { vite: '*', react: '*' } }));
+    await writeFile(path.join(root, 'apps/@org/web/vite.config.ts'), '');
+    const r = await detectFrameworkInRepo(root);
+    expect(r.candidates.find((c) => c.subdir === 'apps/@org/web')).toBeDefined();
+  });
+
+  it('skips symlinked subdirs to avoid descending into pnpm injection', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'cqa-init-symlink-'));
+    await writeFile(path.join(root, 'package.json'), JSON.stringify({ name: 'root' }));
+    await mkdir(path.join(root, 'apps'), { recursive: true });
+    await mkdir(path.join(root, 'real-pkg'), { recursive: true });
+    await writeFile(path.join(root, 'real-pkg/package.json'), JSON.stringify({ dependencies: { vite: '*', react: '*' } }));
+    await writeFile(path.join(root, 'real-pkg/vite.config.ts'), '');
+    await symlink(path.join(root, 'real-pkg'), path.join(root, 'apps/linked'));
+    const r = await detectFrameworkInRepo(root);
+    expect(r.candidates.find((c) => c.subdir === 'apps/linked')).toBeUndefined();
   });
 });
