@@ -14,7 +14,11 @@
       "types": "./dist/public.d.ts"
     }
   },
-  "files": ["dist", "STABILITY.md", "README.md"],
+  "files": [
+    "dist",
+    "STABILITY.md",
+    "README.md"
+  ],
   "publishConfig": {
     "access": "public"
   },
@@ -26,6 +30,7 @@
   },
   "dependencies": {
     "@contractqa/core": "workspace:*",
+    "mongodb": "^7.2.0",
     "pg": "^8.13.0"
   },
   "devDependencies": {
