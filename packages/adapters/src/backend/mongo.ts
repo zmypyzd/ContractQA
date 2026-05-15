@@ -9,7 +9,12 @@ export interface MongoNamedQuery {
   filter?: Record<string, unknown>;
   /** For operation='aggregate'. Array of stages. */
   pipeline?: Array<Record<string, unknown>>;
-  /** Params mapping; MUST include the tenantField. Values use `$1`-style placeholders. */
+  /**
+   * Params mapping; MUST include the tenantField. Values use placeholder syntax:
+   *  - `$N` (positional, e.g. `$1`, `$2`) — resolved by declaration order in this map
+   *  - `:name` (named, e.g. `:user_id`) — resolved by name lookup at query time
+   * Both styles can coexist within a single named query.
+   */
   params: Record<string, string>;
 }
 
@@ -150,6 +155,17 @@ export class MongoBackendAdapter implements BackendAdapter {
     }
   }
 
+  /**
+   * Close the adapter. Sets a `closed` flag (post-close `query()` calls throw),
+   * awaits any in-flight `connect()` promise, then drains in-flight `query()`
+   * calls (up to 5s hard timeout) before terminating the underlying `MongoClient`.
+   *
+   * Concurrent `query()` and `close()`:
+   *  - query already past `getDb()` → drained (its `toArray()` runs to completion)
+   *  - query starting after `close()` flag set → throws `'is closed'`
+   *
+   * Idempotent — calling `close()` twice is safe.
+   */
   async close(): Promise<void> {
     this.closed = true;
     if (this.connectingP) {
