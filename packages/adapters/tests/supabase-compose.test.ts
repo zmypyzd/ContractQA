@@ -1,13 +1,10 @@
 /**
  * B4 — composeAuth(SupabaseAuthAdapter v2, user-store) integration test
  *
- * PLAN vs REALITY NOTE:
- * The task plan stated that composed.currentUser should be routed to the
- * 'user-store' adapter. However, composite.ts routes loginAs, isAuthenticated,
- * currentUser, AND expectFullyLoggedOut all to the adapter owning 'session'.
- * Only sessionKeyPatterns is unioned across all adapters.
- *
- * The test below reflects the ACTUAL implementation, not the plan's description.
+ * Phase 4 routing: composeAuth routes currentUser to the user-store-owning
+ * adapter (was: hardcoded to session-owner in v0.3.x). This test asserts
+ * the corrected behavior. expectFullyLoggedOut now runs against every
+ * adapter and AND-merges fullyLoggedOut.
  */
 import { describe, it, expect } from 'vitest';
 import { SupabaseAuthAdapter } from '../src/auth/supabase.js';
@@ -67,10 +64,7 @@ describe('composeAuth(supabase v2, userstore)', () => {
     expect(stored.user.user_metadata.role).toBe('admin');
   });
 
-  it('routes currentUser to the session-owning adapter (Supabase), returns session-decoded user', async () => {
-    // PLAN DISCREPANCY: The plan said currentUser should come from the user-store adapter
-    // ('from-userstore'). In the actual implementation, composeAuth routes currentUser to
-    // the adapter owning 'session', so Supabase decodes it from the localStorage token.
+  it('routes currentUser to the user-store adapter when present', async () => {
     const state: Record<string, string> = {};
     const sb = new SupabaseAuthAdapter({
       url: 'http://localhost:54321',
@@ -100,11 +94,10 @@ describe('composeAuth(supabase v2, userstore)', () => {
     // Write a session so currentUser has something to decode.
     await composed.loginAs('admin', fakePage(state) as never);
 
-    // currentUser is routed to the session-owning adapter (Supabase), not user-store.
+    // currentUser is now routed to the user-store adapter (Phase 4 fix).
     const user = await composed.currentUser(fakePage(state) as never);
-    expect(user).toEqual({ id: 'sb-user', role: 'admin' });
-    // Explicitly verify it is NOT the user-store value.
-    expect(user?.id).not.toBe('from-userstore');
+    expect(user).toEqual({ id: 'from-userstore', role: 'admin' });
+    expect(user?.id).not.toBe('sb-user');
   });
 
   it('unions sessionKeyPatterns from both adapters', async () => {

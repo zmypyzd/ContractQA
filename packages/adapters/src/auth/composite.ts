@@ -12,48 +12,53 @@ const ALL_RESPONSIBILITIES: readonly AuthResponsibility[] = [
   'oauth-callback',
 ];
 
-function pick(adapters: AuthAdapter[], r: AuthResponsibility): AuthAdapter {
-  const owner = adapters.find((a) =>
-    (a.responsibilities ?? ALL_RESPONSIBILITIES).includes(r),
-  );
-  if (!owner) throw new Error(`no adapter declares responsibility "${r}"`);
-  return owner;
+const METHOD_RESPONSIBILITY: Record<'loginAs' | 'isAuthenticated' | 'currentUser', readonly AuthResponsibility[]> = {
+  loginAs: ['session'],
+  isAuthenticated: ['session'],
+  currentUser: ['user-store', 'session'], // first match wins
+};
+
+function pickFirst(adapters: AuthAdapter[], rs: readonly AuthResponsibility[]): AuthAdapter {
+  for (const r of rs) {
+    const owner = adapters.find((a) => (a.responsibilities ?? ALL_RESPONSIBILITIES).includes(r));
+    if (owner) return owner;
+  }
+  throw new Error(`composeAuth: no adapter declares responsibility for any of: ${rs.join(', ')}`);
 }
 
 /**
- * Combine multiple AuthAdapters into one. Useful when a host stacks
- * NextAuth (session) + Supabase (user-store), or any composition where one
- * adapter owns the cookie/session and another owns DB lookups.
+ * Combine multiple AuthAdapters into one.
  *
- * Delegation rules:
- *   - loginAs / isAuthenticated / currentUser / expectFullyLoggedOut →
- *     the adapter owning 'session'.
- *   - sessionKeyPatterns → union of every adapter's patterns.
+ * Per-responsibility routing (Phase 4):
+ *   - loginAs / isAuthenticated → owner of 'session'
+ *   - currentUser → owner of 'user-store', falling back to 'session'
+ *   - expectFullyLoggedOut → ALL adapters; result is AND of fullyLoggedOut + UNION of leaked_keys
+ *   - sessionKeyPatterns → UNION across all adapters
  *
  * Adapters without a `responsibilities` field are treated as owning every
- * responsibility (backward compatible with Phase 1 adapters).
+ * responsibility (Phase 1 backward compat).
  */
 export function composeAuth(adapters: AuthAdapter[]): AuthAdapter {
-  if (adapters.length === 0) {
-    throw new Error('composeAuth requires at least one adapter');
-  }
+  if (adapters.length === 0) throw new Error('composeAuth requires at least one adapter');
   return {
     provider: 'custom',
     responsibilities: ALL_RESPONSIBILITIES,
     loginAs: (role: string, page: Page): Promise<void> =>
-      pick(adapters, 'session').loginAs(role, page),
+      pickFirst(adapters, METHOD_RESPONSIBILITY.loginAs).loginAs(role, page),
     isAuthenticated: (page: Page): Promise<boolean> =>
-      pick(adapters, 'session').isAuthenticated(page),
+      pickFirst(adapters, METHOD_RESPONSIBILITY.isAuthenticated).isAuthenticated(page),
     currentUser: (page: Page): Promise<{ id: string; role: string } | null> =>
-      pick(adapters, 'session').currentUser(page),
-    expectFullyLoggedOut: (page: Page): Promise<AuthStateAssertion> =>
-      pick(adapters, 'session').expectFullyLoggedOut(page),
+      pickFirst(adapters, METHOD_RESPONSIBILITY.currentUser).currentUser(page),
+    expectFullyLoggedOut: async (page: Page): Promise<AuthStateAssertion> => {
+      const all = await Promise.all(adapters.map((a) => a.expectFullyLoggedOut(page)));
+      const fullyLoggedOut = all.every((r) => r.fullyLoggedOut);
+      const leaked: string[] = all.flatMap((r) => (r as any).leaked_keys ?? []);
+      const merged: AuthStateAssertion = { fullyLoggedOut, reasons: [] };
+      if (leaked.length > 0) (merged as any).leaked_keys = leaked;
+      return merged;
+    },
     sessionKeyPatterns: (): SessionKeyPatterns => {
-      const merged: SessionKeyPatterns = {
-        localStorage: [],
-        sessionStorage: [],
-        cookies: [],
-      };
+      const merged: SessionKeyPatterns = { localStorage: [], sessionStorage: [], cookies: [] };
       for (const a of adapters) {
         const p = a.sessionKeyPatterns();
         merged.localStorage.push(...p.localStorage);
