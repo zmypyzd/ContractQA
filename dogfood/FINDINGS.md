@@ -183,6 +183,24 @@ Findings STILL DEFERRED to Phase 8:
 - Dynamic `$session.userId` resolution.
 - Publishing to npm (still user-gated).
 
+## Phase 8 resolution status (v0.8.0)
+
+Findings RESOLVED in Phase 8:
+- **Mongo BackendAdapter** (was: deferred from Phase 4+). `MongoBackendAdapter` ships with construction-time read-only guards (named-queries-only, find/aggregate only, mandatory tenant field, forbidden-operator deep-walk: $where, $function, $accumulator, $out, $merge, $listLocalSessions). Unit tests via mocked client only — real-Mongo integration is Phase 9.
+- **`custom-cookie` AuthSignal detector** (was: Phase 7 documented as missing). Deps-only heuristic: `bcryptjs` or `bcrypt` presence triggers the signal. Advisory; false positives accepted.
+- **Dashboard Next 15 `params: Promise` migration** (was: Phase 7 surfaced as a Next 15 typecheck error). `app/issues/[id]/page.tsx` now awaits `params` before destructuring.
+
+Findings STILL DEFERRED to Phase 9:
+- HTTP-API contract surface (B5) — still no Postgres-wired target identified.
+- Real-Mongo integration tests (`mongodb-memory-server` or docker fixture).
+- Firestore BackendAdapter.
+- File-content parsing for `custom-cookie` (cookies() usage verification).
+- Persona dogfood agents, property/model-based test generation, dashboard §15.3–§15.6.
+- pnpm-version-aware spawn helper.
+- File-content parsing for auth detection.
+- Dynamic `$session.userId` resolution.
+- Publishing to npm (still user-gated).
+
 ## Targets considered but not used
 
 - **teamagent/dogfood-target** — pure static counter, no contracts apply
