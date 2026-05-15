@@ -69,6 +69,46 @@ function deriveRoutes(framework: DetectResult['framework'], files: readonly stri
   return ['/'];
 }
 
+function renderHybridSection(authDiagnostics: readonly AuthDiagnostic[]): string[] {
+  const lines: string[] = [];
+  const owner = pickSessionOwner(authDiagnostics);
+  lines.push(
+    '',
+    '## Hybrid auth',
+    '',
+    'Two or more auth providers detected. Use `composeAuth` from `@contractqa/adapters` to route per-responsibility.',
+    '',
+  );
+  for (const d of authDiagnostics) {
+    lines.push(
+      `### ${d.provider}`,
+      '',
+      `**Wiring files:** ${d.wiringFiles.length ? d.wiringFiles.map((f) => `\`${f}\``).join(', ') : '(none found via path-presence)'}`,
+      `**Has middleware:** ${d.hasMiddleware ? 'yes' : 'no'}`,
+      '',
+    );
+  }
+  lines.push(
+    `**Suggested session owner:** ${owner}`,
+    '',
+    '**Suggested `composeAuth` config:**',
+    '',
+    '```ts',
+    `import { composeAuth } from '@contractqa/adapters';`,
+    `// Each adapter declares its own responsibilities. The adapter you give`,
+    `// responsibilities: ['session'] (currently suggested: ${owner}) becomes the session owner.`,
+    `const auth = composeAuth([`,
+    ...authDiagnostics.map((d) => {
+      const resps = d.provider === owner ? `['session', 'user-store']` : `['user-store']`;
+      return `  ${adapterIdentifier(d.provider)}, // responsibilities: ${resps}`;
+    }),
+    `]);`,
+    '```',
+    '',
+  );
+  return lines;
+}
+
 export async function scanProject(opts: { cwd: string; target?: string; detectAuth?: boolean }): Promise<ScanReport> {
   let scanRoot = opts.cwd;
   let candidates: ScanReport['candidates'];
@@ -137,41 +177,7 @@ export async function scanProject(opts: { cwd: string; target?: string; detectAu
 
   // Hybrid auth section (Phase 6)
   if (authDiagnostics && authDiagnostics.length >= 2) {
-    const owner = pickSessionOwner(authDiagnostics);
-    lines.push(
-      '',
-      '## Hybrid auth',
-      '',
-      'Two or more auth providers detected. Use `composeAuth` from `@contractqa/adapters` to route per-responsibility.',
-      '',
-    );
-    for (const d of authDiagnostics) {
-      lines.push(
-        `### ${d.provider}`,
-        '',
-        `**Wiring files:** ${d.wiringFiles.length ? d.wiringFiles.map((f) => `\`${f}\``).join(', ') : '(none found via path-presence)'}`,
-        `**Has middleware:** ${d.hasMiddleware ? 'yes' : 'no'}`,
-        '',
-      );
-    }
-    lines.push(
-      `**Suggested session owner:** ${owner}`,
-      '',
-      '**Suggested `composeAuth` config:**',
-      '',
-      '```ts',
-      `import { composeAuth } from '@contractqa/adapters';`,
-      `// Each adapter declares its own responsibilities. The adapter you give`,
-      `// responsibilities: ['session'] (currently suggested: ${owner}) becomes the session owner.`,
-      `const auth = composeAuth([`,
-      ...authDiagnostics.map((d) => {
-        const resps = d.provider === owner ? `['session', 'user-store']` : `['user-store']`;
-        return `  ${adapterIdentifier(d.provider)}, // responsibilities: ${resps}`;
-      }),
-      `]);`,
-      '```',
-      '',
-    );
+    lines.push(...renderHybridSection(authDiagnostics));
   }
 
   return {
