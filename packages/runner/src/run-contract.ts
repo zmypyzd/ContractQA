@@ -1,11 +1,12 @@
 import { mkdir, writeFile as fsWriteFile, readFile as fsReadFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { ContractDoc, NoiseProfile, VerdictResult } from '@contractqa/core';
+import type { BackendAdapter, ContractDoc, NoiseProfile, VerdictResult } from '@contractqa/core';
 import type { StateSlice } from '@contractqa/oracle';
 import { writeEvidenceBundle } from '@contractqa/evidence';
 import { snapshotBrowser } from '@contractqa/probes';
 import { compileContract, type CompiledPage } from './compile.js';
 import { runOracle } from './fixtures.js';
+import { evaluateBackendState } from './backend-evaluator.js';
 
 export interface RunContractAttachment {
   name: string;
@@ -16,6 +17,7 @@ export interface RunContractAttachment {
 export interface RunContractInput {
   contract: ContractDoc;
   page: Parameters<typeof snapshotBrowser>[0] & CompiledPage;
+  backend?: BackendAdapter;
   stripBaseUrl: string;
   noise: NoiseProfile;
   artifactsRoot: string;
@@ -109,6 +111,34 @@ export async function runContract(input: RunContractInput): Promise<RunContractR
     attach: (a) => oracleAttached.push(a),
     tmpDir: scratchDir,
   });
+
+  // Evaluate backend_state if present in the contract.
+  // Severity: FAIL > INCONCLUSIVE > PASS — a backend FAIL always wins;
+  // backend INCONCLUSIVE only downgrades a front-end PASS.
+  if (input.contract.expected.backend_state) {
+    const bs = input.contract.expected.backend_state;
+    const backendResult = await evaluateBackendState(bs, input.backend);
+    if (backendResult.verdict === 'FAIL') {
+      verdict.verdict = 'FAIL';
+      verdict.violations = [
+        ...verdict.violations,
+        {
+          invariantId: 'backend_state',
+          message: backendResult.reason ?? 'backend_state assertion failed',
+          expected: bs.assert,
+          actual: backendResult.reason,
+        },
+      ];
+    } else if (backendResult.verdict === 'INCONCLUSIVE' && verdict.verdict === 'PASS') {
+      verdict.verdict = 'INCONCLUSIVE';
+      if (backendResult.missingCapability) {
+        verdict.missingCapabilities = [
+          ...verdict.missingCapabilities,
+          backendResult.missingCapability,
+        ];
+      }
+    }
+  }
 
   let bundleDir: string | null = null;
   const runId = `${new Date().toISOString().replace(/[:.]/g, '-')}_${input.contract.id}`;

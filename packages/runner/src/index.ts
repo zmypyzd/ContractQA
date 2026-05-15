@@ -20,3 +20,5 @@ export type {
   RunContractResult,
   RunContractAttachment,
 } from './run-contract.js';
+export { evaluateBackendState } from './backend-evaluator.js';
+export type { BackendStateSpec, BackendEvalResult } from './backend-evaluator.js';
