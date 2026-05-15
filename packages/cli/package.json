@@ -6,6 +6,16 @@
     "contractqa": "./dist/bin/contractqa.js"
   },
   "main": "./dist/src/index.js",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",

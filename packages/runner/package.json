@@ -8,6 +8,16 @@
     ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" },
     "./reporter": { "import": "./dist/reporter.js", "types": "./dist/reporter.d.ts" }
   },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",

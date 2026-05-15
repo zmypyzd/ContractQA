@@ -19,6 +19,9 @@
     "STABILITY.md",
     "README.md"
   ],
+  "engines": {
+    "node": ">=18"
+  },
   "publishConfig": {
     "access": "public"
   },
