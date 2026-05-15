@@ -72,11 +72,13 @@ function deriveRoutes(framework: DetectResult['framework'], files: readonly stri
 export async function scanProject(opts: { cwd: string; target?: string; detectAuth?: boolean }): Promise<ScanReport> {
   let scanRoot = opts.cwd;
   let candidates: ScanReport['candidates'];
+  let repoEvidence: readonly string[] = [];
 
   if (opts.target) {
     scanRoot = path.join(opts.cwd, opts.target);
   } else {
     const repo = await detectFrameworkInRepo(opts.cwd);
+    repoEvidence = repo.evidence;
     if (repo.candidates.length > 0) {
       const top = repo.candidates[0]!;
       if (top.subdir !== '.') scanRoot = path.join(opts.cwd, top.subdir);
@@ -126,6 +128,12 @@ export async function scanProject(opts: { cwd: string; target?: string; detectAu
     '## Evidence',
     ...detected.evidence.map((e) => `- ${e}`),
   );
+  // Append repo-level evidence (e.g., symlink-skipped diagnostics from B3) when present.
+  if (repoEvidence.length > 0) {
+    for (const e of repoEvidence) {
+      lines.push(`- ${e}`);
+    }
+  }
 
   // Hybrid auth section (Phase 6)
   if (authDiagnostics && authDiagnostics.length >= 2) {

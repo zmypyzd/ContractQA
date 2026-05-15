@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import os from 'node:os';
 import path from 'node:path';
@@ -68,5 +68,21 @@ describe('scanProject', () => {
     }));
     const r = await scanProject({ cwd: root });
     expect(r.authDiagnostics).toBeUndefined();
+  });
+
+  it('scan markdown includes repo-level evidence (symlink diagnostic)', async () => {
+    if (process.platform === 'win32') return;
+    const root = await mkdtemp(path.join(os.tmpdir(), 'cqa-scan-symlink-ev-'));
+    await writeFile(path.join(root, 'package.json'), JSON.stringify({ name: 'root', private: true }));
+    await mkdir(path.join(root, 'apps'), { recursive: true });
+    await mkdir(path.join(root, 'real-pkg'), { recursive: true });
+    await writeFile(path.join(root, 'real-pkg/package.json'), JSON.stringify({
+      dependencies: { vite: '*', react: '*' },
+    }));
+    await writeFile(path.join(root, 'real-pkg/vite.config.ts'), '');
+    await symlink(path.join(root, 'real-pkg'), path.join(root, 'apps/linked'));
+
+    const r = await scanProject({ cwd: root });
+    expect(r.markdown).toMatch(/skipped 1 symlinked subdir/);
   });
 });
