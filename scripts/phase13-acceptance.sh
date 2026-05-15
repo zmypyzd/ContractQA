@@ -50,7 +50,7 @@ if grep -E '"@contractqa/[^"]+":\s*"workspace:' "$dryrun_dir/contractqa.log"; th
 fi
 
 # CLI tarball spot-check.
-pnpm --filter contractqa pack --pack-destination "$cli_pack_dir"
+(cd packages/cli && pnpm pack --pack-destination "$cli_pack_dir")
 cli_tarballs=( "$cli_pack_dir"/*.tgz )
 if [[ ${#cli_tarballs[@]} -eq 0 ]]; then
   echo "FAIL: no CLI tarball produced"
@@ -66,7 +66,7 @@ fi
 
 # Runner tarball — must contain dist/http.js (the new /http subpath
 # introduced in v1.0.0 for Playwright-free HTTP consumers).
-pnpm --filter @contractqa/runner pack --pack-destination "$runner_pack_dir"
+(cd packages/runner && pnpm pack --pack-destination "$runner_pack_dir")
 runner_tarballs=( "$runner_pack_dir"/*.tgz )
 if [[ ${#runner_tarballs[@]} -eq 0 ]]; then
   echo "FAIL: no runner tarball produced"
