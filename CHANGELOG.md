@@ -2,6 +2,77 @@
 
 All notable changes to ContractQA are documented here.
 
+## v1.0.0 — 2026-05-16 (Phase 13)
+
+This is contractqa's 1.0 release. Twelve consecutive minor releases
+(v0.5.0 → v0.12.0) shipped without a breaking change since v0.4.0; this is
+Phase 13, the v1.0.0 milestone — the public API is now frozen under semver.
+
+### What's stable at 1.0
+
+- `contractqa` CLI commands and flags
+- `@contractqa/adapters/public` — the three-member BackendAdapter family
+  (Postgres, Mongo, Firestore — Firestore is `@experimental`, see below),
+  all AuthAdapters, `composeAuth`
+- The contract schema (action types except http, oracle rules, evidence bundle
+  layout)
+- `runContract` (Playwright)
+
+### What's experimental at 1.0
+
+- `runHttpContract` (no real dogfood target yet) — exposed via the new
+  `@contractqa/runner/http` subpath
+- `FirestoreBackendAdapter` (mocked-only tests; real-emulator integration deferred)
+
+### Added
+
+- `@contractqa/runner/http` subpath — Playwright-free entry point for
+  HTTP-only consumers. New file `packages/runner/src/http.ts` re-exports
+  `runHttpContract` and its associated types.
+- Root `STABILITY.md`
+- `engines.node >= 18` on all 9 publishable packages
+- `publishConfig.access: "public"` + `files` whitelist on the 8 packages
+  that didn't already have them
+- CLI runtime check for `@playwright/test` — fail-fast with install hint if
+  missing. Placed immediately before the `pnpm exec playwright test` spawn
+  in `packages/cli/src/commands/run.ts`. `run` is the only browser-required
+  command at v1.0; `doctor`/`init`/`invariants-gen`/`scan` do not spawn or
+  import Playwright.
+- `.strict()` enforcement on 4 non-http Action schema variants
+  (`goto`/`click`/`fill`/`wait`)
+- Content-Type case-insensitive normalization in `runHttpContract`
+- `@experimental` JSDoc tags on `runHttpContract` and `FirestoreBackendAdapter`
+- `README.md` for each of the 9 publishable packages (the 7 internal packages
+  carry an "internal" warning block; CLI and adapters have user-facing READMEs)
+
+### Changed (non-breaking)
+
+- `@playwright/test` reclassified from `dependencies` to optional
+  `peerDependencies` in `@contractqa/runner`. **HTTP-only consumers must
+  import from `@contractqa/runner/http`** to actually skip the Playwright
+  install — the runner root barrel still loads `playwright-entry.ts` at
+  module init. Browser-using consumers run
+  `npm install @playwright/test && npx playwright install chromium` once.
+- TypeScript users importing `ContractQAReporter` or `ReporterOptions` from
+  `@contractqa/runner` root must still have `@playwright/test` installed for
+  TS type resolution (its `reporter.ts` imports types from
+  `@playwright/test/reporter`). This is a type-only requirement, unchanged
+  from v0.12.0; documented here for completeness.
+- `packages/adapters/STABILITY.md` trimmed; common policy moved to root doc.
+  Adapter-specific sections (`composeAuth` routing log, per-adapter "Stable
+  since" timelines, Mongo/Firestore-specific rules) remain.
+- `runHttpContract` Content-Type header check is now case-insensitive
+  (`Content-Type`, `content-type`, `CONTENT-TYPE`, `Content-type` all
+  treated the same). Default `application/json` no longer clobbers a
+  user-supplied header in unusual cases.
+
+### Notes
+
+`pnpm publish` to the npm registry is user-gated; this release is tagged
+locally and the publish step is taken outside CI by the maintainer. The
+`scripts/phase13-acceptance.sh` script validates that `pnpm publish
+--dry-run` passes for all 9 publishable packages.
+
 ## v0.12.0 — 2026-05-15 (Phase 12)
 
 Phase 12 ships the long-deferred B5 HTTP action support (runner + schema; dogfood target still deferred) plus 3 Phase 11 polish items.
