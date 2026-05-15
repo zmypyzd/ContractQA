@@ -24,6 +24,15 @@ export interface MongoBackendAdapterOptions {
 
 const FORBIDDEN_OPERATORS = ['$where', '$function', '$accumulator', '$out', '$merge', '$listLocalSessions'];
 
+function bodyReferencesPlaceholder(node: unknown, placeholder: string): boolean {
+  if (typeof node === 'string') return node === placeholder;
+  if (Array.isArray(node)) return node.some((n) => bodyReferencesPlaceholder(n, placeholder));
+  if (node && typeof node === 'object') {
+    return Object.values(node as Record<string, unknown>).some((v) => bodyReferencesPlaceholder(v, placeholder));
+  }
+  return false;
+}
+
 /** Deep-walk an object/array; throw if any FORBIDDEN_OPERATORS appears as a key. */
 function assertNoForbiddenOperators(node: unknown, namedQueryName: string): void {
   if (Array.isArray(node)) {
@@ -68,6 +77,13 @@ export class MongoBackendAdapter implements BackendAdapter {
         assertNoForbiddenOperators(q.filter ?? {}, name);
       } else {
         assertNoForbiddenOperators(q.pipeline ?? [], name);
+      }
+      const tenantPlaceholder = q.params[opts.tenantField];
+      if (tenantPlaceholder) {
+        const body = q.operation === 'find' ? (q.filter ?? {}) : (q.pipeline ?? []);
+        if (!bodyReferencesPlaceholder(body, tenantPlaceholder)) {
+          throw new Error(`named query "${name}": tenant placeholder ${tenantPlaceholder} is declared in params but not referenced in ${q.operation === 'find' ? 'filter' : 'pipeline'}`);
+        }
       }
     }
     this.opts = opts;

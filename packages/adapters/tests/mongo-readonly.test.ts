@@ -112,4 +112,34 @@ describe('MongoBackendAdapter — construction guards', () => {
       },
     })).toThrow(/operation/i);
   });
+
+  it('rejects find query where tenant placeholder is not referenced in filter', () => {
+    expect(() => new MongoBackendAdapter({
+      ...baseOpts,
+      namedQueries: {
+        bad: {
+          description: 'tenant declared but unused',
+          collection: 'rooms',
+          operation: 'find',
+          filter: { status: 'active' },
+          params: { user_id: '$1' },
+        },
+      },
+    })).toThrow(/tenant placeholder.*not referenced|placeholder.*\$1.*missing/i);
+  });
+
+  it('rejects aggregate where tenant placeholder is not referenced in pipeline', () => {
+    expect(() => new MongoBackendAdapter({
+      ...baseOpts,
+      namedQueries: {
+        bad: {
+          description: 'tenant declared but unused',
+          collection: 'rooms',
+          operation: 'aggregate',
+          pipeline: [{ $match: { status: 'active' } }],
+          params: { user_id: '$1' },
+        },
+      },
+    })).toThrow(/tenant placeholder.*not referenced|placeholder.*\$1.*missing/i);
+  });
 });
