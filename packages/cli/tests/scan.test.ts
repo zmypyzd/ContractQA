@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import os from 'node:os';
 import path from 'node:path';
 import { scanProject } from '../src/commands/scan.js';
 
@@ -40,5 +41,32 @@ describe('scanProject', () => {
     const report = await scanProject({ cwd: tmp });
     expect(report.framework).toBe('next-app');
     expect(report.routes).toEqual(expect.arrayContaining(['/', '/login']));
+  });
+
+  it('scanProject passes detectAuth through and produces authDiagnostics when set', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'cqa-scan-detect-auth-'));
+    await writeFile(path.join(root, 'package.json'), JSON.stringify({
+      dependencies: { next: '*', 'next-auth': '*', '@supabase/ssr': '*' },
+    }));
+    await mkdir(path.join(root, 'app/api/auth/[...nextauth]'), { recursive: true });
+    await writeFile(path.join(root, 'app/api/auth/[...nextauth]/route.ts'), '');
+    await mkdir(path.join(root, 'lib/supabase'), { recursive: true });
+    await writeFile(path.join(root, 'lib/supabase/server.ts'), '');
+    await writeFile(path.join(root, 'middleware.ts'), '');
+
+    const r = await scanProject({ cwd: root, detectAuth: true });
+    expect(r.authDiagnostics).toBeDefined();
+    expect(r.authDiagnostics).toHaveLength(2);
+    const providers = r.authDiagnostics!.map((d) => d.provider).sort();
+    expect(providers).toEqual(['next-auth', 'supabase']);
+  });
+
+  it('scanProject omits authDiagnostics when detectAuth is false', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'cqa-scan-no-detect-'));
+    await writeFile(path.join(root, 'package.json'), JSON.stringify({
+      dependencies: { next: '*', 'next-auth': '*', '@supabase/ssr': '*' },
+    }));
+    const r = await scanProject({ cwd: root });
+    expect(r.authDiagnostics).toBeUndefined();
   });
 });

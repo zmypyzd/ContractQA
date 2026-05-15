@@ -1,6 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { detectFramework, detectFrameworkInRepo, type DetectResult } from '../init/detect-framework.js';
+import { inspectAuthWiring, type AuthDiagnostic } from '../init/inspect-auth.js';
 
 export interface ScanReport {
   framework: DetectResult['framework'];
@@ -11,6 +12,7 @@ export interface ScanReport {
   markdown: string;
   scanRoot: string;
   candidates?: ReadonlyArray<{ subdir: string; framework: DetectResult['framework']; confidence: number }>;
+  authDiagnostics?: readonly AuthDiagnostic[];
 }
 
 async function walk(root: string, prefix = ''): Promise<string[]> {
@@ -46,7 +48,7 @@ function deriveRoutes(framework: DetectResult['framework'], files: readonly stri
   return ['/'];
 }
 
-export async function scanProject(opts: { cwd: string; target?: string }): Promise<ScanReport> {
+export async function scanProject(opts: { cwd: string; target?: string; detectAuth?: boolean }): Promise<ScanReport> {
   let scanRoot = opts.cwd;
   let candidates: ScanReport['candidates'];
 
@@ -69,6 +71,14 @@ export async function scanProject(opts: { cwd: string; target?: string }): Promi
   const files = await walk(scanRoot);
   const detected = await detectFramework({ packageJson: pkg, files });
   const routes = deriveRoutes(detected.framework, files);
+
+  let authDiagnostics: readonly AuthDiagnostic[] | undefined;
+  if (opts.detectAuth && detected.authSignals.length > 0) {
+    authDiagnostics = inspectAuthWiring({
+      files,
+      signals: detected.authSignals,
+    });
+  }
 
   const lines: string[] = [
     '# ContractQA scan report',
@@ -105,5 +115,6 @@ export async function scanProject(opts: { cwd: string; target?: string }): Promi
     markdown: lines.join('\n'),
     scanRoot,
     candidates,
+    authDiagnostics,
   };
 }

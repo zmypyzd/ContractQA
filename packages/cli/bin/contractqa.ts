@@ -47,8 +47,9 @@ program
   .description('Scan project and write qa/SCAN_REPORT.md with detected framework + suggested contracts')
   .option('-o, --out <path>', 'output path', 'qa/SCAN_REPORT.md')
   .option('--target <subdir>', 'monorepo subdir to scan into (e.g. apps/web)')
-  .action(async (cwdArg: string | undefined, opts: { out: string; target?: string }) => {
-    const r = await scanProject({ cwd: cwdArg ?? process.cwd(), target: opts.target });
+  .option('--detect-auth', 'inspect auth wiring; outputs a Hybrid auth section when ≥2 providers')
+  .action(async (cwdArg: string | undefined, opts: { out: string; target?: string; detectAuth?: boolean }) => {
+    const r = await scanProject({ cwd: cwdArg ?? process.cwd(), target: opts.target, detectAuth: !!opts.detectAuth });
     await mkdir(path.dirname(opts.out), { recursive: true });
     await writeFile(opts.out, r.markdown);
     console.log(`Wrote ${opts.out}`);
