@@ -4,6 +4,28 @@
 > Verifies product contracts (not just screenshots), captures full evidence on
 > failure, generates minimal repros, hands them to Claude Code for auto-fix.
 
+## Install
+
+```bash
+npm install contractqa @contractqa/adapters
+# Browser-flow users also need:
+npm install @playwright/test
+npx playwright install chromium
+```
+
+See [STABILITY.md](./STABILITY.md) for the semver surface and stability policy.
+
+## Quick start
+
+```ts
+// Browser flow (requires @playwright/test)
+import { runContract } from '@contractqa/runner';
+import { compileContract } from '@contractqa/core';
+
+// HTTP flow (no browser required — must use /http subpath)
+import { runHttpContract } from '@contractqa/runner/http';  // @experimental
+```
+
 ## What this is
 
 The thesis is in `claude_code_qa_agent_design.md`: LLMs are bad at being both
