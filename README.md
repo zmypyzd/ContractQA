@@ -15,7 +15,7 @@ npx playwright install chromium
 
 See [STABILITY.md](./STABILITY.md) for the semver surface and stability policy.
 
-## Quick start
+## Usage
 
 ```ts
 // Browser flow (requires @playwright/test)

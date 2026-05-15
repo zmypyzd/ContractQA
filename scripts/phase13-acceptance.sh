@@ -50,6 +50,10 @@ if grep -E '"@contractqa/[^"]+":\s*"workspace:' "$dryrun_dir/contractqa.log"; th
 fi
 
 # CLI tarball spot-check.
+# Note: `pnpm --filter <pkg> pack` is unreliable in pnpm v9 (`--filter`
+# implies `--recursive`, which `pack` rejects). A `cd` subshell is the
+# portable workaround. `pnpm pack -C <dir>` is an alternative in pnpm v9+
+# but the subshell form works across versions.
 (cd packages/cli && pnpm pack --pack-destination "$cli_pack_dir")
 cli_tarballs=( "$cli_pack_dir"/*.tgz )
 if [[ ${#cli_tarballs[@]} -eq 0 ]]; then
