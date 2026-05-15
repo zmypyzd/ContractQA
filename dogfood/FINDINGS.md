@@ -219,9 +219,18 @@ Findings RESOLVED in Phase 10:
 - **MongoBackendAdapter close-during-connect** (was: Phase 9 opus reviewer's #2). `close()` now awaits any in-flight `connect()` promise before closing — no orphan client leaks. A `closed` flag fail-fasts any post-close `query()`.
 - **`custom-cookie` AuthSignal graduates from heuristic** (was: Phase 8 deferred). The detector now requires BOTH deps presence (`bcryptjs`/`bcrypt`) AND at least one auth-file (`middleware.ts` or `app/api/<route>/route.ts`) — path-presence only, file-content parsing remains Phase 11+ candidate.
 
-Findings STILL DEFERRED to Phase 11:
+Findings STILL DEFERRED to Phase 12:
+- Real-Firestore emulator integration test.
 - File-content `cookies()` body parsing for `custom-cookie`.
-- Mongo bulk-write rejection guard.
+- `MongoClient.db()` orphan-leak path (low probability).
+
+## Phase 11 resolution status (v0.11.0)
+
+Findings RESOLVED in Phase 11:
+- **FirestoreBackendAdapter** (was: deferred from Phase 4+). Completes the `BackendAdapter` family (Postgres + Mongo + Firestore). Read-only via `@google-cloud/firestore`; named queries with `where: [field, op, value]` triples; tenant scoping enforced at construction (tenant field must appear in `where` with `==` op); operator allowlist. Supports `$N` and `:name` placeholder styles (parity with Mongo). Unit tests via mocked client; real-Firestore emulator integration → Phase 12.
+- **Mongo close() drains in-flight queries** (was: Phase 10 opus reviewer #1). Tracks `inFlight` count; `close()` waits up to 5s for active queries to finish before terminating client. Prevents Phase 10's documented race where `close()` could tear down a client mid-query.
+- **Mongo JSDoc polish** (was: Phase 10 opus reviewer #2 + #3). `MongoNamedQuery.params` documents both `$N` and `:name` placeholder styles; `close()` documents the close lifecycle (closed flag → drain connectingP → drain inFlight → terminate).
+- **custom-cookie pages-router variant** (was: Phase 10 opus reviewer #4). Detector now recognizes `pages/api/<route>.<ext>` alongside `app/api/<route>/route.ts` for older Next.js layouts.
 
 ## Targets considered but not used
 
