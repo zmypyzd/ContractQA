@@ -129,8 +129,9 @@ async function fixNativeDeps(i: DoctorInput, _r: DoctorReport): Promise<{ ok: bo
   const results: string[] = [];
   let allOk = true;
   for (const pkg of native) {
-    // Find the .pnpm-mirrored copy of <pkg>. Prefer the lowest-versioned
-    // one if multiple coexist (rare; pnpm dedupes).
+    // Find the .pnpm-mirrored copy of <pkg>.
+    // Sort lexicographically and pick the first entry — deterministic across runs.
+    // NOTE: ASCII sort puts '11.10.0' before '9.6.0'; semver-aware selection is a Phase 7 candidate.
     const installDir = await findPnpmPkgDir(i.targetRoot, pkg);
     if (!installDir) {
       results.push(`${pkg}: no installed copy found in node_modules/.pnpm`);
