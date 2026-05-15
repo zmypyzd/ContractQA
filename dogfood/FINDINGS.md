@@ -123,8 +123,9 @@ Findings RESOLVED in Phase 4:
 - ✅ Monorepo / polyglot subdirectory detection in `contractqa init` — new `detectFrameworkInRepo` walks `apps/*`, `packages/*`, `web`, `frontend`, `client`, `site`. `init` and `scan` both gain `--target <subdir>` flag and auto-select the highest-confidence candidate. AmbiguousTarget thrown on tied confidence. Resolves the 5-4-codex / WolfMind / 5-4-claude `unknown`-detection regression. → C1, C2, C3
 - ✅ True per-responsibility routing in `composeAuth` — `currentUser` now routes to `'user-store'` owner (falling back to `'session'`); `expectFullyLoggedOut` runs against ALL adapters and AND-merges `fullyLoggedOut` + UNIONs `leaked_keys`. Phase 3 B4's "adjusted to match observed bug" test reverted. → D1, D2
 
-Findings STILL DEFERRED to Phase 5:
-- HTTP-API contract surface (for api-only repos like the original `agent-poker-platform`) — Phase 4 B5 deferred. Requires `action.kind: 'http'` support in runner + schema, plus a non-Playwright execution path. The `PostgresBackendAdapter` shipped in Phase 4 is the prerequisite; B5 is the consumer-side wiring.
+Findings STILL DEFERRED to Phase 6:
+These were originally Phase 5 candidates; after target-repo recon during Phase 5 the HTTP-API surface anchor was pushed to Phase 6, and the remaining items carry forward unchanged.
+- HTTP-API contract surface (for api-only repos like `agent-poker-platform`) — originally planned as Phase 5 B5. **Deferred to Phase 6 on 2026-05-15** after target-repo recon found `pnpm dev` hard-wired to in-memory stores (no Postgres) and schema mismatches (`live_rooms` / `created_by` instead of `tables` / `owner_user_id`). Making it work needs upstream PRs to the target repo, which falls outside Phase 5 scope. Phase 6 either (a) wires `PostgresLiveStore` via env switch and rewrites the named query against `live_rooms`, or (b) picks a different api-only Postgres-wired target.
 - Hybrid-auth scanner (`contractqa scan --detect-auth` from 5-4-claude finding) — basic detection landed in scan, hybrid multi-provider case still requires manual `composeAuth`
 - Dashboard §15.3–§15.6
 - Persona dogfood agents
@@ -133,6 +134,17 @@ Findings STILL DEFERRED to Phase 5:
 - pnpm-version-aware spawn helper (still documented, not coded)
 - Publishing to npm — Phase 3 prepares the surface; `pnpm publish` is user-gated
 - Mongo / Firestore / custom `BackendAdapter` implementations (Phase 4 only shipped Postgres; design doc §7.6.3 declares 4 kinds)
+
+## Phase 5 resolution status (v0.5.0)
+
+Findings / final-review follow-ups RESOLVED in Phase 5 (QA pass):
+- README Phase 3 + Phase 4 + Phase 5 status sections (was: stale "Out of Phase 2" deferred list).
+- `detectFrameworkInRepo` walks scoped packages (`apps/@org/pkg`); skips symlinked subdirs via `lstat` guard.
+- `contractqa doctor` UX hint when `npm run install` reports "Missing script: install" (covers npm 10's quoted form `Missing script: "install"`); multi-version pnpm dedup test covers `findPnpmPkgDir` determinism.
+- `PostgresBackendAdapter` writable-CTE coverage tests added (nested CTE with `DELETE`, `WITH RECURSIVE` with `UPDATE`) — confirmed existing forbidden-DML regex catches both; no impl change needed.
+- Bounded `extractAbiHint` regression test asserts <100ms termination on adversarial 100k-char stderr.
+
+Phase 5 has no new anchor (Part A B5 deferred — see above). Phase 6 candidates are the same as v0.4.0's "Still deferred" list minus the items closed here.
 
 ## Targets considered but not used
 
