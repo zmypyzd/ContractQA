@@ -47,6 +47,22 @@ describe('PostgresBackendAdapter — read-only enforcement', () => {
     }
   });
 
+  it('rejects nested writable CTE (WITH a AS (..), b AS (DELETE ...))', () => {
+    expect(() => new PostgresBackendAdapter({
+      dsn: 'postgres://x',
+      tenantField: 'user_id',
+      namedQueries: { bad: { description: '', sql: 'WITH a AS (SELECT 1), b AS (DELETE FROM x RETURNING 1) SELECT * FROM b', params: {} } },
+    })).toThrow(/writable CTEs|DML\/DDL/);
+  });
+
+  it('rejects WITH RECURSIVE that contains a write', () => {
+    expect(() => new PostgresBackendAdapter({
+      dsn: 'postgres://x',
+      tenantField: 'user_id',
+      namedQueries: { bad: { description: '', sql: 'WITH RECURSIVE r AS (UPDATE x SET a = 1 RETURNING *) SELECT * FROM r', params: {} } },
+    })).toThrow();
+  });
+
   it('describe() returns SchemaDescriptor with tenantField and namedQueries', () => {
     const a = new PostgresBackendAdapter({
       dsn: 'postgres://x',
