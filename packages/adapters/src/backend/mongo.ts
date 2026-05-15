@@ -111,11 +111,18 @@ export class MongoBackendAdapter implements BackendAdapter {
     const db = await this.getDb();
     const col = db.collection(q.collection);
     const substitute = (val: unknown): unknown => {
-      if (typeof val === 'string' && /^\$\d+$/.test(val)) {
-        const idx = Number.parseInt(val.slice(1), 10) - 1;
-        const paramName = Object.keys(q.params)[idx];
-        if (!paramName) throw new Error(`named query "${namedQuery}" placeholder ${val} has no matching param`);
-        return params[paramName];
+      if (typeof val === 'string') {
+        if (/^\$\d+$/.test(val)) {
+          const idx = Number.parseInt(val.slice(1), 10) - 1;
+          const paramName = Object.keys(q.params)[idx];
+          if (!paramName) throw new Error(`named query "${namedQuery}" placeholder ${val} has no matching param`);
+          return params[paramName];
+        }
+        if (/^:[a-zA-Z_][a-zA-Z0-9_]*$/.test(val)) {
+          const name = val.slice(1);
+          if (!(name in params)) throw new Error(`named query "${namedQuery}" placeholder ${val} has no matching param`);
+          return params[name];
+        }
       }
       if (Array.isArray(val)) return val.map(substitute);
       if (val && typeof val === 'object') {

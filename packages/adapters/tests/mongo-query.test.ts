@@ -71,4 +71,47 @@ describe('MongoBackendAdapter — query path', () => {
     });
     await expect(adapter.query('missing', { user_id: 'u' })).rejects.toThrow(/unknown named query/);
   });
+
+  it('substitutes :name-style placeholder by looking up params[name]', async () => {
+    const client = mockClient([{ _id: 'r1', user_id: 'u-1' }]);
+    const adapter = new MongoBackendAdapter({
+      uri: 'mongodb://x',
+      database: 'test',
+      tenantField: 'user_id',
+      namedQueries: {
+        roomsByOwner: {
+          description: 'rooms',
+          collection: 'rooms',
+          operation: 'find',
+          filter: { user_id: ':user_id' },
+          params: { user_id: ':user_id' },
+        },
+      },
+      _clientOverride: client,
+    });
+    const r = await adapter.query('roomsByOwner', { user_id: 'u-1' });
+    expect(r).toEqual([{ _id: 'r1', user_id: 'u-1' }]);
+    expect(client._spies.find).toHaveBeenCalledWith({ user_id: 'u-1' });
+  });
+
+  it('mixed $N and :name placeholders both substitute correctly', async () => {
+    const client = mockClient([]);
+    const adapter = new MongoBackendAdapter({
+      uri: 'mongodb://x',
+      database: 'test',
+      tenantField: 'user_id',
+      namedQueries: {
+        mix: {
+          description: '',
+          collection: 'rooms',
+          operation: 'find',
+          filter: { user_id: ':user_id', status: '$2' },
+          params: { user_id: ':user_id', status: '$2' },
+        },
+      },
+      _clientOverride: client,
+    });
+    await adapter.query('mix', { user_id: 'u-1', status: 'active' });
+    expect(client._spies.find).toHaveBeenCalledWith({ user_id: 'u-1', status: 'active' });
+  });
 });

@@ -142,4 +142,34 @@ describe('MongoBackendAdapter — construction guards', () => {
       },
     })).toThrow(/tenant placeholder.*not referenced|placeholder.*\$1.*missing/i);
   });
+
+  it('accepts a find with :name-style tenant placeholder referenced in filter', () => {
+    expect(() => new MongoBackendAdapter({
+      ...baseOpts,
+      namedQueries: {
+        ok: {
+          description: '',
+          collection: 'rooms',
+          operation: 'find',
+          filter: { user_id: ':user_id' },
+          params: { user_id: ':user_id' },
+        },
+      },
+    })).not.toThrow();
+  });
+
+  it('rejects find when :name tenant placeholder is declared but unused in filter', () => {
+    expect(() => new MongoBackendAdapter({
+      ...baseOpts,
+      namedQueries: {
+        bad: {
+          description: '',
+          collection: 'rooms',
+          operation: 'find',
+          filter: { status: 'active' },
+          params: { user_id: ':user_id' },
+        },
+      },
+    })).toThrow(/tenant placeholder.*not referenced|placeholder.*:user_id.*missing/i);
+  });
 });
