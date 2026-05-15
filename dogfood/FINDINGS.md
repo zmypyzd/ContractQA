@@ -219,10 +219,10 @@ Findings RESOLVED in Phase 10:
 - **MongoBackendAdapter close-during-connect** (was: Phase 9 opus reviewer's #2). `close()` now awaits any in-flight `connect()` promise before closing — no orphan client leaks. A `closed` flag fail-fasts any post-close `query()`.
 - **`custom-cookie` AuthSignal graduates from heuristic** (was: Phase 8 deferred). The detector now requires BOTH deps presence (`bcryptjs`/`bcrypt`) AND at least one auth-file (`middleware.ts` or `app/api/<route>/route.ts`) — path-presence only, file-content parsing remains Phase 11+ candidate.
 
-Findings STILL DEFERRED to Phase 12:
-- Real-Firestore emulator integration test.
+Findings STILL DEFERRED to Phase 13 (carried from Phase 10):
+- Real-Firestore emulator integration test. (Resolved in Phase 12 → Phase 13)
 - File-content `cookies()` body parsing for `custom-cookie`.
-- `MongoClient.db()` orphan-leak path (low probability).
+- `MongoClient.db()` orphan-leak path (low probability). (Resolved in Phase 12)
 
 ## Phase 11 resolution status (v0.11.0)
 
@@ -231,6 +231,18 @@ Findings RESOLVED in Phase 11:
 - **Mongo close() drains in-flight queries** (was: Phase 10 opus reviewer #1). Tracks `inFlight` count; `close()` waits up to 5s for active queries to finish before terminating client. Prevents Phase 10's documented race where `close()` could tear down a client mid-query.
 - **Mongo JSDoc polish** (was: Phase 10 opus reviewer #2 + #3). `MongoNamedQuery.params` documents both `$N` and `:name` placeholder styles; `close()` documents the close lifecycle (closed flag → drain connectingP → drain inFlight → terminate).
 - **custom-cookie pages-router variant** (was: Phase 10 opus reviewer #4). Detector now recognizes `pages/api/<route>.<ext>` alongside `app/api/<route>/route.ts` for older Next.js layouts.
+
+## Phase 12 resolution status (v0.12.0)
+
+Findings RESOLVED in Phase 12:
+- **B5 HTTP action support (runner + schema)** (was: deferred from Phase 5 — 7 phases ago). `action.type: 'http'` added to contract schema (GET/POST/PUT/PATCH/DELETE with body, headers). `runHttpContract` sibling function in the runner — separate from `runContract` (Playwright-bound), with its own input shape `{ contract, backend?, baseUrl }`. Tests via mocked `global.fetch` + mocked `BackendAdapter`. The dogfood target (was Phase 5 A3) remains deferred — still no Postgres-wired api-only target.
+- **`@google-cloud/firestore` as optionalDependency** (was: Phase 11 opus reviewer #2). Moves the heavy gRPC/protobufjs install to `optionalDependencies` so Postgres/Mongo-only users don't carry the bulk. Still auto-installs by default; only allowed to fail.
+- **Firestore `id`-merge precedence** (was: Phase 11 opus reviewer #1). Flipped to `{ ...doc.data(), id: doc.id }` so the Firestore doc id always wins. Documented in class JSDoc.
+- **MongoClient.db() orphan-leak fix** (was: Phase 10 opus reviewer #5 / Phase 11 deferred). If `client.db()` throws after a successful `connect()`, the resolved client is now `close()`'d before clearing `connectingP`. New test asserts the orphan-close.
+
+Findings STILL DEFERRED to Phase 13:
+- HTTP dogfood target (still no Postgres-wired candidate).
+- Real-Firestore emulator integration test.
 
 ## Targets considered but not used
 
