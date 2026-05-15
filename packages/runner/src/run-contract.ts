@@ -210,6 +210,13 @@ export interface RunHttpContractResult {
  * by a call to `backend.query(...)` for state verification.
  *
  * Does not write an evidence bundle (HTTP has no Playwright trace/HAR/screenshot).
+ *
+ * **The HTTP response status is informational only.** The verdict is driven by
+ * the post-call `backend_state` checks against the `BackendAdapter`. A 4xx/5xx
+ * response does NOT automatically produce a FAIL; the contract author can assert
+ * on the response state via `backend_state` if they care. (This is by design:
+ * many contracts test that a write was rejected with a 4xx AND that no row was
+ * persisted — those checks live in `backend_state`.)
  */
 export async function runHttpContract(input: RunHttpContractInput): Promise<RunHttpContractResult> {
   const { contract, backend, baseUrl } = input;
