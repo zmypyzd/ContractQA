@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { glob } from 'tinyglobby';
+import { rcompare, valid } from 'semver';
 import { detectRequiredEnv, type RequiredVar } from '../lib/env-detect.js';
 import { allocatePort } from '../lib/port-pool.js';
 import { detectNativeDepMismatch, type NativeMismatch } from '../lib/native-deps.js';
@@ -92,9 +93,15 @@ async function findPnpmPkgDir(targetRoot: string, pkg: string): Promise<string |
   const dotPnpm = path.join(targetRoot, 'node_modules', '.pnpm');
   try {
     const entries = await readdir(dotPnpm);
-    const matches = entries
-      .filter((d) => d.startsWith(`${pkg}@`))
-      .sort();
+    const matches = entries.filter((d) => d.startsWith(`${pkg}@`));
+    // Sort by parsed semver (descending — newest first); fall back to lexicographic
+    // when semver parse fails (preserves Phase 5/6 behavior for non-semver dir names).
+    matches.sort((a, b) => {
+      const va = a.split('@').pop() ?? '';
+      const vb = b.split('@').pop() ?? '';
+      if (valid(va) && valid(vb)) return rcompare(va, vb);
+      return b.localeCompare(a);
+    });
     if (matches.length === 0) return null;
     return path.join(dotPnpm, matches[0]!, 'node_modules', pkg);
   } catch { return null; }
