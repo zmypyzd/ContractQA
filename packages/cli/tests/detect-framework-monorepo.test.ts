@@ -1,0 +1,59 @@
+import { describe, it, expect } from 'vitest';
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { detectFrameworkInRepo } from '../src/init/detect-framework.js';
+
+async function makeMonorepo(layout: 'apps-web' | 'web' | 'frontend'): Promise<string> {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'cqa-init-'));
+  await writeFile(path.join(root, 'package.json'), JSON.stringify({ name: 'root', private: true }));
+  const sub = layout === 'apps-web' ? 'apps/web' : layout;
+  await mkdir(path.join(root, sub), { recursive: true });
+  await writeFile(path.join(root, sub, 'package.json'), JSON.stringify({
+    dependencies: { react: '^18.0.0', vite: '^5.0.0' },
+  }));
+  await writeFile(path.join(root, sub, 'vite.config.ts'), '');
+  return root;
+}
+
+describe('detectFrameworkInRepo — monorepo subdirectory walking', () => {
+  it('detects vite-react in apps/web/', async () => {
+    const root = await makeMonorepo('apps-web');
+    const r = await detectFrameworkInRepo(root);
+    expect(r.candidates.length).toBeGreaterThan(0);
+    const c = r.candidates.find((c) => c.subdir === 'apps/web');
+    expect(c, 'should find apps/web candidate').toBeDefined();
+    expect(c!.framework).toBe('vite-react');
+  });
+
+  it('detects vite-react in web/', async () => {
+    const root = await makeMonorepo('web');
+    const r = await detectFrameworkInRepo(root);
+    const c = r.candidates.find((c) => c.subdir === 'web');
+    expect(c, 'should find web candidate').toBeDefined();
+    expect(c!.framework).toBe('vite-react');
+  });
+
+  it('detects vite-react in frontend/', async () => {
+    const root = await makeMonorepo('frontend');
+    const r = await detectFrameworkInRepo(root);
+    const c = r.candidates.find((c) => c.subdir === 'frontend');
+    expect(c, 'should find frontend candidate').toBeDefined();
+    expect(c!.framework).toBe('vite-react');
+  });
+
+  it('returns root candidate (subdir = ".") when root is itself the framework', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'cqa-init-root-'));
+    await writeFile(path.join(root, 'package.json'), JSON.stringify({ dependencies: { react: '*', vite: '*' } }));
+    await writeFile(path.join(root, 'vite.config.ts'), '');
+    const r = await detectFrameworkInRepo(root);
+    expect(r.candidates[0]?.subdir).toBe('.');
+  });
+
+  it('returns empty candidates when nothing matches', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'cqa-init-empty-'));
+    await writeFile(path.join(root, 'package.json'), JSON.stringify({ name: 'empty' }));
+    const r = await detectFrameworkInRepo(root);
+    expect(r.candidates).toEqual([]);
+  });
+});

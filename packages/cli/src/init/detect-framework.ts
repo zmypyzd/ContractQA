@@ -132,3 +132,62 @@ export async function detectFramework(input: DetectInput): Promise<DetectResult>
     authSignals,
   };
 }
+
+import { readFile, readdir, stat } from 'node:fs/promises';
+import path from 'node:path';
+
+export interface RepoDetectCandidate {
+  subdir: string; // "." for root, otherwise relative path
+  framework: Framework;
+  confidence: number;
+  evidence: string[];
+  authSignals: AuthSignal[];
+}
+
+export interface RepoDetectResult {
+  candidates: RepoDetectCandidate[];
+}
+
+const SUBDIR_HINTS = ['apps', 'packages', 'web', 'frontend', 'client', 'site'];
+
+export async function detectFrameworkInRepo(root: string): Promise<RepoDetectResult> {
+  const candidates: RepoDetectCandidate[] = [];
+  const rootResult = await tryDir(root, '.');
+  if (rootResult) candidates.push(rootResult);
+
+  for (const hint of SUBDIR_HINTS) {
+    const hintPath = path.join(root, hint);
+    let isDir = false;
+    try { isDir = (await stat(hintPath)).isDirectory(); } catch {}
+    if (!isDir) continue;
+    if (hint === 'apps' || hint === 'packages') {
+      // Walk one level deeper.
+      const subs = await readdir(hintPath);
+      for (const s of subs) {
+        const r = await tryDir(path.join(hintPath, s), `${hint}/${s}`);
+        if (r) candidates.push(r);
+      }
+    } else {
+      const r = await tryDir(hintPath, hint);
+      if (r) candidates.push(r);
+    }
+  }
+  // Sort by confidence desc; ties go to non-root subdir before root.
+  candidates.sort((a, b) => {
+    if (a.confidence !== b.confidence) return b.confidence - a.confidence;
+    if (a.subdir === '.' && b.subdir !== '.') return 1;
+    if (b.subdir === '.' && a.subdir !== '.') return -1;
+    return 0;
+  });
+  return { candidates };
+}
+
+async function tryDir(dir: string, subdir: string): Promise<RepoDetectCandidate | null> {
+  try {
+    const pj = JSON.parse(await readFile(path.join(dir, 'package.json'), 'utf8'));
+    const files = await readdir(dir);
+    const r = await detectFramework({ packageJson: pj, files });
+    if (r.framework === 'unknown') return null;
+    return { subdir, framework: r.framework, confidence: r.confidence, evidence: r.evidence, authSignals: r.authSignals };
+  } catch { return null; }
+}
