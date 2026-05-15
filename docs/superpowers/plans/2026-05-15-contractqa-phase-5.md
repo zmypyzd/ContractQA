@@ -2,13 +2,15 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make Phase 4's `PostgresBackendAdapter` actually consumable end-to-end by adding HTTP-API contract support to the runner and shipping the api-only `agent-poker-platform` dogfood target. Plus close 7 final-review follow-ups from Phase 4 + bring docs back in sync.
+**Goal:** Close 7 final-review follow-ups from Phase 4 + bring docs back in sync, then release v0.5.0.
+
+> **SCOPE AMENDMENT 2026-05-15 (post-recon).** Part A (B5 HTTP-API contract surface) is **DEFERRED to Phase 6**. Recon of the `agent-poker-platform` target repo found three blocking mismatches: the `pnpm dev` server is hard-coded to `MemoryTableStore`/`MemoryUserStore`/`MemoryHandStore` (no env switch to `PostgresLiveStore`); the Postgres schema has no `tables` table (closest is `live_rooms`); and no `owner_user_id` column (closest is `created_by`). The dogfood test as planned cannot pass without modifying the target repo's wiring — which falls outside the "don't upstream changes to external repos" decision from this session. Re-tackle once a Postgres-wired api-only target exists. Schema (A1) and runner (A2) work alone would have no end-to-end validation, so they ride along.
 
 **Architecture:** Two parts plus a release sub-part.
 
-- **Part A — B5: HTTP-API contract surface.** Add `action.kind: 'http'` to the contract schema; add an HTTP execution path to `runContract` that's siblings (not replacement) to the existing Playwright path; create `dogfood/agent-poker-platform/` (no-suffix, api-only) with `INV-B1` exercising `POST /api/v1/tables` → `tablesByOwner` named-query rowCount=1 via `PostgresBackendAdapter`.
+- **Part A — B5: HTTP-API contract surface.** ~~Add `action.kind: 'http'` to the contract schema; add an HTTP execution path to `runContract` that's siblings (not replacement) to the existing Playwright path; create `dogfood/agent-poker-platform/` (no-suffix, api-only) with `INV-B1` exercising `POST /api/v1/tables` → `tablesByOwner` named-query rowCount=1 via `PostgresBackendAdapter`.~~ **DEFERRED to Phase 6** — see scope amendment above. Tasks A1/A2/A3 are skipped in this phase.
 - **Part B — QA pass: 7 final-review follow-ups + README sync.** Bundle the deferred items from Phase 4's final code review into one focused part: writable-CTE deepening, README Phase 3/4 status drift, scoped workspace package detection, `findPnpmPkgDir` multi-version test, `runNpmInstallScript` missing-install-script UX hint, sniffer/buffer review verification, symlink walk safety in `detectFrameworkInRepo`.
-- **Part C — Release:** Acceptance script gains a B5 section; CHANGELOG; v0.5.0 bump; tag.
+- **Part C — Release:** Acceptance script (no B5 section — Part A deferred); CHANGELOG; v0.5.0 bump; tag.
 
 **Tech Stack:** TypeScript 5.x, pnpm workspaces, Vitest, `pg` (already shipped in v0.4.0), Docker Compose (`fixtures/supabase-stack/` reused for B5's Postgres backend).
 
@@ -28,7 +30,8 @@
 
 | Decision | Verdict | Source |
 |---|---|---|
-| Phase 5 anchor count | 1 (B5) + a "QA pass" mini-part | User explicitly chose "B5 + QA pass only" over Hybrid-auth scanner / Persona dogfood agents / Mongo+Firestore. |
+| Phase 5 anchor count | ~~1 (B5) + "QA pass" mini-part~~ → **0 anchors + QA pass only** (post-recon) | User originally chose "B5 + QA pass only" over Hybrid-auth scanner / Persona dogfood agents / Mongo+Firestore. Post-recon, B5 also deferred — target repo isn't Postgres-wired. |
+| B5 deferral rationale (2026-05-15) | Defer Part A entirely to Phase 6 | `agent-poker-platform` dev server uses Memory stores; schema mismatch (`live_rooms`/`created_by` not `tables`/`owner_user_id`); making it work requires upstream PRs to the external repo, which the user explicitly declined. |
 | HTTP action shape | New `action.kind: 'http'` discriminated variant in the existing `Action` union | Schema-side addition; matches the `goto`/`click`/`fill`/`wait` pattern. Backwards compatible. |
 | Runner HTTP execution | Sibling code path to Playwright; `runContract` accepts EITHER a `page` OR HTTP-only mode | Don't restructure the runner; add a `runHttpContract` (or branch inside `runContract`) that's invoked when no `page` is supplied. |
 | agent-poker-platform target requires Docker Postgres | Use existing `fixtures/supabase-stack/` Postgres for the dogfood test (port 54322) | Reuses Phase 3 infra; no new fixture. |
@@ -56,17 +59,19 @@
 ## Dependency graph
 
 ```
-Part A (B5: HTTP) ────┐
-                      ├──► Part C (acceptance + release)
-Part B (QA pass)  ────┘
+Part A (B5: HTTP) ──── DEFERRED to Phase 6
+Part B (QA pass)  ────► Part C (acceptance + release)
 ```
 
-Parts A and B are independent. Suggested worktree layout (matches Phase 4):
+Worktree layout (matches Phase 4):
 - `.claude/worktrees/phase5-exec`
 
 ---
 
 # Part A: B5 — HTTP-API contract surface
+
+> 🛑 **DEFERRED to Phase 6 — DO NOT EXECUTE Tasks A1/A2/A3 in this phase.**
+> Reason: post-recon, the `agent-poker-platform` target repo's `pnpm dev` is hard-wired to Memory stores (no Postgres) and schema mismatches (`live_rooms`/`created_by`, not `tables`/`owner_user_id`). Implementing schema+runner work without an end-to-end target is half-baked. Tasks below are kept verbatim for Phase 6 reuse.
 
 **Acceptance gate A:** `dogfood/agent-poker-platform/dogfood.test.ts` drives an INV against the api-only `agent-poker-platform` repo via `PostgresBackendAdapter`. Action `kind: 'http'` performs the POST; `backend_state.named_query` then queries the Postgres backend; verdict is PASS. Test runs from `pnpm --filter @contractqa/dogfood test` and the new acceptance script section.
 
@@ -702,25 +707,21 @@ git commit -m "test(doctor): bounded extractAbiHint resists catastrophic backtra
 **Files:**
 - Create: `scripts/phase5-acceptance.sh`
 
-- [ ] **Step 1: Copy from `scripts/phase4-acceptance.sh`, add a B5 section**
+- [ ] **Step 1: Copy from `scripts/phase4-acceptance.sh` verbatim and re-label header to Phase 5**
 
-```bash
-# After Part D in phase4-acceptance.sh's structure, before --real-cloud branch:
+Phase 5 anchor (B5) was deferred, so this script just re-runs Phase 4's acceptance unchanged — the QA-pass changes in Part B harden existing surfaces without expanding them. The acceptance bar for v0.5.0 is "everything Phase 4 covered still passes."
 
-if [ -d /Users/zmy/intership/4/agent-poker-platform/node_modules ] && [ -n "${DOGFOOD_POSTGRES_DSN:-}" ]; then
-  echo "--- Part A: agent-poker-platform L2 dogfood (B5)"
-  pnpm --filter @contractqa/dogfood exec vitest run agent-poker-platform/dogfood.test.ts 2>&1 | tail -5
-else
-  echo "--- Part A: agent-poker-platform L2 — skipped (set DOGFOOD_POSTGRES_DSN + pnpm install in target)"
-fi
-```
+Minimal edits to the copy:
+- Update the top-of-file header comment from "Phase 4" to "Phase 5".
+- Update the human-readable section labels from "Phase 4" wording to "Phase 5" wording where they appear.
+- Do NOT add a B5 / agent-poker-platform section — Part A is deferred to Phase 6.
 
 - [ ] **Step 2: Commit**
 
 ```bash
 chmod +x scripts/phase5-acceptance.sh
 git add scripts/phase5-acceptance.sh
-git commit -m "chore: scripts/phase5-acceptance.sh — Part A B5 + reuse Phase 4 sections"
+git commit -m "chore: scripts/phase5-acceptance.sh — re-run Phase 4 coverage (B5 deferred)"
 ```
 
 ---
@@ -730,12 +731,14 @@ git commit -m "chore: scripts/phase5-acceptance.sh — Part A B5 + reuse Phase 4
 **Files:**
 - Modify: `dogfood/FINDINGS.md`
 
-- [ ] Move the following from "STILL DEFERRED to Phase 5" to a new "Phase 5 resolution status (v0.5.0)" section: HTTP-API contract surface (resolved by B5 + agent-poker-platform target). Refresh the deferred list to omit B5 + the 7 final-review follow-ups.
+- [ ] **B5 stays in "STILL DEFERRED"** (re-labeled to "STILL DEFERRED to Phase 6") — Part A was not executed in this phase; recon found target-repo blockers (see scope amendment at top of plan). Add a brief footnote citing the recon outcome.
+- [ ] Add a new "Phase 5 resolution status (v0.5.0)" section covering the 7 final-review follow-ups (B1–B5 of Part B) — they're the actual v0.5.0 deliverable.
+- [ ] Refresh the deferred list so B5 is grouped under "Phase 6 candidates" alongside Mongo/Firestore/hybrid-auth, with a one-line note: "previously planned for Phase 5, deferred 2026-05-15 after target-repo recon."
 
 - [ ] Commit:
 ```bash
 git add dogfood/FINDINGS.md
-git commit -m "docs(findings): close Phase 5 anchor (B5 HTTP-API surface)"
+git commit -m "docs(findings): record Phase 5 QA-pass deliverables; defer B5 to Phase 6"
 ```
 
 ---
@@ -747,7 +750,7 @@ git commit -m "docs(findings): close Phase 5 anchor (B5 HTTP-API surface)"
 - Modify: every `packages/*/package.json` `version` field
 - Modify: `packages/adapters/templates/third-party/package.json` (bump `@contractqa/adapters` peer to `^0.5.0`)
 
-- [ ] **Step 1: Add v0.5.0 section to CHANGELOG.md (mirrors v0.4.0 structure: Added / Changed / Still deferred).**
+- [ ] **Step 1: Add v0.5.0 section to CHANGELOG.md (mirrors v0.4.0 structure: Added / Changed / Still deferred).** Body should reflect Part B QA-pass content only (README sync, scoped+symlink walk, doctor UX hint + multi-version test, writable-CTE coverage tests, bounded-sniffer regression test). Under "Still deferred" call out that B5 (HTTP-API surface) was moved to Phase 6 with target-repo recon as the reason.
 
 - [ ] **Step 2: Bump versions**
 
@@ -768,10 +771,8 @@ git tag -a v0.5.0 -m "Phase 5 — HTTP-API contract surface (B5) + final-review 
 
 ## Self-review notes
 
-1. **Spec coverage:** B5 is split into A1 (schema) + A2 (runner) + A3 (dogfood). The 7 final-review follow-ups: B1 README, B2 scoped+symlink+multi-version (3 of 7), B3 missing-install-script + multi-version test (2 of 7 — overlaps slightly with B2), B4 writable-CTE coverage, B5 bounded sniffer test. Mapping check: I3 (README) → B1 ✓; M2 (symlink) → B2 ✓; A2 review I2 (multi-version) → B2/B3 ✓; A2 review I1 (missing install script) → B3 ✓; final review C1 (writable CTE) → B4 (verification) ✓; final review I1 (bounded sniffer) → B5 ✓; final review M1 (dead code) → DEFERRED to Phase 6.
-2. **Placeholder scan:** `$session.userId` resolution in INV-B1 is documented as deferred to Phase 6 (dynamic session-context substitution). Hardcode `'test-user-1'` for now.
-3. **Type consistency:** Action shape uses `type: 'http'` (not `kind`) to match the existing union discriminator. RunContractInput `baseUrl?: string` is new.
-4. **Risk:** B5 depends on the `tables` table existing in the Postgres backend with `owner_user_id` column. If the agent-poker-platform repo doesn't seed this on `pnpm dev`, the test will fail. STOP and report rather than papering over.
+1. **Spec coverage (post-amendment):** Part A (B5 = A1 schema + A2 runner + A3 dogfood) **DEFERRED to Phase 6**. Phase 5 ships only Part B + Part C. The 7 final-review follow-ups: B1 README, B2 scoped+symlink+multi-version (3 of 7), B3 missing-install-script + multi-version test (2 of 7 — overlaps slightly with B2), B4 writable-CTE coverage, B5 bounded sniffer test. Mapping check: I3 (README) → B1 ✓; M2 (symlink) → B2 ✓; A2 review I2 (multi-version) → B2/B3 ✓; A2 review I1 (missing install script) → B3 ✓; final review C1 (writable CTE) → B4 (verification) ✓; final review I1 (bounded sniffer) → B5 ✓; final review M1 (dead code) → DEFERRED to Phase 6.
+2. **Risk (Phase 6 carryover):** When B5 is re-tackled, the dependency is no longer "tables/owner_user_id seeded" — recon found those don't exist. A Phase 6 plan must either (a) get the target repo to wire `PostgresLiveStore` via env switch and rewrite the named-query against `live_rooms`/`created_by`, or (b) pick a different api-only target whose `pnpm dev` already writes to Postgres.
 
 ---
 
