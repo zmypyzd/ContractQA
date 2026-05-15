@@ -57,6 +57,15 @@ export class PostgresBackendAdapter implements BackendAdapter {
           `PostgresBackendAdapter: named query "${name}" contains a DML/DDL token (INSERT/UPDATE/DELETE/DROP/CREATE/ALTER/TRUNCATE/GRANT/REVOKE/MERGE/CALL/DO); writable CTEs are rejected.`,
         );
       }
+      const tenantPlaceholder = q.params[opts.tenantField];
+      if (tenantPlaceholder) {
+        const escaped = tenantPlaceholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Word-boundary match that doesn't confuse $1 with $11. \w doesn't include $, so wrap explicitly.
+        const ref = new RegExp(`(?<![\\w$])${escaped}(?![\\w])`);
+        if (!ref.test(q.sql)) {
+          throw new Error(`named query "${name}": tenant placeholder ${tenantPlaceholder} is declared in params but not referenced in SQL body`);
+        }
+      }
     }
     this.opts = opts;
   }

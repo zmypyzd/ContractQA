@@ -77,4 +77,18 @@ describe('PostgresBackendAdapter — read-only enforcement', () => {
       { name: 'pendingHands', description: 'pending hands for a user', params: { user_id: '$1' } },
     ]);
   });
+
+  it('rejects named query where tenant placeholder is not referenced in SQL body', () => {
+    expect(() => new PostgresBackendAdapter({
+      dsn: 'postgres://x',
+      tenantField: 'user_id',
+      namedQueries: {
+        bad: {
+          description: 'tenant declared but unused',
+          sql: 'SELECT id FROM rooms WHERE 1 = 1',
+          params: { user_id: '$1' },
+        },
+      },
+    })).toThrow(/tenant placeholder.*not referenced|placeholder.*\$1.*missing/i);
+  });
 });
