@@ -2,6 +2,36 @@
 
 All notable changes to ContractQA are documented here.
 
+## v0.7.0 — 2026-05-15 (Phase 7 — maintenance release)
+
+Anchor-less maintenance release. Unblocks `apps/dashboard` build + closes 4 final-review follow-ups from Phase 6.
+
+### Added
+
+- **NextAuth v5 App Router route-group support.** `inspect-auth.ts` now matches `app/(scope)/api/auth/[...nextauth]/route.ts` — common in NextAuth v5 setups that group auth routes.
+- **Semver-aware `findPnpmPkgDir`.** Added `semver` dependency; multi-version `.pnpm` selection sorts descending by parsed version (newest first), with lexicographic fallback when parse fails. Replaces Phase 5's lucky-lexicographic behavior. Closes the comment-vs-behavior gap surfaced by Phase 5's final reviewer.
+
+### Changed
+
+- **No breaking changes.** Public API surface unchanged.
+- `apps/dashboard` builds: dropped 7 dangling `.js` suffixes from internal imports (Next.js webpack resolver). Affected files: `app/issues/[id]/page.tsx`, `app/runs/page.tsx`, `lib/db.ts`.
+- `AuthSignal['custom-cookie']` annotated with JSDoc explaining the missing detector (Phase 8 candidate).
+- `scan.ts` refactored: `renderHybridSection` extracted into a private helper for readability. Output unchanged.
+
+### Still deferred (Phase 8 candidates)
+
+- HTTP-API contract surface (B5).
+- Mongo / Firestore / custom `BackendAdapter` implementations.
+- `custom-cookie` detector heuristic.
+- Persona dogfood agents.
+- Property/model-based test generation.
+- Dashboard §15.3–§15.6.
+- TypeScript project references (`tsc -b`).
+- File-content parsing for auth detection.
+- pnpm-version-aware spawn helper.
+- Dynamic `$session.userId` resolution.
+- Publishing to npm.
+
 ## v0.6.0 — 2026-05-15 (Phase 6)
 
 Phase 6 ships the hybrid-auth scanner anchor (`contractqa scan --detect-auth`) plus 5 minor follow-ups from Phase 5's final review. HTTP-API contract surface (B5) remains deferred — see `dogfood/FINDINGS.md`.
