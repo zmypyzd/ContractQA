@@ -8,8 +8,9 @@ import { eq } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
-export default async function IssuePage({ params }: { params: { id: string } }) {
-  const [row] = await db.select().from(issues).where(eq(issues.id, params.id));
+export default async function IssuePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const [row] = await db.select().from(issues).where(eq(issues.id, id));
   if (!row) return <main style={{ padding: 24 }}>Not found</main>;
   const issueJsonPath = row.issueJsonPath!;
   const issueDir = path.dirname(issueJsonPath);
