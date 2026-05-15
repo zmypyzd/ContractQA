@@ -19,6 +19,10 @@ Both routing changes were silent bugs in v0.2.x–v0.3.x — Phase 3 B4 document
 
 - `MongoBackendAdapter` — read-only Mongo `BackendAdapter`. Construction-time guards: named-queries-only, `find`/`aggregate` operations only, mandatory tenant field, forbidden operators (`$where`, `$function`, `$accumulator`, `$out`, `$merge`, `$listLocalSessions`) rejected via deep walk. Mirrors `PostgresBackendAdapter` API surface.
 
+## Stable since v0.11.0
+
+- `FirestoreBackendAdapter` — read-only Firestore `BackendAdapter`. Server-side via `@google-cloud/firestore`. Construction-time guards: named-queries-only with `where: [field, op, value]` triples, tenant field must appear in `where` with `==` op, supported operators whitelist (==, !=, <, <=, >, >=, array-contains, array-contains-any, in, not-in). Supports both `$N` and `:name` placeholder styles (parity with `MongoBackendAdapter`). Completes the `BackendAdapter` family (Postgres + Mongo + Firestore).
+
 ## Public surface
 
 The only stable, semver-protected surface is what is re-exported from `@contractqa/adapters/public`. Importing from `@contractqa/adapters` (root) or from any deep path is **internal** and may change without notice.

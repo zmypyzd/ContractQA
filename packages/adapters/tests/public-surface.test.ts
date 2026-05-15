@@ -12,6 +12,7 @@ describe('@contractqa/adapters/public surface', () => {
       'composeAuth',
       'PostgresBackendAdapter',
       'MongoBackendAdapter',
+      'FirestoreBackendAdapter',
     ]);
     const actual = new Set(Object.keys(Public));
     // Reveal both missing and extra entries clearly.

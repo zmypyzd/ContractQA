@@ -36,3 +36,6 @@ export { PostgresBackendAdapter } from './backend/postgres.js';
 
 /** @stable */
 export { MongoBackendAdapter } from './backend/mongo.js';
+
+/** @stable */
+export { FirestoreBackendAdapter } from './backend/firestore.js';
