@@ -32,13 +32,14 @@ const SESSION_OWNER_PRIORITY: readonly AuthSignal[] = [
 ];
 
 function pickSessionOwner(diagnostics: readonly AuthDiagnostic[]): AuthSignal {
-  const withMw = diagnostics.find((d) => d.hasMiddleware);
-  if (withMw) return withMw.provider;
+  const withMw = diagnostics.filter((d) => d.hasMiddleware);
+  if (withMw.length === 1) return withMw[0]!.provider;
+  const pool = withMw.length > 0 ? withMw : diagnostics;
   for (const p of SESSION_OWNER_PRIORITY) {
-    const hit = diagnostics.find((d) => d.provider === p);
+    const hit = pool.find((d) => d.provider === p);
     if (hit) return hit.provider;
   }
-  return diagnostics[0]!.provider;
+  return pool[0]!.provider;
 }
 
 function deriveRoutes(framework: DetectResult['framework'], files: readonly string[]): string[] {
@@ -146,11 +147,11 @@ export async function scanProject(opts: { cwd: string; target?: string; detectAu
       '',
       '```ts',
       `import { composeAuth } from '@contractqa/adapters';`,
-      `// ...import each adapter per provider above`,
-      `const auth = composeAuth({`,
-      `  session: '${owner}',`,
-      `  adapters: [${authDiagnostics.map((d) => `/* ${d.provider}Adapter */`).join(', ')}],`,
-      `});`,
+      `// Each adapter declares its own responsibilities. The adapter you give`,
+      `// responsibilities: ['session'] (currently suggested: ${owner}) becomes the session owner.`,
+      `const auth = composeAuth([`,
+      ...authDiagnostics.map((d) => `  /* ${d.provider}Adapter — responsibilities: [${d.provider === owner ? "'session', " : ""}'user-store'] */`),
+      `]);`,
       '```',
       '',
     );

@@ -21,7 +21,8 @@ describe('scan — hybrid auth markdown', () => {
     expect(r.markdown).toContain('### next-auth');
     expect(r.markdown).toContain('### supabase');
     expect(r.markdown).toMatch(/Suggested session owner:\*\* next-auth/);
-    expect(r.markdown).toContain('composeAuth({');
+    expect(r.markdown).toContain('composeAuth([');
+    expect(r.markdown).toContain('currently suggested: next-auth');
     expect(r.markdown).toContain('app/api/auth/[...nextauth]/route.ts');
     expect(r.markdown).toContain('lib/supabase/server.ts');
   });
@@ -42,5 +43,16 @@ describe('scan — hybrid auth markdown', () => {
     }));
     const r = await scanProject({ cwd: root });
     expect(r.markdown).not.toContain('## Hybrid auth');
+  });
+
+  it('renders "(none found via path-presence)" when providers detected via deps only', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'cqa-scan-deps-only-'));
+    await writeFile(path.join(root, 'package.json'), JSON.stringify({
+      dependencies: { next: '*', 'next-auth': '*', '@supabase/ssr': '*' },
+    }));
+    // No wiring files, no middleware.
+    const r = await scanProject({ cwd: root, detectAuth: true });
+    expect(r.markdown).toContain('## Hybrid auth');
+    expect(r.markdown).toContain('(none found via path-presence)');
   });
 });
