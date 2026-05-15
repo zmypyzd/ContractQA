@@ -179,3 +179,134 @@ export async function runContract(input: RunContractInput): Promise<RunContractR
 
   return { verdict, runId, bundleDir, before: beforeState, after: afterState };
 }
+
+// ---------------------------------------------------------------------------
+// HTTP-contract runner (no Playwright)
+// ---------------------------------------------------------------------------
+
+export interface RunHttpContractInput {
+  contract: ContractDoc;
+  backend?: BackendAdapter;
+  baseUrl: string;
+}
+
+export interface RunHttpContractResult {
+  verdict: VerdictResult;
+  runId: string;
+  /** Final fetch response status. */
+  status: number;
+  /** Final fetch response body as text (if any). */
+  responseBody?: string;
+}
+
+/**
+ * Sibling to `runContract` for HTTP-API contracts (no Playwright).
+ *
+ * All actions in the contract MUST be `type: 'http'`. Iterates them in order,
+ * calling `fetch(baseUrl + action.path, { method, body, headers })` for each.
+ * If `expected.backend_state` is set, the result of the final fetch is followed
+ * by a call to `backend.query(...)` for state verification.
+ *
+ * Does not write an evidence bundle (HTTP has no Playwright trace/HAR/screenshot).
+ */
+export async function runHttpContract(input: RunHttpContractInput): Promise<RunHttpContractResult> {
+  const { contract, backend, baseUrl } = input;
+
+  // Guard: all actions must be http.
+  for (const a of contract.actions) {
+    if (a.type !== 'http') {
+      throw new Error(
+        `runHttpContract: all actions must be type 'http' — found type '${a.type}'. ` +
+        `Mixed action types are not supported; use runContract for Playwright contracts.`,
+      );
+    }
+  }
+
+  let lastStatus = 0;
+  let lastBody = '';
+  for (const a of contract.actions) {
+    if (a.type !== 'http') continue; // satisfies TS narrowing
+    const headers: Record<string, string> = { ...(a.headers ?? {}) };
+    if (a.body !== undefined && !headers['Content-Type'] && !headers['content-type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+    const init: RequestInit = {
+      method: a.method,
+      headers,
+      ...(a.body !== undefined ? { body: JSON.stringify(a.body) } : {}),
+    };
+    const res = await fetch(`${baseUrl}${a.path}`, init);
+    lastStatus = res.status;
+    lastBody = await res.text();
+  }
+
+  // Backend state evaluation (reuses Phase 4 evaluator).
+  const expectedBackend = (contract.expected as any).backend_state as
+    | { named_query: string; params: Record<string, unknown>; assert: unknown }
+    | undefined;
+
+  let verdict: VerdictResult;
+  if (expectedBackend) {
+    const backendResult = await evaluateBackendState(
+      expectedBackend as Parameters<typeof evaluateBackendState>[0],
+      backend,
+    );
+    if (backendResult.verdict === 'PASS') {
+      verdict = {
+        verdict: 'PASS',
+        violations: [],
+        confidence: 1,
+        reproductionRate: 1,
+        flakeScore: 0,
+        evidenceCompleteness: 1,
+        missingCapabilities: [],
+      };
+    } else if (backendResult.verdict === 'FAIL') {
+      verdict = {
+        verdict: 'FAIL',
+        violations: [
+          {
+            invariantId: 'backend_state',
+            message: backendResult.reason ?? 'backend_state assertion failed',
+            expected: expectedBackend.assert,
+            actual: backendResult.reason,
+          },
+        ],
+        confidence: 1,
+        reproductionRate: 1,
+        flakeScore: 0,
+        evidenceCompleteness: 1,
+        missingCapabilities: [],
+      };
+    } else {
+      // INCONCLUSIVE (no backend adapter or unsupported assert)
+      verdict = {
+        verdict: 'INCONCLUSIVE',
+        violations: [],
+        confidence: 0,
+        reproductionRate: 0,
+        flakeScore: 0,
+        evidenceCompleteness: 0,
+        missingCapabilities: backendResult.missingCapability ? [backendResult.missingCapability] : ['backend_probe'],
+      };
+    }
+  } else {
+    // No backend assertion — HTTP returned without error → PASS.
+    verdict = {
+      verdict: 'PASS',
+      violations: [],
+      confidence: 1,
+      reproductionRate: 1,
+      flakeScore: 0,
+      evidenceCompleteness: 1,
+      missingCapabilities: [],
+    };
+  }
+
+  return {
+    verdict,
+    runId: contract.id,
+    status: lastStatus,
+    responseBody: lastBody,
+  };
+}

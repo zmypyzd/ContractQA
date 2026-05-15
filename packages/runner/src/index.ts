@@ -14,11 +14,13 @@ export type { RunOracleInput } from './fixtures.js';
 export { defineConfig } from './config.js';
 export type { ContractQAConfig } from './config.js';
 export { registerContracts } from './playwright-entry.js';
-export { runContract } from './run-contract.js';
+export { runContract, runHttpContract } from './run-contract.js';
 export type {
   RunContractInput,
   RunContractResult,
   RunContractAttachment,
+  RunHttpContractInput,
+  RunHttpContractResult,
 } from './run-contract.js';
 export { evaluateBackendState } from './backend-evaluator.js';
 export type { BackendStateSpec, BackendEvalResult } from './backend-evaluator.js';
