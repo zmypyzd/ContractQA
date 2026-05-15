@@ -115,7 +115,10 @@ Findings RESOLVED in Phase 3:
 - ✅ Acceptance-script ordering bug (build → typecheck → test) → D1 (cheap mitigation for the tsc -b backlog item)
 - ✅ Detector also handles `src/app/` and `src/pages/` layouts → inline fix during A9 dogfood (f0d8a2a)
 
-Findings STILL DEFERRED to Phase 4:
+Phase 4 LOCKED-IN anchors (committed pre-planning):
+- **`contractqa doctor` hardening — native-deps ABI mismatch detection + auto-fix.** Phase 3 T12 was best-effort surface-only (logs candidates). Concrete regression case from 2026-05-15 dogfood: 5-4-codex and agent-poker-platform-gpt both ship `better_sqlite3.node` prebuilt for `NODE_MODULE_VERSION 115` (Node 20); user runs Node 22 by default (`NODE_MODULE_VERSION 127`); api crashes at `openDatabase()` → `bindings()` → `dlopen()` with `ERR_DLOPEN_FAILED`. `pnpm rebuild better-sqlite3` is silently a no-op in pnpm 10 — actual fix requires `cd <node_modules/.pnpm/<pkg>@<ver>/node_modules/<pkg>> && npm run install` to trigger `prebuild-install`. Phase 4 doctor must (a) detect the ABI mismatch via boot-probe pattern, (b) recommend the correct rebuild command for pnpm 10, (c) optionally auto-execute under `--fix`.
+
+Findings STILL DEFERRED to Phase 4 (candidate pool — pick 1-2 alongside the locked-in doctor anchor):
 - `BackendAdapter` for HTTP-API-bypass test setup (the candidate dropped from Phase 3's anchor vote)
 - HTTP-API contract surface (for api-only repos like the original `agent-poker-platform`)
 - Hybrid-auth scanner (`contractqa scan --detect-auth` from 5-4-claude finding) — basic detection landed in scan, hybrid multi-provider case still requires manual `composeAuth`
