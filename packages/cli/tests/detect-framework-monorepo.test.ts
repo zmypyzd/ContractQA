@@ -81,4 +81,19 @@ describe('detectFrameworkInRepo — monorepo subdirectory walking', () => {
     const r = await detectFrameworkInRepo(root);
     expect(r.candidates.find((c) => c.subdir === 'apps/linked')).toBeUndefined();
   });
+
+  it('records symlink-skipped diagnostic in evidence', async () => {
+    if (process.platform === 'win32') return;
+    const root = await mkdtemp(path.join(os.tmpdir(), 'cqa-symlink-evidence-'));
+    await writeFile(path.join(root, 'package.json'), JSON.stringify({ name: 'root' }));
+    await mkdir(path.join(root, 'apps'), { recursive: true });
+    await mkdir(path.join(root, 'real-pkg'), { recursive: true });
+    await writeFile(path.join(root, 'real-pkg/package.json'), JSON.stringify({
+      dependencies: { vite: '*', react: '*' },
+    }));
+    await writeFile(path.join(root, 'real-pkg/vite.config.ts'), '');
+    await symlink(path.join(root, 'real-pkg'), path.join(root, 'apps/linked'));
+    const r = await detectFrameworkInRepo(root);
+    expect(r.evidence.some((e) => /skipped 1 symlinked/.test(e))).toBe(true);
+  });
 });

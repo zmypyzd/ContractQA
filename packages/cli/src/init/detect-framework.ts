@@ -146,12 +146,15 @@ export interface RepoDetectCandidate {
 
 export interface RepoDetectResult {
   candidates: RepoDetectCandidate[];
+  evidence: string[];
 }
 
 const SUBDIR_HINTS = ['apps', 'packages', 'web', 'frontend', 'client', 'site'];
 
 export async function detectFrameworkInRepo(root: string): Promise<RepoDetectResult> {
   const candidates: RepoDetectCandidate[] = [];
+  const repoEvidence: string[] = [];
+  let skippedSymlinks = 0;
   const rootResult = await tryDir(root, '.');
   if (rootResult) candidates.push(rootResult);
 
@@ -166,7 +169,7 @@ export async function detectFrameworkInRepo(root: string): Promise<RepoDetectRes
       for (const s of subs) {
         const subPath = path.join(hintPath, s);
         const subLst = await lstat(subPath);
-        if (subLst.isSymbolicLink()) continue;
+        if (subLst.isSymbolicLink()) { skippedSymlinks++; continue; }
         if (s.startsWith('@')) {
           // Scoped package: walk one more level (e.g. apps/@org/pkg)
           if (!subLst.isDirectory()) continue;
@@ -174,7 +177,7 @@ export async function detectFrameworkInRepo(root: string): Promise<RepoDetectRes
           for (const pkg of scopedSubs) {
             const scopedPath = path.join(subPath, pkg);
             const scopedLst = await lstat(scopedPath);
-            if (scopedLst.isSymbolicLink()) continue;
+            if (scopedLst.isSymbolicLink()) { skippedSymlinks++; continue; }
             if (!scopedLst.isDirectory()) continue;
             const r = await tryDir(scopedPath, `${hint}/${s}/${pkg}`);
             if (r) candidates.push(r);
@@ -189,6 +192,9 @@ export async function detectFrameworkInRepo(root: string): Promise<RepoDetectRes
       if (r) candidates.push(r);
     }
   }
+  if (skippedSymlinks > 0) {
+    repoEvidence.push(`skipped ${skippedSymlinks} symlinked subdir${skippedSymlinks > 1 ? 's' : ''}; pass --target to inspect them explicitly`);
+  }
   // Sort by confidence desc; ties go to non-root subdir before root.
   candidates.sort((a, b) => {
     if (a.confidence !== b.confidence) return b.confidence - a.confidence;
@@ -196,7 +202,7 @@ export async function detectFrameworkInRepo(root: string): Promise<RepoDetectRes
     if (b.subdir === '.' && a.subdir !== '.') return -1;
     return 0;
   });
-  return { candidates };
+  return { candidates, evidence: repoEvidence };
 }
 
 async function tryDir(dir: string, subdir: string): Promise<RepoDetectCandidate | null> {
