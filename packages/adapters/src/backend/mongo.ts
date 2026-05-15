@@ -196,9 +196,15 @@ export class MongoBackendAdapter implements BackendAdapter {
     }
     try {
       const client = await this.connectingP;
-      const db = client.db(this.opts.database);
-      this.client = client;
-      return db;
+      try {
+        const db = client.db(this.opts.database);
+        this.client = client;
+        return db;
+      } catch (e) {
+        // client.db() threw after a successful connect — close the orphan.
+        try { await client.close(); } catch { /* best-effort */ }
+        throw e;
+      }
     } catch (e) {
       this.connectingP = null;
       throw e;

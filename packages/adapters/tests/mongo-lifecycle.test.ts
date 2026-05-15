@@ -62,6 +62,28 @@ describe('MongoBackendAdapter — lifecycle edge cases', () => {
     await expect(adapter.query('q', { user_id: 'u' })).rejects.toThrow(/closed/i);
   });
 
+  it('closes resolved client when db() throws (no orphan)', async () => {
+    let closeCalled = false;
+    const badDbClient = {
+      db: vi.fn(() => { throw new Error('invalid database name'); }),
+      close: vi.fn(async () => { closeCalled = true; }),
+    };
+
+    const adapter = new MongoBackendAdapter({
+      uri: 'mongodb://x',
+      database: 'invalid-name',
+      tenantField: 'user_id',
+      namedQueries: {
+        q: { description: '', collection: 'r', operation: 'find', filter: { user_id: '$1' }, params: { user_id: '$1' } },
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      _clientOverride: badDbClient as any,
+    });
+
+    await expect(adapter.query('q', { user_id: 'u' })).rejects.toThrow(/invalid database name/);
+    expect(closeCalled).toBe(true);
+  });
+
   it('close() waits for in-flight queries to drain before closing client', async () => {
     let resolveToArray: (rows: unknown[]) => void = () => {};
     const slowToArray = vi.fn(() => new Promise<unknown[]>((res) => { resolveToArray = res; }));
