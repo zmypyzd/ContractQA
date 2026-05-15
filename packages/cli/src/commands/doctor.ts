@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { glob } from 'tinyglobby';
 import { detectRequiredEnv, type RequiredVar } from '../lib/env-detect.js';
 import { allocatePort } from '../lib/port-pool.js';
 import { detectNativeDepMismatch, type NativeMismatch } from '../lib/native-deps.js';
@@ -64,33 +65,74 @@ export async function doctor(i: DoctorInput): Promise<DoctorReport> {
 
 const NATIVE_DEPS = ['better-sqlite3', 'sqlite3', 'node-gyp', 'bcrypt', 'sharp', 'canvas'];
 
-async function fixNativeDeps(i: DoctorInput, _r: DoctorReport): Promise<{ ok: boolean; detail: string }> {
-  let pkg: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> } = {};
+async function readNativeDepsFromWorkspace(targetRoot: string): Promise<string[]> {
+  const native = new Set<string>();
+  const candidatePackageJsons = [path.join(targetRoot, 'package.json')];
+  // Heuristic: walk apps/* and packages/* (covers ~90% of pnpm/turborepo layouts).
+  for (const sub of ['apps/*/package.json', 'packages/*/package.json']) {
+    for (const f of await glob([sub], { cwd: targetRoot, absolute: true })) {
+      candidatePackageJsons.push(f);
+    }
+  }
+  for (const pj of candidatePackageJsons) {
+    try {
+      const raw = await readFile(pj, 'utf8');
+      const parsed = JSON.parse(raw);
+      const all = { ...parsed.dependencies, ...parsed.devDependencies };
+      for (const d of NATIVE_DEPS) if (d in all) native.add(d);
+    } catch { /* ignore unreadable / malformed */ }
+  }
+  return [...native];
+}
+
+async function findPnpmPkgDir(targetRoot: string, pkg: string): Promise<string | null> {
+  const dotPnpm = path.join(targetRoot, 'node_modules', '.pnpm');
   try {
-    const raw = await readFile(path.join(i.targetRoot, 'package.json'), 'utf8');
-    pkg = JSON.parse(raw);
-  } catch {
-    // missing/malformed — treat as no deps
-  }
-  const all = { ...pkg.dependencies, ...pkg.devDependencies };
-  const native = NATIVE_DEPS.filter((d) => d in all);
-  if (native.length === 0) {
-    return { ok: true, detail: 'no native deps detected' };
-  }
+    const entries = await readdir(dotPnpm);
+    const matches = entries
+      .filter((d) => d.startsWith(`${pkg}@`))
+      .sort();
+    if (matches.length === 0) return null;
+    return path.join(dotPnpm, matches[0], 'node_modules', pkg);
+  } catch { return null; }
+}
+
+async function runNpmInstallScript(cwd: string): Promise<{ ok: boolean; detail: string }> {
   return new Promise((resolve) => {
-    const child = spawn('npm', ['rebuild', ...native], { cwd: i.targetRoot, stdio: 'pipe' });
+    const child = spawn('npm', ['run', 'install'], { cwd, stdio: 'pipe' });
     let stderr = '';
     child.stderr.on('data', (d) => { stderr += d.toString(); });
     child.on('close', (code) => {
-      const detail = code === 0
-        ? `npm rebuild ${native.join(' ')} OK`
-        : `npm rebuild failed (exit ${code}): ${stderr.slice(0, 200).replace(/\s+/g, ' ').trim()}`;
-      resolve({ ok: code === 0, detail });
+      resolve(code === 0
+        ? { ok: true, detail: 'npm run install OK' }
+        : { ok: false, detail: stderr.slice(0, 200).replace(/\s+/g, ' ').trim() });
     });
-    child.on('error', (err) => {
-      resolve({ ok: false, detail: `npm rebuild spawn error: ${err.message}` });
-    });
+    child.on('error', (err) => resolve({ ok: false, detail: err.message }));
   });
+}
+
+async function fixNativeDeps(i: DoctorInput, _r: DoctorReport): Promise<{ ok: boolean; detail: string }> {
+  const native = await readNativeDepsFromWorkspace(i.targetRoot);
+  if (native.length === 0) {
+    return { ok: true, detail: 'no native deps detected' };
+  }
+
+  const results: string[] = [];
+  let allOk = true;
+  for (const pkg of native) {
+    // Find the .pnpm-mirrored copy of <pkg>. Prefer the lowest-versioned
+    // one if multiple coexist (rare; pnpm dedupes).
+    const installDir = await findPnpmPkgDir(i.targetRoot, pkg);
+    if (!installDir) {
+      results.push(`${pkg}: no installed copy found in node_modules/.pnpm`);
+      allOk = false;
+      continue;
+    }
+    const r = await runNpmInstallScript(installDir);
+    results.push(`${pkg}: ${r.ok ? 'rebuilt OK' : `failed — ${r.detail}`}`);
+    if (!r.ok) allOk = false;
+  }
+  return { ok: allOk, detail: results.join('; ') };
 }
 
 async function fixEnvStub(i: DoctorInput, _r: DoctorReport): Promise<{ ok: boolean; detail: string }> {

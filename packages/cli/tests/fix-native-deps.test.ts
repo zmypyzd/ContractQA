@@ -17,15 +17,17 @@ describe('doctor --fix native-deps', () => {
     expect(fix!.detail).toMatch(/no native deps/i);
   });
 
-  it('attempts npm rebuild when better-sqlite3 is present', async () => {
+  it('attempts rebuild when better-sqlite3 is present', async () => {
     await writeFile(path.join(tmp, 'package.json'), JSON.stringify({
       dependencies: { 'better-sqlite3': '^11' },
     }));
     const report = await doctor({ targetRoot: tmp, skipBootProbe: true, fix: ['native-deps'] });
     const fix = report.fixesAttempted.find((f) => f.name === 'native-deps');
     expect(fix).toBeDefined();
-    expect(fix!.detail).toContain('npm rebuild');
-    // ok could be true or false depending on whether npm rebuild succeeds in a tmpdir without node_modules — we just verify the command was attempted.
+    expect(fix!.detail).toMatch(/better-sqlite3/);
+    // ok could be true or false depending on whether the per-package rebuild
+    // succeeds in a tmpdir without node_modules — we just verify the package
+    // was detected and an attempt was reported.
   }, 60_000);
 
   it('handles missing package.json gracefully', async () => {
