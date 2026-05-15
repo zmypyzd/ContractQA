@@ -211,6 +211,18 @@ Findings STILL DEFERRED to Phase 10:
 - Mongo named-placeholder substitution (`:user_id` instead of `$1`) — removes declaration-order coupling. Phase 8 opus reviewer's #2.
 - File-content `cookies()` verification for `custom-cookie`.
 
+## Phase 10 resolution status (v0.10.0)
+
+Findings RESOLVED in Phase 10:
+- **Mongo named-placeholder syntax** (was: Phase 8 opus reviewer's #2). `MongoBackendAdapter` now recognizes `:name` placeholders that resolve by name from `params` — alongside the existing `$N` positional substitution. Both styles can coexist within a single named query. Removes the declaration-order coupling that's been load-bearing since Phase 8.
+- **MongoBackendAdapter getDb reject-recovery** (was: Phase 9 opus reviewer's #1). `connectingP` is now cleared on rejection, so the next `query()` call retries rather than permanently re-throwing the same error.
+- **MongoBackendAdapter close-during-connect** (was: Phase 9 opus reviewer's #2). `close()` now awaits any in-flight `connect()` promise before closing — no orphan client leaks. A `closed` flag fail-fasts any post-close `query()`.
+- **`custom-cookie` AuthSignal graduates from heuristic** (was: Phase 8 deferred). The detector now requires BOTH deps presence (`bcryptjs`/`bcrypt`) AND at least one auth-file (`middleware.ts` or `app/api/<route>/route.ts`) — path-presence only, file-content parsing remains Phase 11+ candidate.
+
+Findings STILL DEFERRED to Phase 11:
+- File-content `cookies()` body parsing for `custom-cookie`.
+- Mongo bulk-write rejection guard.
+
 ## Targets considered but not used
 
 - **teamagent/dogfood-target** — pure static counter, no contracts apply
