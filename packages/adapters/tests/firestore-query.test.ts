@@ -106,4 +106,25 @@ describe('FirestoreBackendAdapter — query path', () => {
     await adapter.close();
     await expect(adapter.query('q', { user_id: 'u' })).rejects.toThrow(/closed/i);
   });
+
+  it('doc.id wins over any "id" field in doc.data() (precedence)', async () => {
+    const fs = mockFirestore([
+      { id: 'firestore-r1', data: { id: 'user-said-r99', user_id: 'u-1' } },
+    ]);
+    const adapter = new FirestoreBackendAdapter({
+      projectId: 'test',
+      tenantField: 'user_id',
+      namedQueries: {
+        q: {
+          description: '',
+          collection: 'rooms',
+          where: [['user_id', '==', '$1']],
+          params: { user_id: '$1' },
+        },
+      },
+      _clientOverride: fs,
+    });
+    const r = await adapter.query('q', { user_id: 'u-1' });
+    expect(r).toEqual([{ id: 'firestore-r1', user_id: 'u-1' }]);  // user 'id' field shadowed
+  });
 });

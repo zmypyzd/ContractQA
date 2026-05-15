@@ -38,6 +38,9 @@ export interface FirestoreBackendAdapterOptions {
  *  - Read-only (`get()` only — no `add`, `set`, `update`, `delete`, `batch`, `transaction`).
  *  - Tenant field must appear in `where` with `==` operator (construction-time check).
  *  - Supported operators: ==, !=, <, <=, >, >=, array-contains, array-contains-any, in, not-in.
+ *  - Result rows always have `id` set to the Firestore document id; any `id`
+ *    field in `doc.data()` is shadowed by the doc id. Consumers expecting
+ *    `data.id` to be preserved should rename that field.
  */
 export class FirestoreBackendAdapter implements BackendAdapter {
   readonly kind = 'firestore' as const;
@@ -122,7 +125,7 @@ export class FirestoreBackendAdapter implements BackendAdapter {
     }
     const snap = await query.get();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+    return snap.docs.map((doc: any) => ({ ...doc.data(), id: doc.id }));
   }
 
   async close(): Promise<void> {
