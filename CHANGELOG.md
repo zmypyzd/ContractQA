@@ -2,6 +2,35 @@
 
 All notable changes to ContractQA are documented here.
 
+## v0.12.0 — 2026-05-15 (Phase 12)
+
+Phase 12 ships the long-deferred B5 HTTP action support (runner + schema; dogfood target still deferred) plus 3 Phase 11 polish items.
+
+### Added
+
+- **`action.type: 'http'` contract schema.** GET/POST/PUT/PATCH/DELETE with `path: string`, optional `body: unknown`, optional `headers: Record<string,string>`. Strict-validated; unsupported methods rejected.
+- **`runHttpContract` sibling runner function.** New entry point in `@contractqa/runner` for HTTP-API contracts. Separate from `runContract` (Playwright-bound). Input: `{ contract, backend?, baseUrl }`. Iterates HTTP actions via `fetch()`, content-type defaults to `application/json` when `body` is set. If `expected.backend_state` is present, reuses `evaluateBackendState` (Phase 4). No evidence bundle is written for HTTP runs. Mixed action types are rejected at runtime (throws "all actions must be type 'http'").
+
+### Changed
+
+- **No breaking changes.**
+- `@google-cloud/firestore` moved from `dependencies` to `optionalDependencies` in `@contractqa/adapters`. Postgres/Mongo-only consumers no longer pay the heavy gRPC/protobufjs install cost (firestore still installs by default; only allowed to fail).
+- `FirestoreBackendAdapter` result rows: doc id always wins over any `id` field in document data. `{ ...doc.data(), id: doc.id }` instead of the previous reversed order. Documented in class JSDoc.
+- `MongoBackendAdapter.getDb()` closes the resolved client if `client.db(name)` throws after a successful `connect()` — prevents an orphan connection from leaking when the database name is invalid.
+
+### Still deferred (Phase 13 candidates)
+
+- HTTP dogfood target (Phase 5 A3) — still no Postgres-wired api-only target identified.
+- Real-Firestore emulator integration test.
+- File-content `cookies()` body parsing for `custom-cookie`.
+- Persona dogfood agents.
+- Property/model-based test generation.
+- Dashboard §15.3–§15.6.
+- TypeScript project references (`tsc -b`).
+- pnpm-version-aware spawn helper.
+- Dynamic `$session.userId` resolution.
+- Publishing to npm.
+
 ## v0.11.0 — 2026-05-15 (Phase 11)
 
 Phase 11 completes the `BackendAdapter` family by shipping `FirestoreBackendAdapter` (third member alongside Postgres + Mongo). Plus 3 Phase 10 lifecycle/UX follow-ups.
