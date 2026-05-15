@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { db } from '../../lib/db.js';
-import { runs } from '../../drizzle/schema.js';
+import { db } from '../../lib/db';
+import { runs } from '../../drizzle/schema';
 import { desc } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';

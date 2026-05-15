@@ -1,9 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { StateDiffViewer } from '../../../components/StateDiffViewer.js';
-import { EvidenceLinks } from '../../../components/EvidenceLinks.js';
-import { db } from '../../../lib/db.js';
-import { issues } from '../../../drizzle/schema.js';
+import { StateDiffViewer } from '../../../components/StateDiffViewer';
+import { EvidenceLinks } from '../../../components/EvidenceLinks';
+import { db } from '../../../lib/db';
+import { issues } from '../../../drizzle/schema';
 import { eq } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
