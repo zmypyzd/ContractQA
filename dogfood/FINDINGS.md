@@ -123,9 +123,9 @@ Findings RESOLVED in Phase 4:
 - ✅ Monorepo / polyglot subdirectory detection in `contractqa init` — new `detectFrameworkInRepo` walks `apps/*`, `packages/*`, `web`, `frontend`, `client`, `site`. `init` and `scan` both gain `--target <subdir>` flag and auto-select the highest-confidence candidate. AmbiguousTarget thrown on tied confidence. Resolves the 5-4-codex / WolfMind / 5-4-claude `unknown`-detection regression. → C1, C2, C3
 - ✅ True per-responsibility routing in `composeAuth` — `currentUser` now routes to `'user-store'` owner (falling back to `'session'`); `expectFullyLoggedOut` runs against ALL adapters and AND-merges `fullyLoggedOut` + UNIONs `leaked_keys`. Phase 3 B4's "adjusted to match observed bug" test reverted. → D1, D2
 
-Findings STILL DEFERRED to Phase 7:
-Phase 6 closed the hybrid-auth scanner anchor and the 5 minor follow-ups from Phase 5's final review. The HTTP-API surface anchor and the remaining items carry forward to Phase 7 unchanged.
-- (Still) HTTP-API contract surface (for api-only repos like `agent-poker-platform`) — originally planned as Phase 5 B5. **Deferred to Phase 6 on 2026-05-15** after target-repo recon found `pnpm dev` hard-wired to in-memory stores (no Postgres) and schema mismatches (`live_rooms` / `created_by` instead of `tables` / `owner_user_id`). Making it work needs upstream PRs to the target repo. Phase 7 either (a) wires `PostgresLiveStore` via env switch and rewrites the named query against `live_rooms`, or (b) picks a different api-only Postgres-wired target.
+Findings STILL DEFERRED to Phase 8:
+Phase 6 closed the hybrid-auth scanner anchor and the 5 minor follow-ups from Phase 5's final review. Phase 7 closed the dashboard build fix and 4 Phase 6 final-review follow-ups. The HTTP-API surface anchor and the remaining items carry forward to Phase 8 unchanged.
+- (Still) HTTP-API contract surface (for api-only repos like `agent-poker-platform`) — originally planned as Phase 5 B5. **Deferred to Phase 6 on 2026-05-15** after target-repo recon found `pnpm dev` hard-wired to in-memory stores (no Postgres) and schema mismatches (`live_rooms` / `created_by` instead of `tables` / `owner_user_id`). Making it work needs upstream PRs to the target repo. Phase 8 either (a) wires `PostgresLiveStore` via env switch and rewrites the named query against `live_rooms`, or (b) picks a different api-only Postgres-wired target.
 - Dashboard §15.3–§15.6
 - Persona dogfood agents
 - Property/model-based test generation
@@ -133,7 +133,7 @@ Phase 6 closed the hybrid-auth scanner anchor and the 5 minor follow-ups from Ph
 - pnpm-version-aware spawn helper (still documented, not coded)
 - Publishing to npm — Phase 3 prepares the surface; `pnpm publish` is user-gated
 - Mongo / Firestore / custom `BackendAdapter` implementations (Phase 4 only shipped Postgres; design doc §7.6.3 declares 4 kinds)
-- Semver-aware `findPnpmPkgDir` (currently lexicographic — correct by accident for 9.x vs 11.x)
+- `custom-cookie` detector heuristic (bcrypt + cookies co-occurrence)
 - File-content parsing for auth detection (currently path-presence only — false negatives possible)
 - Dynamic `$session.userId` resolution
 
@@ -159,6 +159,29 @@ Findings RESOLVED in Phase 6:
 - `detectFrameworkInRepo` records `skipped N symlinked subdir(s); pass --target to inspect them explicitly` diagnostic in evidence
 - `FORBIDDEN_DML_DDL` regex documents false-positive risk in JSDoc
 - `scripts/phase6-acceptance.sh` parameterizes TARGET via `PHASE_TARGET` env var (forward-only; phase5-acceptance.sh not retro-touched)
+
+## Phase 7 resolution status (v0.7.0)
+
+Maintenance release. Anchor-less by design.
+
+Findings RESOLVED in Phase 7:
+- **`apps/dashboard` build was failing on dangling `.js`-suffixed imports.** Next.js webpack resolver can't find `.tsx` sources when imports use the TypeScript ESM `.js` extension convention. Dropped `.js` suffixes from 7 internal dashboard imports (`app/issues/[id]/page.tsx`, `app/runs/page.tsx`, `lib/db.ts`).
+
+4 Phase 6 final-review follow-ups RESOLVED:
+- NextAuth v5 App Router route-group support: `inspect-auth.ts` recognizes `app/(scope)/api/auth/[...nextauth]/route.ts`.
+- `custom-cookie` AuthSignal JSDoc: documents the missing detector and points to a Phase 8 heuristic candidate.
+- Semver-aware `findPnpmPkgDir`: added `semver` dep; sorts descending by parsed version; lex fallback when parse fails.
+- `renderHybridSection` extracted from `scanProject` into a private helper (file-size budget).
+
+Findings STILL DEFERRED to Phase 8:
+- HTTP-API contract surface (B5) — still no Postgres-wired target identified.
+- Mongo / Firestore BackendAdapter.
+- `custom-cookie` detector (bcrypt + cookies heuristic).
+- Persona dogfood agents, property/model-based test generation, dashboard §15.3–§15.6.
+- pnpm-version-aware spawn helper.
+- File-content parsing for auth detection.
+- Dynamic `$session.userId` resolution.
+- Publishing to npm (still user-gated).
 
 ## Targets considered but not used
 
