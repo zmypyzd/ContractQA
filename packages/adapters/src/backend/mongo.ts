@@ -64,6 +64,7 @@ export class MongoBackendAdapter implements BackendAdapter {
   readonly kind = 'mongo' as const;
   private client: MongoClient | null = null;
   private connectingP: Promise<MongoClient> | null = null;
+  private closed = false;
   private opts: MongoBackendAdapterOptions;
 
   constructor(opts: MongoBackendAdapterOptions) {
@@ -141,6 +142,10 @@ export class MongoBackendAdapter implements BackendAdapter {
   }
 
   async close(): Promise<void> {
+    this.closed = true;
+    if (this.connectingP) {
+      try { await this.connectingP; } catch { /* ignore: caller wants to close anyway */ }
+    }
     if (this.client) {
       await this.client.close();
       this.client = null;
@@ -149,16 +154,25 @@ export class MongoBackendAdapter implements BackendAdapter {
   }
 
   private async getDb(): Promise<Db> {
-    if (!this.client) {
-      if (!this.connectingP) {
-        this.connectingP = (async () => {
-          const client = this.opts._clientOverride ?? new MongoClient(this.opts.uri);
-          if (!this.opts._clientOverride) await client.connect();
-          return client;
-        })();
-      }
-      this.client = await this.connectingP;
+    if (this.closed) throw new Error('MongoBackendAdapter is closed');
+    if (this.client) {
+      return this.client.db(this.opts.database);
     }
-    return this.client.db(this.opts.database);
+    if (!this.connectingP) {
+      this.connectingP = (async () => {
+        const client = this.opts._clientOverride ?? new MongoClient(this.opts.uri);
+        if (!this.opts._clientOverride) await client.connect();
+        return client;
+      })();
+    }
+    try {
+      const client = await this.connectingP;
+      const db = client.db(this.opts.database);
+      this.client = client;
+      return db;
+    } catch (e) {
+      this.connectingP = null;
+      throw e;
+    }
   }
 }
