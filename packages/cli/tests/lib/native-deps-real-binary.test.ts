@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { detectNativeDepMismatch } from '../../src/lib/native-deps.js';
 
-const FIXTURE = '/Users/zmy/intership/5/5-4-codex'; // local-only smoke
+const FIXTURE = process.env.CONTRACTQA_LOCAL_TARGET ?? '';
 
 describe.skipIf(!process.env.CONTRACTQA_LOCAL_TARGET)('native-deps against real target', () => {
   it('detects better-sqlite3 ABI mismatch when runtime != built', async () => {
