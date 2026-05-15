@@ -22,15 +22,15 @@ program
   });
 
 program
-  .command('init')
+  .command('init [path]')
   .description('Scaffold qa/ directory for the current project (auto-detects framework)')
   .option('-y, --yes', 'skip confirmation prompts')
   .option('-f, --force', 'overwrite existing files')
   .option('--framework <name>', 'force a specific framework (next-app, next-pages, vite-react, vite-vue, astro, unknown)')
   .option('--target <subdir>', 'monorepo subdir to scaffold into (e.g. apps/web)')
-  .action(async (opts: { yes?: boolean; force?: boolean; framework?: string; target?: string }) => {
+  .action(async (cwdArg: string | undefined, opts: { yes?: boolean; force?: boolean; framework?: string; target?: string }) => {
     const report = await initProject({
-      cwd: process.cwd(),
+      cwd: cwdArg ?? process.cwd(),
       yes: opts.yes,
       force: opts.force,
       framework: opts.framework as never,
@@ -43,11 +43,12 @@ program
   });
 
 program
-  .command('scan')
+  .command('scan [path]')
   .description('Scan project and write qa/SCAN_REPORT.md with detected framework + suggested contracts')
   .option('-o, --out <path>', 'output path', 'qa/SCAN_REPORT.md')
-  .action(async (opts: { out: string }) => {
-    const r = await scanProject({ cwd: process.cwd() });
+  .option('--target <subdir>', 'monorepo subdir to scan into (e.g. apps/web)')
+  .action(async (cwdArg: string | undefined, opts: { out: string; target?: string }) => {
+    const r = await scanProject({ cwd: cwdArg ?? process.cwd(), target: opts.target });
     await mkdir(path.dirname(opts.out), { recursive: true });
     await writeFile(opts.out, r.markdown);
     console.log(`Wrote ${opts.out}`);
