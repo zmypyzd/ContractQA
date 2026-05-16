@@ -21,12 +21,41 @@ describe('ClaudeAgentSDKClient', () => {
     expect(c.providerName).toBe('claude-agent-sdk');
   });
 
-  it('honours abort signal', async () => {
+  it('honours abort signal (pre-start)', async () => {
     const { ClaudeAgentSDKClient } = await import('../../src/llm/claude-agent-sdk-client.js');
     const c = new ClaudeAgentSDKClient();
     const ac = new AbortController();
     ac.abort();
     await expect(c.generate({ messages: [{ role: 'user', content: 'Hi' }], signal: ac.signal }))
       .rejects.toThrow(/abort/i);
+  });
+
+  it('mid-stream abort is NOT wrapped as LLMTransportError', async () => {
+    const { query } = await import('@anthropic-ai/claude-agent-sdk');
+    const ac = new AbortController();
+    // Override mock: yields one item then the abort fires on next iteration check
+    vi.mocked(query).mockImplementationOnce(async function* () {
+      yield { type: 'result', result: 'partial' };
+      // Abort is already set by the time the loop checks signal on the next iteration
+    });
+    // We abort after the first yield by abusing signal already set
+    ac.abort();
+    // The client checks signal inside the loop after each yield — with signal pre-aborted
+    // and two items, it will throw 'aborted mid-stream' (not LLMTransportError).
+    const { ClaudeAgentSDKClient } = await import('../../src/llm/claude-agent-sdk-client.js');
+    const { LLMTransportError } = await import('../../src/llm/index.js');
+    const c = new ClaudeAgentSDKClient();
+    // pre-aborted signal: the pre-start check fires, which also throws a plain Error not LLMTransportError
+    vi.mocked(query).mockImplementationOnce(async function* () {
+      yield { type: 'result', result: 'partial' };
+    });
+    const ac2 = new AbortController();
+    // Abort mid-stream: set abort after a tick so it fires inside the loop
+    const generatePromise = c.generate({ messages: [{ role: 'user', content: 'Hi' }], signal: ac2.signal });
+    ac2.abort();
+    const err = await generatePromise.catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(LLMTransportError);
+    expect((err as Error).message).toMatch(/abort/i);
   });
 });

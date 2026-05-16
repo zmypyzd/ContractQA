@@ -1,5 +1,5 @@
 // packages/orchestrator/tests/llm/anthropic-sdk-client.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('@anthropic-ai/sdk', () => ({
   default: class FakeAnthropic {
@@ -16,6 +16,10 @@ vi.mock('@anthropic-ai/sdk', () => ({
 
 describe('AnthropicSDKClient', () => {
   beforeEach(() => { process.env.ANTHROPIC_API_KEY = 'sk-ant-test'; });
+  afterEach(() => {
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.CONTRACTQA_LLM_MODEL;
+  });
 
   it('forwards api key and constructs', async () => {
     const { AnthropicSDKClient } = await import('../../src/llm/anthropic-sdk-client.js');

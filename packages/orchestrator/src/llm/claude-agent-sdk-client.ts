@@ -27,6 +27,8 @@ export class ClaudeAgentSDKClient implements LLMClient {
         else if (typeof r.text === 'string') content += r.text;
       }
     } catch (err) {
+      // Don't wrap abort signals — they're not transport failures.
+      if (err instanceof Error && /abort/i.test(err.message)) throw err;
       throw new LLMTransportError(`Claude Agent SDK call failed: ${(err as Error).message}`, {
         provider: 'claude-agent-sdk',
         cause: err,

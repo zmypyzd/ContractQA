@@ -7,8 +7,16 @@ import { RecordingLLMClient } from '../../src/llm/recording-client.js';
 import type { LLMClient } from '../../src/llm/index.js';
 
 let tmp: string;
-beforeEach(() => { tmp = mkdtempSync(join(tmpdir(), 'cqa-cassette-')); });
-afterEach(() => rmSync(tmp, { recursive: true, force: true }));
+let origUpdate: string | undefined;
+beforeEach(() => {
+  origUpdate = process.env.UPDATE_CASSETTES;
+  tmp = mkdtempSync(join(tmpdir(), 'cqa-cassette-'));
+});
+afterEach(() => {
+  if (origUpdate === undefined) delete process.env.UPDATE_CASSETTES;
+  else process.env.UPDATE_CASSETTES = origUpdate;
+  rmSync(tmp, { recursive: true, force: true });
+});
 
 function fakeUpstream(content: string): LLMClient {
   return {
@@ -30,7 +38,6 @@ describe('RecordingLLMClient', () => {
     const m = JSON.parse(readFileSync(meta, 'utf8'));
     expect(m.promptHash).toBe('abc');
     expect(m.provider).toBe('openai-compatible');
-    delete process.env.UPDATE_CASSETTES;
   });
 
   it('replays from cassette when UPDATE_CASSETTES not set', async () => {
@@ -70,5 +77,33 @@ describe('RecordingLLMClient', () => {
       console.warn = origWarn;
     }
     expect(warns.some((w) => /90 days/.test(w))).toBe(true);
+  });
+
+  it('cassette miss when system prompt differs (system is part of key)', async () => {
+    const cassette = join(tmp, 'sys.json');
+    const meta = join(tmp, 'sys.meta.json');
+    // Write a cassette recorded with system='A'
+    writeFileSync(cassette, JSON.stringify([{
+      request: { system: 'A', messages: [{ role: 'user', content: 'Hi' }] },
+      response: { content: 'with-A', usage: { inputTokens: 1, outputTokens: 1 } },
+    }]));
+    writeFileSync(meta, JSON.stringify({ provider: 'openai-compatible', model: 'fake', capturedAt: new Date().toISOString(), promptHash: 'abc' }));
+    const c = new RecordingLLMClient(fakeUpstream('x'), cassette, { promptHash: 'abc' });
+    // Replay with system='B' — should miss, not replay
+    await expect(c.generate({ system: 'B', messages: [{ role: 'user', content: 'Hi' }] }))
+      .rejects.toThrow(/Cassette miss/);
+  });
+
+  it('upserts cassette entries on re-record — no accumulation', async () => {
+    process.env.UPDATE_CASSETTES = '1';
+    const cassette = join(tmp, 'upsert.json');
+    const opts = { messages: [{ role: 'user' as const, content: 'Hi' }] };
+    const c1 = new RecordingLLMClient(fakeUpstream('first'), cassette, { promptHash: 'abc' });
+    await c1.generate(opts);
+    const c2 = new RecordingLLMClient(fakeUpstream('second'), cassette, { promptHash: 'abc' });
+    await c2.generate(opts);
+    const entries = JSON.parse(readFileSync(cassette, 'utf8'));
+    expect(entries).toHaveLength(1);
+    expect(entries[0].response.content).toBe('second');
   });
 });

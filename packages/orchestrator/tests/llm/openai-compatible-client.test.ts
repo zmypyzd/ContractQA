@@ -1,5 +1,5 @@
 // packages/orchestrator/tests/llm/openai-compatible-client.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('openai', () => {
   return {
@@ -20,6 +20,10 @@ vi.mock('openai', () => {
 
 describe('OpenAICompatibleClient', () => {
   beforeEach(() => { delete process.env.OPENAI_BASE_URL; });
+  afterEach(() => {
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_BASE_URL;
+  });
 
   it('reads OPENAI_API_KEY and OPENAI_BASE_URL', async () => {
     process.env.OPENAI_API_KEY = 'sk-test';
