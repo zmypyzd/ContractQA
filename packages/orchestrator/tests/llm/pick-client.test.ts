@@ -31,7 +31,7 @@ describe('pickClient', () => {
     expect(c.providerName).toBe('anthropic-sdk');
   });
 
-  it.skip('falls back to ClaudeAgentSDKClient when no env keys but SDK + creds resolve', async () => {
+  it('falls back to ClaudeAgentSDKClient when no env keys but SDK + creds resolve', async () => {
     const { pickClient } = await import('../../src/llm/pick-client.js');
     const c = await pickClient({
       resolveSdk: (name) => name === '@anthropic-ai/claude-agent-sdk',
