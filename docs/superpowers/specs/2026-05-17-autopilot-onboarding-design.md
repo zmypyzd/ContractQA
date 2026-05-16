@@ -173,6 +173,17 @@ Subpath export added to `packages/orchestrator/package.json`:
 }
 ```
 
+**Stability classification**: `@contractqa/orchestrator/llm` is marked
+**`@experimental`** at v1.1.0. Its TypeScript types carry the
+`@experimental` JSDoc tag (same convention as `runHttpContract` at v1.0,
+per existing `STABILITY.md`). Rationale: putting an LLM-provider
+abstraction inside an existing internal package means the abstraction's
+release cadence is tied to orchestrator. Marking it `@experimental` for
+v1.x lets us iterate (e.g., add streaming, tool-calling, structured-output
+support) without claiming semver protection. Promotion to `@stable` or
+extraction to a separate `@contractqa/llm-client` package is an explicit
+future-major decision.
+
 ### 6.2 `cli/src/autopilot/smoke-patterns.ts`
 
 ```ts
@@ -256,18 +267,50 @@ and resolves the promise.
 ### 6.5 `cli/src/autopilot/stash-guard.ts`
 
 ```ts
+export interface StashedItem {
+  path: string;
+  state: 'modified' | 'staged' | 'untracked' | 'untracked-gitignored';
+  isSensitive: boolean;  // matches *.env*, *.pem, *secret*, *credential*, *key*
+}
 export interface StashGuard {
-  protect(): Promise<{ stashed: boolean; stashRef?: string }>;
+  protect(): Promise<{
+    stashed: boolean;
+    stashRef?: string;
+    items?: readonly StashedItem[];
+    sensitiveCount?: number;
+  }>;
   release(): Promise<void>;
 }
 export function createStashGuard(cwd: string): StashGuard;
 ```
 
-`protect()` runs `git status --porcelain`; if non-empty, runs
-`git stash push -u -m "contractqa-autopilot-${timestamp}"` and stores the
-ref. `release()` does NOT `git stash pop` — it prints a reminder to the
-user and leaves the stash intact (so partial autopilot failure cannot lose
-work).
+`protect()` runs `git status --porcelain` plus `git ls-files
+--others --ignored --exclude-standard` to enumerate **all** files the
+stash will absorb — including gitignored ones (`-u` semantics).
+For each file, it classifies as `modified` / `staged` / `untracked` /
+`untracked-gitignored` and flags sensitivity via filename pattern match
+(`*.env*`, `*.pem`, `*secret*`, `*credential*`, `*key*`).
+
+If `protect()` is called with any sensitive item, **the autopilot
+command pauses and requires explicit user confirmation before running
+`git stash push -u`** — bypasses §4 decision 9's "no Y/N during the
+happy path" only for this data-safety case. The prompt enumerates
+the sensitive files; user can answer `y` (proceed), `n` (abort
+autopilot), or `commit` (stage and commit them first, then re-run).
+`--yes` flag is **not** honoured here — sensitive-file confirmation
+is the one prompt that always blocks.
+
+`release()` does NOT `git stash pop`. It prints (a) the full list of
+stashed items, (b) explicit warning for sensitive files
+("`.env.local` etc. are in stash ref `stash@{0}`; running `git stash
+drop` will permanently delete them"), and (c) the suggested recovery
+command (`git stash apply --index`, not `pop`).
+
+**Submodules**: `git stash push -u` silently skips dirty submodule
+working trees. `protect()` detects submodules via
+`git submodule status` and, if any are dirty, **also blocks with a
+required confirmation** ("autopilot cannot protect changes in dirty
+submodule X; abort or proceed at your own risk?").
 
 ### 6.6 `cli/src/autopilot/budget-watchdog.ts`
 
@@ -310,9 +353,28 @@ the equivalent option fields.
 
 ## 7. Data flow
 
-Phase A → B → C are **strictly serial**. Phase B is internally streaming
-per module: each module's contracts are written and run before the next
-module's LLM call begins.
+Phase A is fully serial. **Phase C runs concurrently with Phase B once
+Phase A finishes** — Phase A's failures are eagerly fed to the auto-fix
+loop while Phase B's per-module discovery is still streaming. Phase B is
+internally streaming per module: each module's contracts are written and
+run before the next module's LLM call begins, but **B's failures join
+the same Phase C queue without waiting for B to finish**.
+
+Rationale: smoke patterns take 2-5 s; Phase B discovery takes 10-90 s.
+Blocking Phase C until B finishes wastes 60-90 s of the 30-min budget
+on the worst-case project. Concurrency is intentional and scoped — only
+Phase C reads from a queue that A and B both feed.
+
+**Concurrency contract**:
+- Phase A failures → enqueued for Phase C as soon as A finishes.
+- Phase B failures (per module) → enqueued for Phase C as soon as that
+  module's contracts have run.
+- Phase C is a single-consumer worker loop: it pulls from the queue,
+  runs the orchestrator fix, applies/discards based on regression check
+  outcome, and pulls the next. Never concurrent with itself (orchestrator
+  worktrees are sequential).
+- Phase B's per-module loop and Phase C's worker loop run on separate
+  promises against the same `AbortController`.
 
 ```
 0s ──────── 2s ───── 5s ─────── 30s ──────── 90s ─────── ≤30min ────── End
@@ -329,40 +391,40 @@ module's LLM call begins.
       │ 6-8 templates    │
       │ write _smoke/    │
       │ compile + run    │
-      │ collect failuresA│
-      └────────┬─────────┘
-               ↓
-               ┌────Phase B: Discovery (per module)────┐
-               │ for each module from discoverByModule:│
-               │   write high-conf YAMLs to            │
-               │     qa/contracts/<module>/            │
-               │   confirmUncertainProposals(...)      │
-               │   compile + run module's contracts    │
-               │   accumulate failuresB                │
-               └────────┬──────────────────────────────┘
-                        ↓
-                        ┌────Phase C: Auto-fix────┐
-                        │ failuresA first, then B │
-                        │ for f in failures:      │
-                        │   if budget gone: break │
-                        │   orchestrator.fix(f)   │
-                        │   if regression: undo   │
-                        │   queue successful diff │
-                        └────────┬────────────────┘
-                                 ↓
-                                 ┌─Apply Diffs─┐
-                                 │ unified     │
-                                 │ apply all   │
-                                 │ at once     │
-                                 │ no commit   │
-                                 └──────┬──────┘
-                                        ↓
-                                        ┌──Report──┐
-                                        │ terminal │
-                                        │ + .md    │
-                                        │ + stash  │
-                                        │   hint   │
-                                        └──────────┘
+      │ collect failuresA│ ───┐
+      └────────┬─────────┘    │
+               ↓               │ (concurrent)
+               ┌────Phase B────┐  ┌────Phase C: Auto-fix worker────┐
+               │ discoverByMod │  │ (consumes from shared queue)   │
+               │ for each mod: │  │ priority: failuresA first      │
+               │   write YAMLs │  │ pulls next: smoke A → mod1 → … │
+               │   prompt      │  │ for f in queue:                │
+               │   compile+run │  │   if budget gone: break        │
+               │   enqueue ───►│──┤   orchestrator.fix(f)          │
+               │   failuresB   │  │   verifyScope:'touched-files'  │
+               └───────┬───────┘  │   if regression: undo          │
+                       ↓          │   queue successful diff        │
+                       (Phase B   │                                │
+                        finishes) │                                │
+                                  └────────────┬───────────────────┘
+                                               ↓
+                                               (Phase C drains queue or
+                                                budget expires)
+                                               ↓
+                                               ┌─Apply Diffs─┐
+                                               │ unified     │
+                                               │ apply all   │
+                                               │ at once     │
+                                               │ no commit   │
+                                               └──────┬──────┘
+                                                      ↓
+                                                      ┌──Report──┐
+                                                      │ terminal │
+                                                      │ + .md    │
+                                                      │ + .json  │
+                                                      │ + stash  │
+                                                      │   hint   │
+                                                      └──────────┘
 ```
 
 **Directory layout** under the user's project:
@@ -385,10 +447,13 @@ qa/contracts/
 The `_` prefix on `_smoke/` and `_quarantine/` ensures they sort first
 visually and clearly mark them as autopilot-generated.
 
-**Failure priority into Phase C**: failures from Phase A precede failures
-from Phase B, regardless of chronological order. Rationale: smoke failures
-indicate more fundamental issues; fixing them first may make B failures
-disappear.
+**Failure priority into Phase C**: the queue uses (priority, FIFO) where
+Phase A failures get priority 0 and Phase B failures get priority 1.
+Since Phase A finishes before Phase B starts, in practice all A failures
+enter the queue before any B failure does, but the explicit priority
+ensures correctness if a slow A failure arrives after a fast B one.
+Rationale: smoke failures indicate more fundamental issues; fixing them
+first may make B failures disappear.
 
 **Diff application strategy**: unified at the end. All successful fix
 diffs are applied in one pass after Phase C completes, never incrementally
@@ -399,29 +464,59 @@ review.
 ## 8. Authentication strategy (MVP scope)
 
 Decision §4.6 selected the full layered fallback `A → B → C` as the target
-state. MVP ships only the first layer + a graceful skip:
+state. MVP ships layer A + a **Supabase-specific subset of layer B** +
+a graceful skip. Rationale (per opus review): the majority of modern
+indie projects use OAuth-only providers (Clerk / Supabase OAuth /
+NextAuth Google), which means `.env` sniff alone covers <50 % of the
+target audience. Without at least Supabase service_role temp users
+in MVP, the launch demo is broken for most projects.
 
-1. **A (`.env` sniff)**: read `.env.local`, `.env.test`, `.env.example`
-   for known credential keys. Initial v1 catalogue:
-   - `SUPABASE_TEST_EMAIL` / `SUPABASE_TEST_PASSWORD`
-   - `TEST_USER_EMAIL` / `TEST_USER_PASSWORD`
-   - `E2E_USER_EMAIL` / `E2E_USER_PASSWORD`
-   - `PLAYWRIGHT_AUTH_EMAIL` / `PLAYWRIGHT_AUTH_PASSWORD`
+1. **A (`.env` sniff)**: read `.env.local`, `.env.test`, `.env.example`,
+   `.env.development.local`, `.env`. Initial v1 credential-key
+   catalogue (expanded per opus review):
 
-2. **Fallback (skip with warning)**: if no creds are found, autopilot still
-   runs but skips invariants that require `auth_state: logged_in` in their
-   preconditions, surfacing in the report:
+   | Pair | Source convention |
+   |---|---|
+   | `SUPABASE_TEST_EMAIL` / `SUPABASE_TEST_PASSWORD` | Supabase-recommended seed |
+   | `TEST_USER_EMAIL` / `TEST_USER_PASSWORD` | generic |
+   | `E2E_USER_EMAIL` / `E2E_USER_PASSWORD` | Playwright community |
+   | `PLAYWRIGHT_AUTH_EMAIL` / `PLAYWRIGHT_AUTH_PASSWORD` | Playwright docs |
+   | `CYPRESS_TEST_USER_EMAIL` / `CYPRESS_TEST_USER_PASSWORD` | Cypress community |
+   | `NEXT_PUBLIC_TEST_EMAIL` / `NEXT_PUBLIC_TEST_PASSWORD` | Next.js convention |
+   | `CI_TEST_EMAIL` / `CI_TEST_PASSWORD` | CI convention |
+   | `DEV_USER_EMAIL` / `DEV_USER_PASSWORD` | dev-seed convention |
+   | `TEST_USER_JSON` (single blob) | reads `{email, password}` JSON; warn if shape unexpected |
+
+   Detection is case-sensitive on the key; values must be non-empty.
+
+2. **B-subset (Supabase service_role temp user)**: if (a) the project's
+   `inspectAuthWiring()` reports `provider: 'supabase'`, AND
+   (b) `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SERVICE_KEY`) is in
+   `.env*`, AND (c) layer A found no creds → autopilot calls Supabase's
+   admin API to:
+   1. Create a temp user `autopilot-${uuid}@contractqa.local` with a
+      random password.
+   2. Use those creds for the run.
+   3. Delete the user in the `finally` block, even on crash.
+
+   Implementation: ~150 lines in `cli/src/autopilot/auth/supabase-temp-user.ts`.
+   Other providers (Clerk testing tokens, NextAuth seed, Auth0 Management
+   API) **remain deferred to v1.2+**.
+
+3. **Fallback (skip with warning)**: if neither A nor B applies,
+   autopilot still runs but skips invariants that require
+   `auth_state: logged_in` in their preconditions, surfacing in the report:
 
    ```
-   ⚠️  跳过了 N 条需要登录的 invariant。
-       配置 SUPABASE_TEST_EMAIL + SUPABASE_TEST_PASSWORD（或类似变量）后重跑。
+   ⚠️  Skipped N login-required invariants — no credentials available.
+       To enable, set one of: SUPABASE_TEST_EMAIL + SUPABASE_TEST_PASSWORD
+       (or any pair from the layer-A catalogue), or set
+       SUPABASE_SERVICE_ROLE_KEY for automatic temp-user creation.
    ```
 
-3. **Deferred to v1.x**: layer B (framework-native temp user creation via
-   Supabase service_role / Clerk testing tokens / NextAuth dev seed /
-   Auth0 Management API) and layer C (interactive prompt + encrypted local
-   cred storage). Each is a self-contained additive feature; neither breaks
-   MVP behaviour.
+4. **Deferred to v1.2+**: layer B for Clerk / NextAuth / Auth0; layer C
+   (interactive prompt + encrypted local cred storage). Each is a
+   self-contained additive feature; neither breaks MVP behaviour.
 
 ## 9. Error handling
 
@@ -474,7 +569,7 @@ Three principles govern every error path:
 |---|---|
 | Worktree creation fails | Skip this fix; record; continue |
 | Orchestrator hits its own `maxAttempts` | Mark `gaveUp`; continue |
-| **Regression** — fix breaks a previously passing contract | Orchestrator re-runs the entire `qa/contracts/` set after each successful fix (autopilot-generated and any pre-existing hand-written ones); detected regression → revert fix → mark `gaveUp`. **This is a new orchestrator behaviour** (additive `verifyScope: 'one' \| 'all'` parameter, ~30 lines change), opt-in via flag passed from autopilot. |
+| **Regression** — fix breaks a previously passing contract | Orchestrator re-runs **only the contracts whose YAML touches any file in the fix's patch diff** (default `verifyScope: 'touched-files'`); detected regression → revert fix → mark `gaveUp`. **This is a new orchestrator behaviour** (additive `verifyScope: 'one' \| 'touched-files' \| 'all'` parameter, ~60 lines change including the diff-to-contract-mapping helper), opt-in via flag passed from autopilot. **Why not `'all'`**: 10 fixes × 30 contracts × 3 s Playwright cold-start ≈ 15 min of pure regression check, which blows the §9 budget on realistic projects. `'touched-files'` runs only the contracts that mention files in the patch (typically 1-3 contracts per fix), keeping the per-fix cost ~3-9 s. `'all'` remains available for users who explicitly opt in via `--regression-scope=all`. |
 | 30-minute budget hits | AbortController → in-flight orchestrator iteration aborts; already-successful diffs preserved; not-yet-applied diffs discarded |
 
 ### 9.5 Apply-diff errors
@@ -539,6 +634,31 @@ LLM responses are recorded once and committed as JSON fixtures in
 re-recording is opt-in via `UPDATE_CASSETTES=1`. Implementation: a
 `RecordingLLMClient` decorator wrapping the real client.
 
+**Cassette metadata** (each cassette has a sibling `.meta.json`):
+
+```json
+{
+  "provider": "openai-compatible",
+  "providerBaseUrl": "https://api.minimax.chat/v1",
+  "model": "<concrete-model-name>",
+  "capturedAt": "2026-05-17T00:00:00Z",
+  "capturedAgainst": { "spec": "abc123", "promptHash": "..." }
+}
+```
+
+**Drift guards**:
+
+1. CI emits a warning (non-blocking) when any cassette's `capturedAt` is
+   > 90 days old.
+2. CI hard-fails when the `promptHash` in metadata doesn't match the
+   current prompt source — forces re-record on prompt-engineering changes.
+3. The PR template includes a checkbox: "If `UPDATE_CASSETTES=1` was used,
+   I reviewed the diff." Cassette refreshes that touch >100 lines flag
+   for explicit review.
+
+These guards address the "cassettes silently rot" failure mode raised in
+the opus review.
+
 ### 10.3 CI vs local
 
 | Test class | CI | Trigger |
@@ -569,30 +689,35 @@ Each error case in §9.1–9.6 has at least one targeted test.
 
 ### 10.7 Estimated test code volume
 
-~2030 lines of test code across the new modules and cassette fixtures.
-Test-to-product ratio ≈ 1.5×.
+~2400 lines of test code across the new modules and cassette fixtures.
+Test-to-product ratio ≈ 1.1×.
 
 ## 11. Implementation scope summary
 
 ### 11.1 New code
 
+Estimates revised upward per opus review (prior estimate undercounted by
+~1.3-1.5×):
+
 | Location | Lines | Purpose |
 |---|---|---|
-| `packages/cli/src/autopilot/smoke-patterns.ts` | ~200 | 6-8 universal patterns |
-| `packages/cli/src/autopilot/llm-discovery.ts` | ~300 | per-module streaming discovery |
-| `packages/cli/src/autopilot/interactive-prompt.ts` | ~150 | Y/N + multi-choice UX |
-| `packages/cli/src/autopilot/stash-guard.ts` | ~80 | git stash protection |
+| `packages/cli/src/autopilot/smoke-patterns.ts` | ~250 | 6-8 universal patterns + framework-detection glue |
+| `packages/cli/src/autopilot/llm-discovery.ts` | ~550 | per-module streaming + prompt assembly + Zod validation + retry/backoff + module enumeration + cost tracking |
+| `packages/cli/src/autopilot/interactive-prompt.ts` | ~250 | Y/N + multi-choice + SIGINT handling + per-module batching + `--yes` defaulting |
+| `packages/cli/src/autopilot/stash-guard.ts` | ~180 | git stash + sensitive-file enumeration + submodule detection + sensitive confirmation flow |
 | `packages/cli/src/autopilot/budget-watchdog.ts` | ~60 | 30-min AbortController timer |
-| `packages/cli/src/commands/autopilot.ts` | ~150 | top-level orchestrator |
-| `packages/orchestrator/src/llm/index.ts` | ~50 | `LLMClient` interface + `pickClient` |
-| `packages/orchestrator/src/llm/openai-compatible-client.ts` | ~80 | MiniMax / OpenAI / OpenRouter |
-| `packages/orchestrator/src/llm/anthropic-sdk-client.ts` | ~80 | direct Anthropic API |
-| `packages/orchestrator/src/llm/claude-agent-sdk-client.ts` | ~80 | in-process via Claude Agent SDK |
-| `packages/orchestrator/package.json` exports map update | ~5 | `./llm` subpath |
-| Orchestrator LLM call site replacements | ~50 modifications | internal refactor |
-| **Production code subtotal** | **~1285 new + ~50 modified** | |
-| Tests (see §10.7) | **~2030** | |
-| **Total** | **~3315** | |
+| `packages/cli/src/autopilot/auth/supabase-temp-user.ts` | ~150 | Supabase service_role temp user lifecycle (§8.2) |
+| `packages/cli/src/commands/autopilot.ts` | ~200 | top-level orchestrator (Phase A→B/C concurrency) |
+| `packages/orchestrator/src/llm/index.ts` | ~70 | `LLMClient` interface + `pickClient` + lazy SDK resolution |
+| `packages/orchestrator/src/llm/openai-compatible-client.ts` | ~140 | MiniMax + OpenAI + OpenRouter + DeepSeek quirks |
+| `packages/orchestrator/src/llm/anthropic-sdk-client.ts` | ~100 | direct Anthropic API |
+| `packages/orchestrator/src/llm/claude-agent-sdk-client.ts` | ~100 | in-process via Claude Agent SDK |
+| `packages/orchestrator/src/llm/recording-client.ts` | ~80 | cassette decorator (see §10.2) |
+| `packages/orchestrator/package.json` exports + peerDeps | ~10 | `./llm` subpath + peer SDK declarations |
+| Orchestrator `verifyScope` support + LLM call site replacements | ~110 modifications | internal refactor (§9.4 + §6.1) |
+| **Production code subtotal** | **~2130 new + ~110 modified** | |
+| Tests (see §10.7) | **~2400** | |
+| **Total** | **~4640** | |
 
 ### 11.2 No breaking changes
 
@@ -603,22 +728,43 @@ package in `STABILITY.md`.
 
 ### 11.3 New runtime dependencies
 
+All three LLM SDKs are declared as `peerDependencies` with
+`peerDependenciesMeta.optional: true` on `@contractqa/orchestrator`'s
+`package.json`. **No SDK is installed by default.** Consumers who use
+`@contractqa/orchestrator` standalone (e.g., for the public auto-fix API
+outside autopilot) install zero LLM SDKs unless they opt in.
+
 - `@anthropic-ai/claude-agent-sdk` (optional peer; only loaded by
   `ClaudeAgentSDKClient` when selected)
 - `openai` (for `OpenAICompatibleClient`; OpenAI-format SDK)
 - `@anthropic-ai/sdk` (direct Anthropic; for `AnthropicSDKClient`)
 
-All three are loaded lazily — only the picked client's SDK is required at
-runtime, so consumers using `OPENAI_API_KEY` never load the Anthropic SDK.
+`pickClient()` performs `require.resolve()` on each SDK before constructing
+the corresponding client; missing SDKs are treated the same as missing
+env vars (skip to next layer). The fatal error in §9.1 includes an
+`npm install <sdk-name>` hint for the matched-env-var-but-missing-SDK case.
 
-### 11.4 Deferred to v2
+The `contractqa` CLI package (which depends on `@contractqa/orchestrator`)
+adds `@anthropic-ai/claude-agent-sdk` and `openai` as direct
+`dependencies` (not peer), so the autopilot command works zero-config for
+end users. `@anthropic-ai/sdk` remains a peer in the CLI as well —
+power users on Anthropic SDK opt in.
 
-- `--pr` flag for auto-creating GitHub PRs from autopilot diffs.
-- Full three-rail budget (time + steps + cost) — single time rail suffices
-  in v1.
-- Framework-native temp user authentication (layer B of §8).
-- Interactive credential prompt with encrypted local storage (layer C of §8).
-- Quality benchmark across multiple dogfood projects.
+**STABILITY note**: this design preserves the spirit of v1.0's
+no-breaking-change promise. `@contractqa/orchestrator`'s install footprint
+does not grow for existing consumers; new optional peers are an
+additive change documented in §11.5 CHANGELOG.
+
+### 11.4 Deferred to later releases
+
+| Item | Deferred to | Reason |
+|---|---|---|
+| `--pr` flag for auto-creating GitHub PRs | v1.2+ | needs remote-aware git logic and PR-template plumbing |
+| Three-rail budget (time + steps + cost) | v1.2+ | single time rail measured sufficient in dogfood |
+| Layer B for Clerk / NextAuth / Auth0 (Supabase B-subset is in MVP — §8.2) | v1.2+ | each provider needs its own admin API integration |
+| Layer C (interactive cred prompt + encrypted local storage) | v1.2+ | requires keychain abstraction |
+| Cross-dogfood quality benchmark | post-v1 project | needs hand-curated comparison set per target |
+| **Telemetry / usage metrics** | **v1.2 (must)** | without it we have no signal on whether autopilot actually onboards vibecoders; explicitly tracked to be added in v1.2 with opt-in flag (`CONTRACTQA_TELEMETRY=1`); MVP launches blind, v1.2 closes the loop |
 
 ### 11.5 New CHANGELOG entry plan
 
@@ -653,17 +799,61 @@ The following details were deliberately left to the implementation plan
 rather than relitigated in design:
 
 1. Final wording for the user-facing error message templates (Section 9.7).
-2. Exact prompt engineering for `llm-discovery.ts` (system prompt + per-module
-   instructions + confidence-scoring rubric).
-3. Final list of `.env` credential key names to sniff (§8).
-4. The 6-8 v1 smoke pattern catalogue — exact wording, edge cases.
-5. Whether to use `prompts` or a custom readline-based prompter in
+2. Final list of `.env` credential key names to sniff (§8.1) — current list
+   is a v1 catalogue; plan may add/refine after dogfood pass.
+3. The 6-8 v1 smoke pattern catalogue — exact wording, edge cases.
+4. Whether to use `prompts` or a custom readline-based prompter in
    `interactive-prompt.ts`.
-6. JSON schema for the `qa/AUTOPILOT_REPORT.md` machine-readable companion
+5. JSON schema for the `qa/AUTOPILOT_REPORT.md` machine-readable companion
    (`qa/AUTOPILOT_REPORT.json`).
 
 These will be resolved in the writing-plans phase via the same brainstorming
 discipline (per-item discussion, locked decisions).
+
+### 12.1 Promoted to spec — `llm-discovery.ts` prompt sketch
+
+Per opus review, the prompt design IS a spec-level decision because the
+prompt output shape determines the Zod schema, validation rules, and the
+quarantine rate (§9.3). The plan will refine wording, but the **structure**
+is locked here:
+
+**System prompt structure**:
+1. Role: "You are an expert QA engineer reading source code to infer
+   product invariants. Output strictly-typed YAML conforming to the
+   contractqa schema."
+2. Context block: framework + auth provider + entry routes
+   (auto-detected by `inspectAuthWiring` + `detectFramework`).
+3. Schema block: literal JSON-schema of `ContractSpec` + 1-2 example
+   contracts from `qa/contracts/auth.yml` (the existing canonical
+   example).
+4. Confidence rubric (literal text in prompt):
+   - `high`: invariant is directly evidenced by code (e.g., explicit
+     `redirect()` after logout); no ambiguity in expected behaviour.
+   - `medium`: invariant is implied by patterns (e.g., admin route
+     uses `requireRole('admin')`); expected behaviour is the obvious
+     interpretation but one decision point needs confirmation.
+   - `low`: invariant requires guessing intent (e.g., "should logged-in
+     users see the landing page or be redirected?"); skip unless user
+     confirms via prompt.
+5. Output format: a JSON array of `ContractProposal` objects (typed in
+   §6.3). Each proposal's `yaml` field contains the contract YAML;
+   `uncertainQuestions` is required when `confidence != 'high'` and
+   must include a `defaultAnswer` for `--yes` mode.
+
+**Per-module instructions** (issued one module at a time):
+- "Analyze module `<auth | orders | admin | ...>` rooted at
+  `<dirpath>`. Focus on user-visible behaviour, not implementation.
+  Output 3-8 proposals."
+
+**Determinism**: temperature is set provider-dependent — 0.2 for
+OpenAI-compat and Anthropic SDK; SDK's default for Claude Agent SDK
+(which doesn't expose temperature). This gives near-deterministic but
+not frozen output, which the cassette layer (§10.2) tolerates via the
+`promptHash` drift guard.
+
+The plan is free to tune wording, add few-shot examples, and refine the
+confidence rubric — but the four numbered structure elements and the
+JSON array output format are locked.
 
 ---
 
