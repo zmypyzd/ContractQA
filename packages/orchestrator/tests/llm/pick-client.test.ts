@@ -24,7 +24,7 @@ describe('pickClient', () => {
     expect(c.providerName).toBe('openai-compatible');
   });
 
-  it.skip('returns AnthropicSDKClient when only ANTHROPIC_API_KEY set', async () => {
+  it('returns AnthropicSDKClient when only ANTHROPIC_API_KEY set', async () => {
     process.env.ANTHROPIC_API_KEY = 'sk-ant-fake';
     const { pickClient } = await import('../../src/llm/pick-client.js');
     const c = await pickClient({ resolveSdk: () => true });
