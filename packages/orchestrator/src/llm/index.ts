@@ -40,5 +40,4 @@ export class LLMTransportError extends Error {
   }
 }
 
-// pickClient re-exported in Task A2
-// export { pickClient } from './pick-client.js';
+export { pickClient } from './pick-client.js';
