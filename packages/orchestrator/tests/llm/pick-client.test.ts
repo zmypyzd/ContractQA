@@ -1,6 +1,11 @@
 // packages/orchestrator/tests/llm/pick-client.test.ts
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+// Mock all three LLM SDKs so pick-client tests run without real SDK installs
+vi.mock('openai', () => ({ default: class FakeOpenAI { constructor() {} } }));
+vi.mock('@anthropic-ai/sdk', () => ({ default: class FakeAnthropic { constructor() {} } }));
+vi.mock('@anthropic-ai/claude-agent-sdk', () => ({ query: vi.fn() }));
+
 const ORIG_ENV = { ...process.env };
 
 function clearEnv() {
@@ -12,7 +17,7 @@ describe('pickClient', () => {
   beforeEach(() => clearEnv());
   afterEach(() => { process.env = { ...ORIG_ENV }; });
 
-  it.skip('returns OpenAICompatibleClient when OPENAI_API_KEY set', async () => {
+  it('returns OpenAICompatibleClient when OPENAI_API_KEY set', async () => {
     process.env.OPENAI_API_KEY = 'sk-fake';
     const { pickClient } = await import('../../src/llm/pick-client.js');
     const c = await pickClient({ resolveSdk: () => true });
