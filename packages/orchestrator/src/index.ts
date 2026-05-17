@@ -7,3 +7,5 @@ export type { FixLoopInput, FixLoopResult, FixOutcome } from './fix-loop.js';
 export { writeFixPromptFile } from './fix-prompt.js';
 export { runShadowFix } from './shadow-pipeline.js';
 export type { ShadowFixInput, ShadowFixResult } from './shadow-pipeline.js';
+export { findContractsTouchingFiles, walkAllContracts, extractTouchedFiles } from './verify-scope.js';
+export type { VerifyScope } from './verify-scope.js';

@@ -5,7 +5,7 @@ export interface FixLoopInput {
   fix: (attempt: number) => Promise<ClaudeFixResult>;
 }
 
-export type FixOutcome = 'SUCCESS' | 'EXHAUSTED' | 'CONTRACT_REVISION_NEEDED' | 'PARSE_ERROR';
+export type FixOutcome = 'SUCCESS' | 'EXHAUSTED' | 'CONTRACT_REVISION_NEEDED' | 'PARSE_ERROR' | 'REGRESSION';
 
 export interface FixLoopResult {
   outcome: FixOutcome;
