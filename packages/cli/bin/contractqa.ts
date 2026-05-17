@@ -112,7 +112,8 @@ program
   .option('--regression-scope <scope>', 'one|touched-files|all (default touched-files)', 'touched-files')
   .option('--watch', 'Watch the project directory and re-run autopilot on every file change')
   .option('--watch-debounce <ms>', 'Debounce window for --watch (default 2000ms)', '2000')
-  .action(async (opts: { timeBudget: string; fix: boolean; yes?: boolean; regenerate?: boolean; regressionScope?: string; watch?: boolean; watchDebounce?: string }) => {
+  .option('--dashboard-url <url>', 'Report each --watch iteration to a running ContractQA dashboard (or set DASHBOARD_URL env)')
+  .action(async (opts: { timeBudget: string; fix: boolean; yes?: boolean; regenerate?: boolean; regressionScope?: string; watch?: boolean; watchDebounce?: string; dashboardUrl?: string }) => {
     const baseOpts = {
       cwd: process.cwd(),
       timeBudgetMs: Number(opts.timeBudget),
@@ -134,6 +135,7 @@ program
     await watchAndRerun(baseOpts, {
       debounceMs: Number(opts.watchDebounce ?? '2000'),
       onLog: (line) => console.log(line),
+      dashboardUrl: opts.dashboardUrl,
     });
   });
 
