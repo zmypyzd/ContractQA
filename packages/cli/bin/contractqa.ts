@@ -110,18 +110,31 @@ program
   .option('--yes', 'Accept LLM defaults for uncertain proposals; no interactive prompts')
   .option('--regenerate', 'Force re-run of LLM discovery, ignoring existing qa/contracts/')
   .option('--regression-scope <scope>', 'one|touched-files|all (default touched-files)', 'touched-files')
-  .action(async (opts: { timeBudget: string; fix: boolean; yes?: boolean; regenerate?: boolean; regressionScope?: string }) => {
-    const report = await runAutopilot({
+  .option('--watch', 'Watch the project directory and re-run autopilot on every file change')
+  .option('--watch-debounce <ms>', 'Debounce window for --watch (default 2000ms)', '2000')
+  .action(async (opts: { timeBudget: string; fix: boolean; yes?: boolean; regenerate?: boolean; regressionScope?: string; watch?: boolean; watchDebounce?: string }) => {
+    const baseOpts = {
       cwd: process.cwd(),
       timeBudgetMs: Number(opts.timeBudget),
       fix: opts.fix,
       yes: opts.yes,
       regenerate: opts.regenerate,
       regressionScope: opts.regressionScope as ('one' | 'touched-files' | 'all' | undefined),
+    };
+
+    if (!opts.watch) {
+      const report = await runAutopilot(baseOpts);
+      // I4: exit code includes Phase B failures and Phase C give-ups.
+      const failTotal = report.phaseA.failed + (report.phaseB?.failed ?? 0) + (report.phaseC?.givenUp ?? 0);
+      process.exit(failTotal === 0 ? 0 : 1);
+    }
+
+    // --watch mode: run once, then re-run on debounced filesystem change events.
+    const { watchAndRerun } = await import('../src/commands/autopilot-watch.js');
+    await watchAndRerun(baseOpts, {
+      debounceMs: Number(opts.watchDebounce ?? '2000'),
+      onLog: (line) => console.log(line),
     });
-    // I4: exit code includes Phase B failures and Phase C give-ups.
-    const failTotal = report.phaseA.failed + (report.phaseB?.failed ?? 0) + (report.phaseC?.givenUp ?? 0);
-    process.exit(failTotal === 0 ? 0 : 1);
   });
 
 program.parseAsync().catch((e: unknown) => {
