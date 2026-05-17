@@ -5,7 +5,10 @@ dist
 coverage
 playwright-report
 test-results
-artifacts
+# QA run output dirs (top-level only) — the dashboard's app/artifacts route
+# under apps/dashboard/ is source code and must not be ignored.
+/artifacts
+/**/qa/artifacts
 .env
 .env.local
 *.tsbuildinfo

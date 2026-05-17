@@ -135,7 +135,7 @@ export default async function IssuePage({ params }: { params: Promise<{ id: stri
           {issueJson.artifacts && (
             <a
               className={`${s.btn} ${s.btnMono}`}
-              href={`/artifacts/${path.basename(issueDir)}/${issueJson.artifacts.trace ?? ''}`}
+              href={`/artifacts/${id}/${issueJson.artifacts.trace ?? ''}`}
               target="_blank"
               rel="noreferrer"
             >
@@ -167,7 +167,7 @@ export default async function IssuePage({ params }: { params: Promise<{ id: stri
 
         <section className={s.section}>
           <h2 className={s.sectionHead}>Evidence</h2>
-          <EvidenceLinks evidence={issueJson.artifacts} basePath={`/artifacts/${path.basename(issueDir)}`} />
+          <EvidenceLinks evidence={issueJson.artifacts} basePath={`/artifacts/${id}`} />
         </section>
 
         {reproSrc && (
