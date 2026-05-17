@@ -201,7 +201,52 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
     if (!budgetTriggered) budgetTriggered = 'time-budget';
   });
 
-  // I2: SIGINT handler — writes partial report via the finally block.
+  // Outer-scope phase state so writeReport (and the catch block) can access it
+  // even if the try block throws before these are fully populated.
+  let phaseA: { passed: number; failed: number; deferred: number; failures: SmokeFailure[] } = { passed: 0, failed: 0, deferred: 0, failures: [] };
+  let phaseB: { generated: number; failed: number; deferred: number; userConfirmed: number; userRejected: number } = { generated: 0, failed: 0, deferred: 0, userConfirmed: 0, userRejected: 0 };
+  // Phase C: wired in v1.1.0-beta — calls runFixLoop (Option A) directly with autopilot's
+  // llmClient, bypassing the shadow-pipeline GitHub wrapper (no PR/worktree needed).
+  let phaseC: { attempted: number; fixed: number; givenUp: number; skipped: number; diffs: string[] } = { attempted: 0, fixed: 0, givenUp: 0, skipped: 0, diffs: [] };
+  let costTracker: CostTracker = { inputTokens: 0, outputTokens: 0, provider: '' };
+
+  // Idempotent report writer — called from both the happy path and the catch block.
+  let reportWritten = false;
+  let cachedReport: AutopilotReport | undefined;
+  const writeReport = async (): Promise<AutopilotReport> => {
+    if (reportWritten && cachedReport) return cachedReport;
+    reportWritten = true;
+    const llmCost = costTracker.inputTokens > 0 || costTracker.outputTokens > 0
+      ? {
+          provider: costTracker.provider,
+          inputTokens: costTracker.inputTokens,
+          outputTokens: costTracker.outputTokens,
+          estimatedUsd: undefined,
+        }
+      : undefined;
+    const report: AutopilotReport = {
+      phaseA,
+      phaseB,
+      phaseC: fixEnabled ? phaseC : undefined,
+      budgetTriggered,
+      durationMs: Date.now() - startedAt,
+      llmCost,
+    };
+    cachedReport = report;
+    await mkdir(join(opts.cwd, 'qa'), { recursive: true });
+    await writeFile(join(opts.cwd, 'qa/AUTOPILOT_REPORT.md'), renderReportMarkdown(report));
+    await writeFile(join(opts.cwd, 'qa/AUTOPILOT_REPORT.json'), JSON.stringify(report, null, 2));
+    return report;
+  };
+
+  // I2: SIGINT handler — sets user-interrupt and triggers abort.
+  // Uses process.once so the handler fires at most once per registration.
+  // Note: when runAutopilot is called concurrently in the same process (rare —
+  // the CLI invokes only once per command), each call registers its own listener
+  // with its own AbortController. A single Ctrl-C will then abort all running
+  // instances, which is the desired behaviour. The matching removeListener in
+  // the finally block uses reference equality so each instance cleans up only
+  // its own listener.
   const onSigint = () => {
     budgetTriggered = 'user-interrupt';
     abortController.abort();
@@ -226,7 +271,7 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
     const rawLLMClient = opts.llmClient ?? await pickClient();
 
     // I3: wrap with cost tracker.
-    const costTracker: CostTracker = { inputTokens: 0, outputTokens: 0, provider: rawLLMClient.providerName };
+    costTracker = { inputTokens: 0, outputTokens: 0, provider: rawLLMClient.providerName };
     const llmClient = wrapWithCostTracking(rawLLMClient, costTracker);
 
     let ctx = await assembleTargetContext(opts.cwd);
@@ -266,7 +311,6 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
     // Phase A: write smoke patterns; run HTTP ones inline, defer Playwright ones.
     const patterns = applicablePatterns(ctx);
     const smokePaths = await writeSmokeContracts(opts.cwd, patterns, ctx);
-    const phaseA = { passed: 0, failed: 0, deferred: 0, failures: [] as SmokeFailure[] };
     const queue: QueuedFailure[] = [];
     for (const p of smokePaths) {
       if (abortController.signal.aborted) break;
@@ -284,11 +328,6 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
     }
 
     // Phase B (sequential per module) — concurrent with Phase C consumer.
-    const phaseB = { generated: 0, failed: 0, deferred: 0, userConfirmed: 0, userRejected: 0 };
-    // Phase C: wired in v1.1.0-beta — calls runFixLoop (Option A) directly with autopilot's
-    // llmClient, bypassing the shadow-pipeline GitHub wrapper (no PR/worktree needed).
-    const phaseC = { attempted: 0, fixed: 0, givenUp: 0, skipped: 0, diffs: [] as string[] };
-
     let phaseBDone = false;
 
     // I5: skip Phase C worker entirely when --no-fix is set.
@@ -394,8 +433,9 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
       try {
         await new Promise<void>((resolve, reject) => {
           const child = execFile('git', ['apply', '--index', '-'], { cwd: opts.cwd }, (err) => err ? reject(err) : resolve());
-          child.stdin?.write(diff);
-          child.stdin?.end();
+          // Fix 2: use end(chunk) instead of write+end to handle backpressure for large diffs
+          // (stream.end(chunk) buffers internally and handles pipe-buffer overflow >64KB correctly).
+          child.stdin?.end(diff);
         });
         phaseC.diffs.push('<applied>');
       } catch (err) {
@@ -404,30 +444,12 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
       }
     }
 
-    // I3: populate llmCost on the report.
-    const llmCost = costTracker.inputTokens > 0 || costTracker.outputTokens > 0
-      ? {
-          provider: costTracker.provider,
-          inputTokens: costTracker.inputTokens,
-          outputTokens: costTracker.outputTokens,
-          estimatedUsd: undefined,
-        }
-      : undefined;
-
-    const report: AutopilotReport = {
-      phaseA,
-      phaseB,
-      phaseC: fixEnabled ? phaseC : undefined,
-      budgetTriggered,
-      durationMs: Date.now() - startedAt,
-      llmCost,
-    };
-
-    await mkdir(join(opts.cwd, 'qa'), { recursive: true });
-    await writeFile(join(opts.cwd, 'qa/AUTOPILOT_REPORT.md'), renderReportMarkdown(report));
-    await writeFile(join(opts.cwd, 'qa/AUTOPILOT_REPORT.json'), JSON.stringify(report, null, 2));
-
-    return report;
+    // I3: cost tracker is now populated on the outer-scope costTracker; writeReport reads it.
+    return await writeReport();
+  } catch (err) {
+    // Guarantee a partial report file exists even on unexpected throws.
+    await writeReport().catch(() => { /* don't mask original error */ });
+    throw err;
   } finally {
     process.removeListener('SIGINT', onSigint);
     if (tempUserHandle) {
