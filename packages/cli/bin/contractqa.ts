@@ -110,13 +110,14 @@ program
   .option('--yes', 'Accept LLM defaults for uncertain proposals; no interactive prompts')
   .option('--regenerate', 'Force re-run of LLM discovery, ignoring existing qa/contracts/')
   .option('--regression-scope <scope>', 'one|touched-files|all (default touched-files)', 'touched-files')
-  .action(async (opts: { timeBudget: string; fix: boolean; yes?: boolean; regenerate?: boolean }) => {
+  .action(async (opts: { timeBudget: string; fix: boolean; yes?: boolean; regenerate?: boolean; regressionScope?: string }) => {
     const report = await runAutopilot({
       cwd: process.cwd(),
       timeBudgetMs: Number(opts.timeBudget),
       fix: opts.fix,
       yes: opts.yes,
       regenerate: opts.regenerate,
+      regressionScope: opts.regressionScope as ('one' | 'touched-files' | 'all' | undefined),
     });
     process.exit(report.phaseA.failed + (report.phaseC?.givenUp ?? 0) === 0 ? 0 : 1);
   });

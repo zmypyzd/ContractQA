@@ -13,7 +13,7 @@ contractqa autopilot
 
 In ~30s–5min, autopilot will:
 
-1. Run 6 universal smoke patterns (root not 5xx, 404 works, no password-in-URL, ...).
+1. Write 6 universal smoke patterns to `qa/contracts/_smoke/` (HTTP patterns run inline; Playwright patterns deferred to `contractqa run`).
 2. Read your source code and generate per-module contracts to `qa/contracts/`.
 3. Ask Y/N questions for inferences it isn't sure about.
 4. Auto-fix failing contracts (default; disable with `--no-fix`).

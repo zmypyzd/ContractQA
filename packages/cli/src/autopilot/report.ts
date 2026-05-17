@@ -2,9 +2,26 @@
 export interface SmokeFailure { id: string; reason: string; }
 
 export interface AutopilotReport {
-  phaseA: { passed: number; failed: number; failures: SmokeFailure[] };
-  phaseB: { generated: number; userConfirmed: number; userRejected: number };
-  phaseC?: { attempted: number; fixed: number; givenUp: number; diffs: string[] };
+  phaseA: {
+    passed: number;
+    failed: number;
+    /** Playwright-based contracts written but not executed inline; run via `contractqa run`. */
+    deferred: number;
+    failures: SmokeFailure[];
+  };
+  phaseB: { generated: number; failed: number; userConfirmed: number; userRejected: number };
+  /** Phase C is included only when fix mode is enabled. */
+  phaseC?: {
+    attempted: number;
+    fixed: number;
+    givenUp: number;
+    /**
+     * Contracts skipped because the orchestrator integration is not yet wired
+     * in autopilot v1.1 alpha. Full orchestrator integration is the v1.1.0-beta milestone.
+     */
+    skipped: number;
+    diffs: string[];
+  };
   budgetTriggered: 'time-budget' | 'user-interrupt' | null;
   durationMs: number;
   llmCost?: { provider: string; inputTokens: number; outputTokens: number; estimatedUsd?: number };
@@ -19,6 +36,7 @@ export function renderReportMarkdown(r: AutopilotReport): string {
   const a = r.phaseA;
   const b = r.phaseB;
   const c = r.phaseC;
+  const totalA = a.passed + a.failed + a.deferred;
   const lines: string[] = [
     '# Autopilot Report',
     '',
@@ -26,16 +44,20 @@ export function renderReportMarkdown(r: AutopilotReport): string {
     r.budgetTriggered ? `**Budget triggered: ${r.budgetTriggered}** — partial results below.` : '',
     '',
     '## Phase A: Smoke',
-    `- ${a.passed}/${a.passed + a.failed} passed`,
+    `- ${totalA} patterns generated → ${a.passed} passed, ${a.failed} failed, ${a.deferred} deferred to \`contractqa run\``,
+    a.deferred > 0 ? `- Note: Playwright-based patterns are written to qa/contracts/_smoke/ but require \`contractqa run\` to execute.` : '',
     a.failures.length > 0 ? `- Failures: ${a.failures.map((f) => f.id).join(', ')}` : '',
     '',
     '## Phase B: Discovery',
-    `- ${b.generated} contracts generated`,
+    `- ${b.generated} contracts generated, ${b.failed} failed`,
     `- ${b.userConfirmed} user-confirmed, ${b.userRejected} user-rejected`,
     '',
   ];
   if (c) {
     lines.push('## Phase C: Auto-fix');
+    if (c.skipped > 0) {
+      lines.push(`- ${c.skipped} fix(es) skipped — orchestrator integration deferred to v1.1.0-beta`);
+    }
     lines.push(`- ${c.fixed} fixes applied, ${c.givenUp} given up (of ${c.attempted} attempted)`);
     if (c.diffs.length > 0) {
       lines.push(`- Modified files: ${c.diffs.join(', ')}`);

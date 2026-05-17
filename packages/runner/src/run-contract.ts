@@ -188,6 +188,8 @@ export interface RunHttpContractInput {
   contract: ContractDoc;
   backend?: BackendAdapter;
   baseUrl: string;
+  /** Optional AbortSignal to cancel in-flight HTTP requests. */
+  signal?: AbortSignal;
 }
 
 export interface RunHttpContractResult {
@@ -219,7 +221,7 @@ export interface RunHttpContractResult {
  * persisted — those checks live in `backend_state`.)
  */
 export async function runHttpContract(input: RunHttpContractInput): Promise<RunHttpContractResult> {
-  const { contract, backend, baseUrl } = input;
+  const { contract, backend, baseUrl, signal } = input;
 
   // Guard: all actions must be http.
   for (const a of contract.actions) {
@@ -248,6 +250,7 @@ export async function runHttpContract(input: RunHttpContractInput): Promise<RunH
       method: a.method,
       headers,
       ...(a.body !== undefined ? { body: JSON.stringify(a.body) } : {}),
+      ...(signal !== undefined ? { signal } : {}),
     };
     const res = await fetch(`${baseUrl}${a.path}`, init);
     lastStatus = res.status;

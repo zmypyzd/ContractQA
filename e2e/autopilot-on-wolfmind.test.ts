@@ -6,10 +6,10 @@
 // is a STUB placeholder — it was not recorded with a real LLM. The test will
 // skip in replay mode until a real cassette is recorded.
 //
-// To record a real cassette:
+// To re-record cassette:
 //   UPDATE_CASSETTES=1 OPENAI_API_KEY=<key> pnpm --filter @contractqa/e2e test autopilot-on-wolfmind
 //
-// To run live without cassette:
+// To run truly live (bypasses RecordingLLMClient entirely — hits the real API on every call):
 //   RUN_LIVE_LLM_TESTS=1 OPENAI_API_KEY=<key> pnpm --filter @contractqa/e2e test autopilot-on-wolfmind
 //
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -82,7 +82,10 @@ afterEach(() => {
 describe('autopilot on dogfood/wolfmind', () => {
   (shouldSkip ? it.skip : it)('generates contracts that overlap >=60% with hand-curated baseline (cassette replay)', async () => {
     const upstream = await pickClient();
-    const llm = new RecordingLLMClient(upstream, CASSETTE, { promptHash: PROMPT_HASH });
+    // In truly-live mode, bypass the RecordingLLMClient so every call hits the real API.
+    const llm = process.env.RUN_LIVE_LLM_TESTS === '1'
+      ? upstream
+      : new RecordingLLMClient(upstream, CASSETTE, { promptHash: PROMPT_HASH });
     const report = await runAutopilot({
       cwd: tmpWolfmind,
       llmClient: llm,
