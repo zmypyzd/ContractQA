@@ -162,6 +162,20 @@
 .table tbody tr:hover {
   background: var(--surface);
 }
+.clickableRow {
+  cursor: pointer;
+}
+.clickableRow:hover .rowLink {
+  color: var(--accent);
+}
+/* The first <td> wraps its content in an invisible link so the visual hover
+   highlights span the row (browser limitation: native <tr> can't be a link).
+   The "view →" link in the last column remains the primary affordance. */
+.rowLinkInvisible {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
 .table tbody tr.active {
   background: color-mix(in oklab, var(--accent) 6%, transparent);
   box-shadow: inset 2px 0 0 var(--accent);

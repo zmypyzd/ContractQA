@@ -95,8 +95,10 @@ export default async function RunsPage() {
                   const isError = r.status === 'failed' || r.status === 'error';
                   const isActive = isRunning;
                   return (
-                    <tr key={r.id} className={isActive ? s.active : ''}>
-                      <td className={s.colMono}>{formatTimestamp(r.startedAt)}</td>
+                    <tr key={r.id} className={`${isActive ? s.active : ''} ${s.clickableRow}`} data-href={`/runs/${r.id}`}>
+                      <td className={s.colMono}>
+                        <Link href={`/runs/${r.id}`} className={s.rowLinkInvisible}>{formatTimestamp(r.startedAt)}</Link>
+                      </td>
                       <td className={s.colMono}>{r.triggerType ?? '—'}</td>
                       <td className={s.colBranch}>{r.branch ?? '—'}</td>
                       <td>
@@ -119,7 +121,7 @@ export default async function RunsPage() {
                         </span>
                       </td>
                       <td>
-                        <Link href={`/issues?run=${r.id}`} className={s.rowLink}>
+                        <Link href={`/runs/${r.id}`} className={s.rowLink}>
                           view →
                         </Link>
                       </td>

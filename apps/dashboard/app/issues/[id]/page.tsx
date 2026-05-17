@@ -129,8 +129,13 @@ export default async function IssuePage({ params }: { params: Promise<{ id: stri
         </p>
 
         <div className={s.actions}>
+          {row.runId && (
+            <Link href={`/runs/${row.runId}`} className={`${s.btn} ${s.btnMono}`}>
+              ← run {row.runId.slice(0, 8)}
+            </Link>
+          )}
           <Link href="/runs" className={`${s.btn} ${s.btnMono}`}>
-            ← recent runs
+            recent runs
           </Link>
           {issueJson.artifacts && (
             <a
