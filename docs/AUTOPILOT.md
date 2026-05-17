@@ -16,8 +16,8 @@ In ~30s–5min, autopilot will:
 1. Write 6 universal smoke patterns to `qa/contracts/_smoke/` (HTTP patterns run inline; Playwright patterns deferred to `contractqa run`).
 2. Read your source code and generate per-module contracts to `qa/contracts/`.
 3. Ask Y/N questions for inferences it isn't sure about.
-4. Auto-fix failing contracts (default; disable with `--no-fix`).
-5. Apply fix diffs to your working directory (you `git add && git commit` yourself).
+4. Auto-fix failing contracts. **In v1.1.0-alpha, auto-fix is deferred to v1.1.0-beta**: failures are reported but no orchestrator fix is attempted. The `--no-fix` flag and Phase C skipped counter remain wired for forward compatibility.
+5. (v1.1.0-beta) Apply fix diffs to your working directory.
 
 ## LLM provider configuration
 

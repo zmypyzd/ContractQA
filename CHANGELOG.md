@@ -2,7 +2,11 @@
 
 All notable changes to ContractQA are documented here.
 
-## v1.1.0 — <release date>
+## v1.1.0-alpha — <release date>
+
+Initial alpha of autopilot zero-YAML onboarding. **Phase C (orchestrator
+auto-fix integration) is deferred to v1.1.0-beta.** This alpha ships:
+smoke patterns + LLM discovery + honest reporting + stash protection.
 
 ### Added
 - `contractqa autopilot` command: zero-YAML onboarding for new users. Reads source code, generates contracts via LLM, asks Y/N questions for uncertain inferences, persists to `qa/contracts/`, runs the suite, and hands failures to the existing auto-fix loop. See [docs/AUTOPILOT.md](./docs/AUTOPILOT.md).

@@ -9,7 +9,14 @@ export interface AutopilotReport {
     deferred: number;
     failures: SmokeFailure[];
   };
-  phaseB: { generated: number; failed: number; userConfirmed: number; userRejected: number };
+  phaseB: {
+    generated: number;
+    failed: number;
+    /** Playwright-based contracts written but not executed inline; run via `contractqa run`. */
+    deferred: number;
+    userConfirmed: number;
+    userRejected: number;
+  };
   /** Phase C is included only when fix mode is enabled. */
   phaseC?: {
     attempted: number;
@@ -49,7 +56,8 @@ export function renderReportMarkdown(r: AutopilotReport): string {
     a.failures.length > 0 ? `- Failures: ${a.failures.map((f) => f.id).join(', ')}` : '',
     '',
     '## Phase B: Discovery',
-    `- ${b.generated} contracts generated, ${b.failed} failed`,
+    `- ${b.generated} contracts generated, ${b.failed} failed, ${b.deferred} deferred to \`contractqa run\``,
+    b.deferred > 0 ? `- Note: Playwright-based contracts are written to qa/contracts/ but require \`contractqa run\` to execute.` : '',
     `- ${b.userConfirmed} user-confirmed, ${b.userRejected} user-rejected`,
     '',
   ];

@@ -6,6 +6,7 @@ import { pickClient, type LLMClient } from '@contractqa/orchestrator/llm';
 import type { ContractDoc } from '@contractqa/core';
 import { runHttpContract } from '@contractqa/runner';
 import { assembleTargetContext } from '../autopilot/bootstrap.js';
+import { createSupabaseTempUser, buildSupabaseAdminClient } from '../autopilot/auth/supabase-temp-user.js';
 import { startTimeBudget } from '../autopilot/budget-watchdog.js';
 import { createStashGuard } from '../autopilot/stash-guard.js';
 import { applicablePatterns } from '../autopilot/smoke-patterns.js';
@@ -125,6 +126,7 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
   });
 
   const stashGuard = createStashGuard(opts.cwd);
+  let tempUserHandle: { dispose: () => Promise<void> } | undefined;
   try {
     await stashGuard.protect({
       confirmSensitive: async (items) => {
@@ -136,7 +138,29 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
     });
 
     const llmClient = opts.llmClient ?? await pickClient();
-    const ctx = await assembleTargetContext(opts.cwd);
+    let ctx = await assembleTargetContext(opts.cwd);
+
+    // Spec §8.2 MVP: when the project uses Supabase auth and no env credentials
+    // are present, create a temporary Supabase user for the session.
+    if (ctx.testCredentials.source === 'none' && ctx.authProvider === 'supabase') {
+      const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY;
+      if (supabaseUrl && serviceKey) {
+        try {
+          const admin = await buildSupabaseAdminClient(supabaseUrl, serviceKey);
+          const handle = await createSupabaseTempUser({ adminClient: admin });
+          tempUserHandle = handle;
+          // Mutate the context to reflect we now have credentials.
+          ctx = {
+            ...ctx,
+            testCredentials: { source: 'supabase-temp-user', email: handle.email, password: handle.password },
+          };
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn(`autopilot: supabase temp-user creation failed: ${(err as Error).message}; continuing with anonymous flows only`);
+        }
+      }
+    }
 
     // Phase A: write smoke patterns; run HTTP ones inline, defer Playwright ones.
     const patterns = applicablePatterns(ctx);
@@ -159,7 +183,7 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
     }
 
     // Phase B (sequential per module) — concurrent with Phase C consumer.
-    const phaseB = { generated: 0, failed: 0, userConfirmed: 0, userRejected: 0 };
+    const phaseB = { generated: 0, failed: 0, deferred: 0, userConfirmed: 0, userRejected: 0 };
     // Phase C: stub — orchestrator wiring deferred to v1.1.0-beta.
     // The runShadowFix API requires createWorktree, runClaude, openFixPR, bundlePath, issueId
     // and other fields that autopilot cannot sensibly provide; full wiring exceeds 100 LOC of glue.
@@ -210,8 +234,10 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
           for (const p of paths) {
             if (abortController.signal.aborted) break;
             const r = await runContractPath(p, opts.cwd, abortController.signal);
-            // I1: track Phase B failures (deferred contracts count as pass for queueing purposes)
-            if (r.passed === false) {
+            if (r.passed === 'deferred') {
+              phaseB.deferred++;
+              // Playwright-based contracts are written but not executed; do not enqueue for fix.
+            } else if (r.passed === false) {
               phaseB.failed++;
               queue.push({ priority: 1, failure: { id: p.split('/').pop()!, reason: r.reason ?? 'unknown' }, contractPath: p });
             }
@@ -240,6 +266,12 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
 
     return report;
   } finally {
+    if (tempUserHandle) {
+      await tempUserHandle.dispose().catch((err) => {
+        // eslint-disable-next-line no-console
+        console.warn(`autopilot: temp-user dispose failed: ${(err as Error).message}`);
+      });
+    }
     budget.cancel();
     await stashGuard.release();
   }

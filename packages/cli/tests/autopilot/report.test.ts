@@ -6,7 +6,7 @@ describe('renderReportMarkdown', () => {
   it('renders summary header + per-phase sections', () => {
     const report: AutopilotReport = {
       phaseA: { passed: 5, failed: 1, deferred: 0, failures: [] },
-      phaseB: { generated: 12, failed: 2, userConfirmed: 8, userRejected: 1 },
+      phaseB: { generated: 12, failed: 2, deferred: 0, userConfirmed: 8, userRejected: 1 },
       phaseC: { attempted: 2, fixed: 2, givenUp: 0, skipped: 0, diffs: ['app/auth.ts'] },
       budgetTriggered: null,
       durationMs: 123456,
@@ -25,7 +25,7 @@ describe('renderReportMarkdown', () => {
   it('shows deferred count when Playwright contracts are written', () => {
     const report: AutopilotReport = {
       phaseA: { passed: 0, failed: 0, deferred: 6, failures: [] },
-      phaseB: { generated: 0, failed: 0, userConfirmed: 0, userRejected: 0 },
+      phaseB: { generated: 0, failed: 0, deferred: 0, userConfirmed: 0, userRejected: 0 },
       budgetTriggered: null,
       durationMs: 5000,
     };
@@ -38,7 +38,7 @@ describe('renderReportMarkdown', () => {
   it('shows skipped count in Phase C when orchestrator not yet wired', () => {
     const report: AutopilotReport = {
       phaseA: { passed: 0, failed: 1, deferred: 0, failures: [{ id: 'SMOKE-root-not-500', reason: 'timeout' }] },
-      phaseB: { generated: 0, failed: 0, userConfirmed: 0, userRejected: 0 },
+      phaseB: { generated: 0, failed: 0, deferred: 0, userConfirmed: 0, userRejected: 0 },
       phaseC: { attempted: 0, fixed: 0, givenUp: 0, skipped: 1, diffs: [] },
       budgetTriggered: null,
       durationMs: 2000,
@@ -52,7 +52,7 @@ describe('renderReportMarkdown', () => {
   it('shows Phase B failed count', () => {
     const report: AutopilotReport = {
       phaseA: { passed: 1, failed: 0, deferred: 0, failures: [] },
-      phaseB: { generated: 5, failed: 2, userConfirmed: 3, userRejected: 0 },
+      phaseB: { generated: 5, failed: 2, deferred: 0, userConfirmed: 3, userRejected: 0 },
       budgetTriggered: null,
       durationMs: 3000,
     };
@@ -63,7 +63,7 @@ describe('renderReportMarkdown', () => {
   it('marks budget-triggered runs prominently', () => {
     const report: AutopilotReport = {
       phaseA: { passed: 5, failed: 0, deferred: 0, failures: [] },
-      phaseB: { generated: 0, failed: 0, userConfirmed: 0, userRejected: 0 },
+      phaseB: { generated: 0, failed: 0, deferred: 0, userConfirmed: 0, userRejected: 0 },
       budgetTriggered: 'time-budget',
       durationMs: 1800000,
     };
