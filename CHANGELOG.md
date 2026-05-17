@@ -5,7 +5,19 @@ All notable changes to ContractQA are documented here.
 ## v1.1.0 — Unreleased (needs real cassette / dogfood run)
 
 Planned stable release once the v1.1.0-beta cassette tests pass against a real project.
-No API changes relative to v1.1.0-beta.1.
+No API changes relative to v1.1.0-beta.2.
+
+---
+
+## v1.1.0-beta.2 — 2026-05-17
+
+### Fixed
+- `runAutopilot`: partial-report write now guaranteed even on unexpected throws (refactored to a `writeReport` helper called from both the happy path and a new catch block).
+- `git apply` stdin: use `end(chunk)` instead of `write + end` to handle backpressure for large diffs (>64KB pipe buffer).
+- SIGINT listener: added comment documenting concurrent-call behaviour (rare in practice for CLI).
+
+### Changed
+- Lockstep version bump: all 9 publishable packages now at `1.1.0-beta.2` (previously CLI + orchestrator at `1.1.0-beta.1`; other 7 at `1.0.0`).
 
 ---
 
