@@ -1,7 +1,10 @@
 'use server';
 
 import { access, readFile, readdir, stat } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
+import { desc, sql } from 'drizzle-orm';
+import { db } from '../../lib/db';
+import { recentProjects } from '../../drizzle/schema';
 
 export type DetectionResult =
   | {
@@ -160,5 +163,75 @@ async function detectContracts(root: string): Promise<{ hasContracts: boolean; c
     return { hasContracts: count > 0, contractsCount: count };
   } catch {
     return { hasContracts: false, contractsCount: 0 };
+  }
+}
+
+// ============ Recent projects ============
+
+export interface RecentProjectRow {
+  absolutePath: string;
+  label: string;
+  lastUsedAt: string; // ISO timestamp; serializable across the server-action boundary
+  runCount: number;
+}
+
+/**
+ * Returns the most-recently-used projects, newest first. Empty array on DB
+ * failure (the launcher then falls back to its hardcoded seed). Never throws —
+ * the launcher continues to work without Postgres.
+ */
+export async function listRecentProjects(limit = 8): Promise<RecentProjectRow[]> {
+  try {
+    const rows = await db
+      .select({
+        absolutePath: recentProjects.absolutePath,
+        label: recentProjects.label,
+        lastUsedAt: recentProjects.lastUsedAt,
+        runCount: recentProjects.runCount,
+      })
+      .from(recentProjects)
+      .orderBy(desc(recentProjects.lastUsedAt))
+      .limit(limit);
+    return rows.map((r) => ({
+      absolutePath: r.absolutePath,
+      label: r.label,
+      lastUsedAt: r.lastUsedAt?.toISOString() ?? new Date(0).toISOString(),
+      runCount: r.runCount,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Records or refreshes a project entry. Upserts on absolutePath, bumps
+ * runCount, refreshes lastUsedAt and detectedSummary. Silently swallows DB
+ * errors so a failed write never blocks the actual autopilot run.
+ */
+export async function recordRecentProject(
+  absolutePath: string,
+  detectedSummary: Record<string, unknown> | null,
+): Promise<void> {
+  try {
+    const label = basename(absolutePath) || absolutePath;
+    await db
+      .insert(recentProjects)
+      .values({
+        absolutePath,
+        label,
+        detectedSummary: detectedSummary ?? null,
+        runCount: 1,
+      })
+      .onConflictDoUpdate({
+        target: recentProjects.absolutePath,
+        set: {
+          label,
+          lastUsedAt: sql`now()`,
+          runCount: sql`${recentProjects.runCount} + 1`,
+          detectedSummary: detectedSummary ?? null,
+        },
+      });
+  } catch {
+    // swallow — recent-projects is observability, not control flow
   }
 }

@@ -1,7 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
-import { type DetectionResult, validateProjectPath } from './actions';
+import {
+  type DetectionResult,
+  type RecentProjectRow,
+  listRecentProjects,
+  recordRecentProject,
+  validateProjectPath,
+} from './actions';
 import type { LauncherEvent, PhaseId, PhaseStatus } from './events';
 import s from './launcher.module.css';
 
@@ -33,18 +39,38 @@ const newPhaseMap = (): PhaseMap => ({
   C: { ...INITIAL_PHASE },
 });
 
-const RECENT_ITEMS = [
-  { path: '/Users/zmy/intership/5.10+/qa-agent', label: 'qa-agent', when: '2h ago' },
-  { path: 'fix/logout-cookie-leak', label: 'fix/logout-cookie-leak', when: 'yesterday' },
-  { path: 'feat/dashboard-launcher', label: 'feat/dashboard-launcher', when: '3d ago' },
-  { path: 'dogfood/sentinel', label: 'dogfood/sentinel', when: '5d ago' },
+/**
+ * Seed list shown before the DB responds (or when Postgres is down). Replaced
+ * by listRecentProjects() on mount.
+ */
+const RECENT_SEED: RecentProjectRow[] = [
+  {
+    absolutePath: '/Users/zmy/intership/5.10+/qa-agent',
+    label: 'qa-agent',
+    lastUsedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    runCount: 0,
+  },
 ];
+
+function formatRelativeTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '—';
+  const diff = Date.now() - then;
+  if (diff < 60_000) return 'just now';
+  if (diff < 60 * 60 * 1000) return `${Math.round(diff / 60_000)}m ago`;
+  if (diff < 24 * 60 * 60 * 1000) return `${Math.round(diff / (60 * 60 * 1000))}h ago`;
+  const days = Math.round(diff / (24 * 60 * 60 * 1000));
+  if (days === 1) return 'yesterday';
+  if (days < 30) return `${days}d ago`;
+  return new Date(then).toISOString().slice(0, 10);
+}
 
 type RunOutcome = 'pending' | 'success' | 'budget' | 'interrupt' | 'error';
 
 export default function LauncherPage() {
   const [path, setPath] = useState('/Users/zmy/intership/5.10+/qa-agent');
   const [detection, setDetection] = useState<DetectionResult | null>(null);
+  const [recentItems, setRecentItems] = useState<RecentProjectRow[]>(RECENT_SEED);
   const [isPending, startTransition] = useTransition();
 
   const [phases, setPhases] = useState<PhaseMap>(newPhaseMap);
@@ -96,6 +122,19 @@ export default function LauncherPage() {
     };
   }, []);
 
+  // Load real recent projects on mount; fall back silently to the seed when
+  // Postgres is unavailable (listRecentProjects returns []).
+  useEffect(() => {
+    let cancelled = false;
+    listRecentProjects(8).then((rows) => {
+      if (cancelled) return;
+      if (rows.length > 0) setRecentItems(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
@@ -110,6 +149,10 @@ export default function LauncherPage() {
       runStartedAtRef.current = Date.now();
       setElapsedNow(0);
       setRunning(true);
+
+      // Fire-and-forget: persist this project as a recent. Server action
+      // swallows errors so DB outages can't break the run.
+      void recordRecentProject(detection.resolvedPath, detection.detected);
 
       const url = `/launcher/stream?cwd=${encodeURIComponent(detection.resolvedPath)}&fix=true`;
       const es = new EventSource(url);
@@ -271,23 +314,24 @@ export default function LauncherPage() {
 
           <aside className={s.recent} aria-label="Recent projects on this machine">
             <h4>Recent · this machine</h4>
-            {RECENT_ITEMS.map((item) => (
-              <button
-                key={item.path}
-                type="button"
-                className={s.recentItem}
-                onClick={() =>
-                  setPath(
-                    item.path.startsWith('/')
-                      ? item.path
-                      : `/Users/zmy/intership/5.10+/${item.path}`,
-                  )
-                }
-              >
-                <span className={s.recentPath}>{item.label}</span>
-                <span className={s.recentWhen}>{item.when}</span>
-              </button>
-            ))}
+            {recentItems.length === 0 ? (
+              <p className={s.hint} style={{ margin: 0 }}>
+                No history yet. Run autopilot once and this list fills in.
+              </p>
+            ) : (
+              recentItems.map((item) => (
+                <button
+                  key={item.absolutePath}
+                  type="button"
+                  className={s.recentItem}
+                  onClick={() => setPath(item.absolutePath)}
+                  title={item.absolutePath}
+                >
+                  <span className={s.recentPath}>{item.label}</span>
+                  <span className={s.recentWhen}>{formatRelativeTime(item.lastUsedAt)}</span>
+                </button>
+              ))
+            )}
           </aside>
         </section>
 
