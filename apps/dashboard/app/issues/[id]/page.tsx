@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import Link from 'next/link';
-import { eq } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 import { StateDiffViewer } from '../../../components/StateDiffViewer';
 import { EvidenceLinks } from '../../../components/EvidenceLinks';
 import { db } from '../../../lib/db';
@@ -29,8 +29,19 @@ export default async function IssuePage({ params }: { params: Promise<{ id: stri
   const { id } = await params;
 
   let row: typeof issues.$inferSelect | undefined;
+  // Sibling issues for prev/next nav within the same run. Best-effort; empty
+  // on DB failure (only the current issue render fails fatally, navigation
+  // just hides itself).
+  let siblings: Array<{ id: string; title: string | null; severity: string | null }> = [];
   try {
     [row] = await db.select().from(issues).where(eq(issues.id, id));
+    if (row?.runId) {
+      siblings = await db
+        .select({ id: issues.id, title: issues.title, severity: issues.severity })
+        .from(issues)
+        .where(eq(issues.runId, row.runId))
+        .orderBy(asc(issues.id));
+    }
   } catch (err) {
     return (
       <>
@@ -110,6 +121,10 @@ export default async function IssuePage({ params }: { params: Promise<{ id: stri
   const severityBadgeClass =
     severity === 'critical' || severity === 'high' ? s.badgeError : severity === 'medium' ? s.badgeWarn : s.badgeMuted;
 
+  const currentIndex = siblings.findIndex((sib) => sib.id === id);
+  const prev = currentIndex > 0 ? siblings[currentIndex - 1] : null;
+  const next = currentIndex >= 0 && currentIndex < siblings.length - 1 ? siblings[currentIndex + 1] : null;
+
   return (
     <>
       <Toolbar />
@@ -120,6 +135,11 @@ export default async function IssuePage({ params }: { params: Promise<{ id: stri
           {confidence != null && (
             <span className={`${s.badge} ${s.badgeMuted}`}>confidence · {(confidence * 100).toFixed(0)}%</span>
           )}
+          {siblings.length > 1 && (
+            <span className={`${s.badge} ${s.badgeMuted}`}>
+              issue {currentIndex + 1} of {siblings.length}
+            </span>
+          )}
         </p>
 
         <h1 className={s.title}>{issueJson.title ?? row.title ?? 'Untitled issue'}.</h1>
@@ -129,9 +149,27 @@ export default async function IssuePage({ params }: { params: Promise<{ id: stri
         </p>
 
         <div className={s.actions}>
+          {prev && (
+            <Link
+              href={`/issues/${prev.id}`}
+              className={`${s.btn} ${s.btnMono}`}
+              title={prev.title ?? prev.id}
+            >
+              ← prev
+            </Link>
+          )}
+          {next && (
+            <Link
+              href={`/issues/${next.id}`}
+              className={`${s.btn} ${s.btnMono}`}
+              title={next.title ?? next.id}
+            >
+              next →
+            </Link>
+          )}
           {row.runId && (
             <Link href={`/runs/${row.runId}`} className={`${s.btn} ${s.btnMono}`}>
-              ← run {row.runId.slice(0, 8)}
+              ↑ run {row.runId.slice(0, 8)}
             </Link>
           )}
           <Link href="/runs" className={`${s.btn} ${s.btnMono}`}>
