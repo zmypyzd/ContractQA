@@ -15,6 +15,14 @@ npx playwright install chromium
 
 See [STABILITY.md](./STABILITY.md) for the semver surface and stability policy.
 
+## Autopilot (new in v1.1)
+
+For zero-YAML onboarding, see [docs/AUTOPILOT.md](./docs/AUTOPILOT.md):
+
+```bash
+contractqa autopilot
+```
+
 ## Usage
 
 ```ts

@@ -2,6 +2,25 @@
 
 All notable changes to ContractQA are documented here.
 
+## v1.1.0 — <release date>
+
+### Added
+- `contractqa autopilot` command: zero-YAML onboarding for new users. Reads source code, generates contracts via LLM, asks Y/N questions for uncertain inferences, persists to `qa/contracts/`, runs the suite, and hands failures to the existing auto-fix loop. See [docs/AUTOPILOT.md](./docs/AUTOPILOT.md).
+- New `@contractqa/orchestrator/llm` subpath (`@experimental`): `LLMClient` interface, `pickClient()`, and three provider clients — `OpenAICompatibleClient` (MiniMax / OpenAI / OpenRouter / DeepSeek), `AnthropicSDKClient`, `ClaudeAgentSDKClient`.
+- `verifyScope` parameter on the orchestrator's fix loop. Defaults to `'one'` (prior behaviour); autopilot uses `'touched-files'` to scope regression checks tractably.
+- `qa/AUTOPILOT_REPORT.md` + `qa/AUTOPILOT_REPORT.json` reports.
+
+### Changed (non-breaking)
+- `@contractqa/orchestrator` internal LLM calls now route through `LLMClient`. Existing public orchestrator API is unchanged; the `claude --bare -p` subprocess path is replaced by `ClaudeAgentSDKClient` when no env keys are set.
+
+### STABILITY
+- `@contractqa/orchestrator/llm` (the entire subpath) is `@experimental` — its API may change in any v1.x minor release. The `contractqa autopilot` CLI command (command name + flag names + report contract) is `@stable`.
+
+### Telemetry
+- v1.1 launches without usage telemetry. v1.2 will add opt-in `CONTRACTQA_TELEMETRY=1` so we can measure whether autopilot meaningfully onboards new users.
+
+---
+
 ## v1.0.0 — 2026-05-16 (Phase 13)
 
 This is contractqa's 1.0 release. Twelve consecutive minor releases
