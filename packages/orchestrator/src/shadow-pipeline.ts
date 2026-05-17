@@ -1,6 +1,8 @@
 import path from 'node:path';
 import type { FixOutcome } from './fix-loop.js';
 import { runFixLoop } from './fix-loop.js';
+
+export type ShadowFixOutcome = FixOutcome | 'REGRESSION';
 import {
   type VerifyScope,
   findContractsTouchingFiles,
@@ -76,11 +78,26 @@ export interface ShadowFixInput {
 }
 
 export interface ShadowFixResult {
-  outcome: FixOutcome;
+  outcome: ShadowFixOutcome;
   prUrl?: string;
   attempts: number;
   /** Populated when outcome === 'REGRESSION': which contract regressed. */
   regressionContract?: string;
+}
+
+async function runConcurrent<T>(items: T[], limit: number, fn: (item: T) => Promise<unknown>): Promise<unknown[]> {
+  const results: unknown[] = new Array(items.length);
+  let nextIdx = 0;
+  async function worker() {
+    while (true) {
+      const myIdx = nextIdx++;
+      if (myIdx >= items.length) return;
+      results[myIdx] = await fn(items[myIdx]!);
+    }
+  }
+  const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker());
+  await Promise.all(workers);
+  return results;
 }
 
 export async function runShadowFix(i: ShadowFixInput): Promise<ShadowFixResult> {
@@ -108,6 +125,17 @@ export async function runShadowFix(i: ShadowFixInput): Promise<ShadowFixResult> 
     if (loop.outcome === 'SUCCESS') {
       // Regression check: run contracts that may be affected by the fix
       const scope = i.verifyScope ?? 'one';
+      if (scope !== 'one' && !i.runContract) {
+        throw new Error(
+          `runShadowFix: verifyScope='${scope}' requires runContract to be provided. ` +
+          `Either pass runContract or use verifyScope='one' (default).`,
+        );
+      }
+      if (scope !== 'one' && !i.contractsDir) {
+        throw new Error(
+          `runShadowFix: verifyScope='${scope}' requires contractsDir to be provided.`,
+        );
+      }
       if (scope !== 'one' && i.runContract && i.contractsDir) {
         const lastResult = loop.history.at(-1);
         const diff = i.patchDiff ?? lastResult?.patch_diff ?? '';
@@ -126,7 +154,8 @@ export async function runShadowFix(i: ShadowFixInput): Promise<ShadowFixResult> 
         }
 
         if (contractsToCheck.length > 0) {
-          const results = await Promise.all(contractsToCheck.map((c) => i.runContract!(c)));
+          const REGRESSION_CONCURRENCY = 4;
+          const results = await runConcurrent(contractsToCheck, REGRESSION_CONCURRENCY, (c) => i.runContract!(c)) as Array<{ status: string; contractPath?: string }>;
           const regression = results.find((r) => r.status === 'fail');
           if (regression) {
             return {

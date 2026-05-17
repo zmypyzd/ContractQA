@@ -61,4 +61,31 @@ describe('extractTouchedFiles', () => {
     expect(files).toContain('app/auth.ts');
     expect(files).toContain('app/orders.ts');
   });
+
+  it('handles quoted filename with space (git core.quotePath=true)', () => {
+    const diff = `--- "a/src/My Component.tsx"\n+++ "b/src/My Component.tsx"\n`;
+    const files = extractTouchedFiles(diff);
+    expect(files).toContain('src/My Component.tsx');
+    expect(files.filter((f) => f === 'src/My Component.tsx').length).toBe(1);
+  });
+
+  it('handles quoted filename with non-ASCII characters', () => {
+    const diff = `--- "a/src/中文文件.ts"\n+++ "b/src/中文文件.ts"\n`;
+    const files = extractTouchedFiles(diff);
+    expect(files).toContain('src/中文文件.ts');
+  });
+
+  it('does not add spurious entry for --- /dev/null (new file)', () => {
+    const diff = `--- /dev/null\n+++ b/src/new-file.ts\n`;
+    const files = extractTouchedFiles(diff);
+    expect(files).not.toContain('/dev/null');
+    expect(files).toContain('src/new-file.ts');
+  });
+
+  it('does not add spurious entry for +++ /dev/null (deleted file)', () => {
+    const diff = `--- a/src/old-file.ts\n+++ /dev/null\n`;
+    const files = extractTouchedFiles(diff);
+    expect(files).not.toContain('/dev/null');
+    expect(files).toContain('src/old-file.ts');
+  });
 });

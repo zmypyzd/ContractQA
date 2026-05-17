@@ -42,12 +42,20 @@ export function walkAllContracts(contractsDir: string): string[] {
 /**
  * Given a unified diff (output of `git diff`), extract the set of touched
  * file paths by parsing `+++ b/<path>` and `--- a/<path>` lines.
+ *
+ * Handles both plain paths and git's quoted paths (core.quotePath=true, the
+ * default), which wrap paths containing spaces or non-ASCII in double-quotes:
+ *   +++ "b/src/My Component.tsx"
  */
 export function extractTouchedFiles(diff: string): string[] {
   const out = new Set<string>();
   for (const line of diff.split('\n')) {
-    const m = /^\+\+\+ b\/(.+)$/.exec(line) || /^--- a\/(.+)$/.exec(line);
-    if (m?.[1]) out.add(m[1]);
+    // Handle: +++ b/path, +++ "b/path with space", --- a/path, --- "a/path"
+    const match = /^[+\-]{3} (?:"([ab])\/(.+?)"|([ab])\/(.+))$/.exec(line);
+    if (match) {
+      const path = match[2] ?? match[4];
+      if (path && path !== '/dev/null') out.add(path);
+    }
   }
   return Array.from(out);
 }
