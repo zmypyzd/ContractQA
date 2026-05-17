@@ -1,8 +1,10 @@
 // packages/cli/src/commands/autopilot.ts
-import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, rm, access } from 'node:fs/promises';
 import { join } from 'node:path';
+import { execFile } from 'node:child_process';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import { pickClient, type LLMClient } from '@contractqa/orchestrator/llm';
+import { runFixLoop, runClaudeFix } from '@contractqa/orchestrator';
 import type { ContractDoc } from '@contractqa/core';
 import { runHttpContract } from '@contractqa/runner';
 import { assembleTargetContext } from '../autopilot/bootstrap.js';
@@ -33,6 +35,27 @@ interface QueuedFailure {
   contractPath: string;
 }
 
+/** I3: Cost-tracking LLM client decorator. */
+interface CostTracker {
+  inputTokens: number;
+  outputTokens: number;
+  provider: string;
+}
+
+function wrapWithCostTracking(llm: LLMClient, tracker: CostTracker): LLMClient {
+  return {
+    providerName: llm.providerName,
+    modelHint: llm.modelHint,
+    async generate(opts) {
+      const r = await llm.generate(opts);
+      tracker.inputTokens += r.usage.inputTokens;
+      tracker.outputTokens += r.usage.outputTokens;
+      tracker.provider = llm.providerName;
+      return r;
+    },
+  };
+}
+
 async function writeSmokeContracts(cwd: string, patterns: ReturnType<typeof applicablePatterns>, ctx: Parameters<typeof applicablePatterns>[0]): Promise<string[]> {
   const dir = join(cwd, 'qa/contracts/_smoke');
   await mkdir(dir, { recursive: true });
@@ -54,7 +77,17 @@ async function writeProposals(cwd: string, module: string, proposals: ContractPr
   for (const p of proposals) {
     const id = /id:\s*(\S+)/.exec(p.yaml)?.[1] ?? `unnamed-${paths.length}`;
     const path = join(dir, `${id}.yml`);
-    await writeFile(path, p.yaml);
+    // I1: idempotency — skip writing if path already exists and !regenerate.
+    // (regenerate-mode wipes dirs before we get here; non-regenerate skips existing files.)
+    try {
+      await access(path);
+      // File exists and regenerate is not set (caller handles dir wipe) — skip.
+      // Since regenerate wipes the dir before we write, reaching here means the
+      // file was written earlier in this same run; just record the path.
+    } catch {
+      // File doesn't exist — write it.
+      await writeFile(path, p.yaml);
+    }
     paths.push(path);
   }
   return paths;
@@ -112,6 +145,49 @@ async function runContractPath(
   }
 }
 
+/**
+ * Build a minimal fix-prompt for a failing contract.
+ * Writes the prompt file and returns its path.
+ *
+ * This is a simplified prompt (no issue bundle, repro, or trace) suitable for
+ * autopilot's in-place fix path (Option A: runFixLoop without shadow pipeline).
+ */
+async function writeAutopilotFixPrompt(
+  contractPath: string,
+  failure: SmokeFailure,
+  tempDir: string,
+): Promise<string> {
+  let contractYaml = '';
+  try {
+    contractYaml = await readFile(contractPath, 'utf8');
+  } catch {
+    contractYaml = '(could not read contract file)';
+  }
+
+  const promptContent = `You are fixing a failing ContractQA contract in-place (no worktree).
+
+Contract file: ${contractPath}
+Failure reason: ${failure.reason}
+
+Contract YAML:
+${contractYaml}
+
+Rules:
+1. Read the contract YAML carefully to understand the expected behaviour.
+2. Identify the root cause of the failure in production code.
+3. Fix production code, not the contract, unless the contract is demonstrably wrong.
+4. Keep the patch minimal.
+5. After patching, verify the fix logically.
+6. Emit a unified diff of your changes as patch_diff.
+7. Return JSON with: root_cause, files_changed, tests_run, validation_result ("PASS"|"FAIL"|"PARSE_ERROR"), patch_diff (unified diff string, required).
+
+Return ONLY the JSON object — no markdown fences, no prose.`;
+
+  const promptPath = join(tempDir, `fix-prompt-${failure.id}.md`);
+  await writeFile(promptPath, promptContent);
+  return promptPath;
+}
+
 export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotReport> {
   // I4: default fix to true when not explicitly set to false
   const fixEnabled = opts.fix !== false;
@@ -125,8 +201,18 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
     if (!budgetTriggered) budgetTriggered = 'time-budget';
   });
 
+  // I2: SIGINT handler — writes partial report via the finally block.
+  const onSigint = () => {
+    budgetTriggered = 'user-interrupt';
+    abortController.abort();
+  };
+  process.once('SIGINT', onSigint);
+
   const stashGuard = createStashGuard(opts.cwd);
   let tempUserHandle: { dispose: () => Promise<void> } | undefined;
+  // Accumulated diffs from Phase C — applied to working directory at end of run.
+  const accumulatedDiffs: string[] = [];
+
   try {
     await stashGuard.protect({
       confirmSensitive: async (items) => {
@@ -137,7 +223,12 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
       },
     });
 
-    const llmClient = opts.llmClient ?? await pickClient();
+    const rawLLMClient = opts.llmClient ?? await pickClient();
+
+    // I3: wrap with cost tracker.
+    const costTracker: CostTracker = { inputTokens: 0, outputTokens: 0, provider: rawLLMClient.providerName };
+    const llmClient = wrapWithCostTracking(rawLLMClient, costTracker);
+
     let ctx = await assembleTargetContext(opts.cwd);
 
     // Spec §8.2 MVP: when the project uses Supabase auth and no env credentials
@@ -159,6 +250,16 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
           // eslint-disable-next-line no-console
           console.warn(`autopilot: supabase temp-user creation failed: ${(err as Error).message}; continuing with anonymous flows only`);
         }
+      }
+    }
+
+    // I1: --regenerate wipes existing qa/contracts before Phase A/B write fresh files.
+    if (opts.regenerate) {
+      await rm(join(opts.cwd, 'qa/contracts/_smoke'), { recursive: true, force: true });
+      // Walk module dirs and remove them so LLM discovery starts fresh.
+      const moduleDirs = ['auth', 'core', 'admin'];
+      for (const m of moduleDirs) {
+        await rm(join(opts.cwd, 'qa/contracts', m), { recursive: true, force: true });
       }
     }
 
@@ -184,19 +285,22 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
 
     // Phase B (sequential per module) — concurrent with Phase C consumer.
     const phaseB = { generated: 0, failed: 0, deferred: 0, userConfirmed: 0, userRejected: 0 };
-    // Phase C: stub — orchestrator wiring deferred to v1.1.0-beta.
-    // The runShadowFix API requires createWorktree, runClaude, openFixPR, bundlePath, issueId
-    // and other fields that autopilot cannot sensibly provide; full wiring exceeds 100 LOC of glue.
-    // TODO(v1.1.0-beta): wire runShadowFix from @contractqa/orchestrator here.
+    // Phase C: wired in v1.1.0-beta — calls runFixLoop (Option A) directly with autopilot's
+    // llmClient, bypassing the shadow-pipeline GitHub wrapper (no PR/worktree needed).
     const phaseC = { attempted: 0, fixed: 0, givenUp: 0, skipped: 0, diffs: [] as string[] };
 
     let phaseBDone = false;
 
-    const phaseCDone = (async () => {
+    // I5: skip Phase C worker entirely when --no-fix is set.
+    const phaseCDone = fixEnabled ? (async () => {
+      // Temp dir for fix prompt files written during Phase C.
+      const tmpDir = join(opts.cwd, 'qa/.autopilot-fix-tmp');
+      await mkdir(tmpDir, { recursive: true });
+
       while (true) {
         if (abortController.signal.aborted) break;
 
-        // I3: sort queue by priority before dequeuing so Phase A failures (priority 0)
+        // Sort queue by priority before dequeuing so Phase A failures (priority 0)
         // are processed before Phase B failures (priority 1).
         queue.sort((a, b) => a.priority - b.priority);
         const next = queue.shift();
@@ -205,15 +309,48 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
           if (queue.length === 0 && phaseBDone) break;
           continue;
         }
-        if (!fixEnabled) {
-          // I1: record the failure count even in --no-fix mode, but don't attempt a fix.
-          continue;
+
+        // Phase C: Option A — call runFixLoop directly with a custom fix callback.
+        // runClaudeFix uses the autopilot's llmClient; no PR, no worktree, in-place fix.
+        phaseC.attempted++;
+        try {
+          const promptPath = await writeAutopilotFixPrompt(next.contractPath, next.failure, tmpDir);
+          const loop = await runFixLoop({
+            maxAttempts: 3,
+            fix: async (_attempt) =>
+              runClaudeFix({
+                promptPath,
+                cwd: opts.cwd,
+                allowedTools: ['Read', 'Edit', 'Bash', 'Grep', 'Glob'],
+                llmClient,
+                signal: abortController.signal,
+              }),
+          });
+
+          if (loop.outcome === 'SUCCESS') {
+            const lastResult = loop.history.at(-1);
+            const patchDiff = lastResult?.patch_diff;
+            if (patchDiff) {
+              // Accumulate the diff — unified application happens after Phase B+C complete.
+              accumulatedDiffs.push(patchDiff);
+            }
+            phaseC.fixed++;
+          } else {
+            // EXHAUSTED, CONTRACT_REVISION_NEEDED, PARSE_ERROR — give up on this item.
+            phaseC.givenUp++;
+            // eslint-disable-next-line no-console
+            console.warn(`autopilot: fix gave up on ${next.failure.id} (outcome: ${loop.outcome})`);
+          }
+        } catch (err) {
+          phaseC.givenUp++;
+          // eslint-disable-next-line no-console
+          console.warn(`autopilot: fix error for ${next.failure.id}: ${(err as Error).message}`);
         }
-        // Phase C orchestrator integration is deferred to v1.1.0-beta.
-        // Record as skipped so the report accurately reflects this limitation.
-        phaseC.skipped++;
       }
-    })();
+
+      // Clean up temp dir.
+      await rm(tmpDir, { recursive: true, force: true });
+    })() : Promise.resolve();
 
     const phaseBRun = (async () => {
       await discoverByModule(
@@ -252,12 +389,38 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
     await Promise.all([phaseBRun, phaseCDone]);
     budget.cancel();
 
+    // Spec §7: unified diff application — apply all accumulated fix diffs after Phase B+C complete.
+    for (const diff of accumulatedDiffs) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const child = execFile('git', ['apply', '--index', '-'], { cwd: opts.cwd }, (err) => err ? reject(err) : resolve());
+          child.stdin?.write(diff);
+          child.stdin?.end();
+        });
+        phaseC.diffs.push('<applied>');
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(`autopilot: failed to apply diff: ${(err as Error).message}`);
+      }
+    }
+
+    // I3: populate llmCost on the report.
+    const llmCost = costTracker.inputTokens > 0 || costTracker.outputTokens > 0
+      ? {
+          provider: costTracker.provider,
+          inputTokens: costTracker.inputTokens,
+          outputTokens: costTracker.outputTokens,
+          estimatedUsd: undefined,
+        }
+      : undefined;
+
     const report: AutopilotReport = {
       phaseA,
       phaseB,
       phaseC: fixEnabled ? phaseC : undefined,
       budgetTriggered,
       durationMs: Date.now() - startedAt,
+      llmCost,
     };
 
     await mkdir(join(opts.cwd, 'qa'), { recursive: true });
@@ -266,6 +429,7 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
 
     return report;
   } finally {
+    process.removeListener('SIGINT', onSigint);
     if (tempUserHandle) {
       await tempUserHandle.dispose().catch((err) => {
         // eslint-disable-next-line no-console

@@ -35,7 +35,7 @@ describe('renderReportMarkdown', () => {
     expect(md).toContain('Playwright-based patterns');
   });
 
-  it('shows skipped count in Phase C when orchestrator not yet wired', () => {
+  it('shows skipped count in Phase C when fixes were skipped (e.g., aborted before attempt)', () => {
     const report: AutopilotReport = {
       phaseA: { passed: 0, failed: 1, deferred: 0, failures: [{ id: 'SMOKE-root-not-500', reason: 'timeout' }] },
       phaseB: { generated: 0, failed: 0, deferred: 0, userConfirmed: 0, userRejected: 0 },
@@ -46,7 +46,8 @@ describe('renderReportMarkdown', () => {
     const md = renderReportMarkdown(report);
     expect(md).toContain('Phase C: Auto-fix');
     expect(md).toContain('1 fix(es) skipped');
-    expect(md).toContain('v1.1.0-beta');
+    // In v1.1.0-beta the orchestrator is wired; skipped means aborted before attempt
+    expect(md).toContain('aborted before attempt');
   });
 
   it('shows Phase B failed count', () => {

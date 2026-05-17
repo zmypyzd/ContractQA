@@ -119,7 +119,9 @@ program
       regenerate: opts.regenerate,
       regressionScope: opts.regressionScope as ('one' | 'touched-files' | 'all' | undefined),
     });
-    process.exit(report.phaseA.failed + (report.phaseC?.givenUp ?? 0) === 0 ? 0 : 1);
+    // I4: exit code includes Phase B failures and Phase C give-ups.
+    const failTotal = report.phaseA.failed + (report.phaseB?.failed ?? 0) + (report.phaseC?.givenUp ?? 0);
+    process.exit(failTotal === 0 ? 0 : 1);
   });
 
 program.parseAsync().catch((e: unknown) => {

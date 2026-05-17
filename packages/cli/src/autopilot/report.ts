@@ -23,8 +23,8 @@ export interface AutopilotReport {
     fixed: number;
     givenUp: number;
     /**
-     * Contracts skipped because the orchestrator integration is not yet wired
-     * in autopilot v1.1 alpha. Full orchestrator integration is the v1.1.0-beta milestone.
+     * Contracts skipped (e.g., aborted before fix could be attempted).
+     * In v1.1.0-beta+ the orchestrator is wired; this field remains for reporting completeness.
      */
     skipped: number;
     diffs: string[];
@@ -64,7 +64,7 @@ export function renderReportMarkdown(r: AutopilotReport): string {
   if (c) {
     lines.push('## Phase C: Auto-fix');
     if (c.skipped > 0) {
-      lines.push(`- ${c.skipped} fix(es) skipped — orchestrator integration deferred to v1.1.0-beta`);
+      lines.push(`- ${c.skipped} fix(es) skipped (aborted before attempt)`);
     }
     lines.push(`- ${c.fixed} fixes applied, ${c.givenUp} given up (of ${c.attempted} attempted)`);
     if (c.diffs.length > 0) {
