@@ -2,20 +2,32 @@
 
 All notable changes to ContractQA are documented here.
 
-## v1.1.0-alpha — <release date>
+## v1.1.0 — Unreleased (needs real cassette / dogfood run)
 
-Initial alpha of autopilot zero-YAML onboarding. **Phase C (orchestrator
-auto-fix integration) is deferred to v1.1.0-beta.** This alpha ships:
-smoke patterns + LLM discovery + honest reporting + stash protection.
+Planned stable release once the v1.1.0-beta cassette tests pass against a real project.
+No API changes relative to v1.1.0-beta.1.
+
+---
+
+## v1.1.0-beta — <release date>
+
+Beta of autopilot zero-YAML onboarding. **Phase C orchestrator integration is now wired.**
+Ships all v1.1.0-alpha features plus the full fix-loop.
 
 ### Added
 - `contractqa autopilot` command: zero-YAML onboarding for new users. Reads source code, generates contracts via LLM, asks Y/N questions for uncertain inferences, persists to `qa/contracts/`, runs the suite, and hands failures to the existing auto-fix loop. See [docs/AUTOPILOT.md](./docs/AUTOPILOT.md).
 - New `@contractqa/orchestrator/llm` subpath (`@experimental`): `LLMClient` interface, `pickClient()`, and three provider clients — `OpenAICompatibleClient` (MiniMax / OpenAI / OpenRouter / DeepSeek), `AnthropicSDKClient`, `ClaudeAgentSDKClient`.
 - `verifyScope` parameter on the orchestrator's fix loop. Defaults to `'one'` (prior behaviour); autopilot uses `'touched-files'` to scope regression checks tractably.
 - `qa/AUTOPILOT_REPORT.md` + `qa/AUTOPILOT_REPORT.json` reports.
+- **Phase C wired (v1.1.0-beta)**: autopilot now calls `runFixLoop` directly (Option A — no GitHub wrapper) for each queued failure. The fix LLM runs in-place via `runClaudeFix` using autopilot's configured `LLMClient`. Accumulated diffs are applied via `git apply --index` after both Phase B and Phase C complete (spec §7 unified application). On `SUCCESS`: diff applied and `phaseC.fixed` incremented. On `EXHAUSTED`/`PARSE_ERROR`/`CONTRACT_REVISION_NEEDED`: `phaseC.givenUp` incremented.
+- **`--regenerate` flag** now wipes `qa/contracts/_smoke` and per-module dirs before re-running, making autopilot fully idempotent.
+- **SIGINT handler**: pressing Ctrl-C mid-run sets `budgetTriggered: 'user-interrupt'` and writes a partial report to `qa/AUTOPILOT_REPORT.md`.
+- **LLM cost tracking**: `report.llmCost` is now populated with `{ provider, inputTokens, outputTokens }` for every run that consumed tokens. `estimatedUsd` is left `undefined` (provider/model-dependent; v1.2 candidate).
+- **Exit code includes Phase B failures**: `contractqa autopilot` exits non-zero when `phaseA.failed + phaseB.failed + phaseC.givenUp > 0`.
 
 ### Changed (non-breaking)
 - `@contractqa/orchestrator` internal LLM calls now route through `LLMClient`. Existing public orchestrator API is unchanged; the `claude --bare -p` subprocess path is replaced by `ClaudeAgentSDKClient` when no env keys are set.
+- `phaseC.skipped` is preserved in the report type but now represents "aborted before attempt" rather than "orchestrator deferred".
 
 ### STABILITY
 - `@contractqa/orchestrator/llm` (the entire subpath) is `@experimental` — its API may change in any v1.x minor release. The `contractqa autopilot` CLI command (command name + flag names + report contract) is `@stable`.
