@@ -1,19 +1,37 @@
 'use client';
 
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { type DetectionResult, validateProjectPath } from './actions';
+import type { LauncherEvent, PhaseId, PhaseStatus } from './events';
 import s from './launcher.module.css';
 
-type Phase = 'idle' | 'active' | 'done';
-type PhaseId = 'A' | 'B' | 'C' | 'D' | 'E';
+interface PhaseSnapshot {
+  status: PhaseStatus;
+  /** Server-stamped elapsedMs at the most recent transition into status. */
+  elapsedAtTransition: number | null;
+  /** Server-stamped elapsedMs at the most recent counter update inside the phase. */
+  elapsedLatest: number;
+  counters?: NonNullable<Extract<LauncherEvent, { type: 'phase' }>['counters']>;
+}
 
-const PHASES: Array<{ id: PhaseId; name: string }> = [
+const INITIAL_PHASE: PhaseSnapshot = {
+  status: 'idle',
+  elapsedAtTransition: null,
+  elapsedLatest: 0,
+};
+
+const PHASES: ReadonlyArray<{ id: PhaseId; name: string }> = [
   { id: 'A', name: 'A · smoke' },
-  { id: 'B', name: 'B · read' },
-  { id: 'C', name: 'C · generate' },
-  { id: 'D', name: 'D · verify' },
-  { id: 'E', name: 'E · fix' },
+  { id: 'B', name: 'B · discovery' },
+  { id: 'C', name: 'C · auto-fix' },
 ];
+
+type PhaseMap = Record<PhaseId, PhaseSnapshot>;
+const newPhaseMap = (): PhaseMap => ({
+  A: { ...INITIAL_PHASE },
+  B: { ...INITIAL_PHASE },
+  C: { ...INITIAL_PHASE },
+});
 
 const RECENT_ITEMS = [
   { path: '/Users/zmy/intership/5.10+/qa-agent', label: 'qa-agent', when: '2h ago' },
@@ -22,13 +40,24 @@ const RECENT_ITEMS = [
   { path: 'dogfood/sentinel', label: 'dogfood/sentinel', when: '5d ago' },
 ];
 
+type RunOutcome = 'pending' | 'success' | 'budget' | 'interrupt' | 'error';
+
 export default function LauncherPage() {
   const [path, setPath] = useState('/Users/zmy/intership/5.10+/qa-agent');
   const [detection, setDetection] = useState<DetectionResult | null>(null);
-  const [running, setRunning] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  // Validate path on input change (debounced).
+  const [phases, setPhases] = useState<PhaseMap>(newPhaseMap);
+  const [runId, setRunId] = useState<string | null>(null);
+  const [runOutcome, setRunOutcome] = useState<RunOutcome>('pending');
+  const [running, setRunning] = useState(false);
+  const [elapsedNow, setElapsedNow] = useState(0);
+  const [logs, setLogs] = useState<Array<{ message: string; level: 'info' | 'warn' | 'error' }>>([]);
+
+  const sourceRef = useRef<EventSource | null>(null);
+  const runStartedAtRef = useRef<number | null>(null);
+
+  // Debounced path validation.
   useEffect(() => {
     const trimmed = path.trim();
     if (!trimmed) {
@@ -44,13 +73,92 @@ export default function LauncherPage() {
     return () => clearTimeout(handle);
   }, [path]);
 
+  // Live elapsed clock while running. Server stamps elapsedMs on every event,
+  // but between events we still want the header timer to tick — so we run a
+  // local rAF clock that resets when the run starts.
+  useEffect(() => {
+    if (!running || runStartedAtRef.current == null) return;
+    let raf = 0;
+    const tick = () => {
+      const startedAt = runStartedAtRef.current;
+      if (startedAt != null) setElapsedNow(Date.now() - startedAt);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [running]);
+
+  // Cleanup the EventSource on unmount.
+  useEffect(() => {
+    return () => {
+      sourceRef.current?.close();
+      sourceRef.current = null;
+    };
+  }, []);
+
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
       if (!detection?.ok) return;
+
+      // Reset state from any prior run.
+      sourceRef.current?.close();
+      setPhases(newPhaseMap());
+      setLogs([]);
+      setRunId(null);
+      setRunOutcome('pending');
+      runStartedAtRef.current = Date.now();
+      setElapsedNow(0);
       setRunning(true);
-      // TODO: open SSE stream to orchestrator. For now, just reveal the
-      // progress strip so the visual flow is testable.
+
+      const url = `/launcher/stream?cwd=${encodeURIComponent(detection.resolvedPath)}&fix=true`;
+      const es = new EventSource(url);
+      sourceRef.current = es;
+
+      es.addEventListener('run-start', (ev) => {
+        const data = JSON.parse((ev as MessageEvent).data) as Extract<LauncherEvent, { type: 'run-start' }>;
+        runStartedAtRef.current = data.startedAt;
+        setRunId(data.runId);
+      });
+
+      es.addEventListener('phase', (ev) => {
+        const data = JSON.parse((ev as MessageEvent).data) as Extract<LauncherEvent, { type: 'phase' }>;
+        setPhases((prev) => {
+          const next = { ...prev };
+          const current = next[data.phase];
+          const transitioning = current.status !== data.status;
+          next[data.phase] = {
+            status: data.status,
+            elapsedAtTransition: transitioning ? data.elapsedMs : current.elapsedAtTransition,
+            elapsedLatest: data.elapsedMs,
+            counters: data.counters ?? current.counters,
+          };
+          return next;
+        });
+      });
+
+      es.addEventListener('log', (ev) => {
+        const data = JSON.parse((ev as MessageEvent).data) as Extract<LauncherEvent, { type: 'log' }>;
+        setLogs((prev) => [...prev.slice(-9), { message: data.message, level: data.level }]);
+      });
+
+      es.addEventListener('run-end', (ev) => {
+        const data = JSON.parse((ev as MessageEvent).data) as Extract<LauncherEvent, { type: 'run-end' }>;
+        setRunOutcome(data.outcome);
+        setRunning(false);
+        es.close();
+        sourceRef.current = null;
+      });
+
+      es.onerror = () => {
+        // Network drop or server close. Mark the run as errored if it was still
+        // in flight; the run-end handler already runs on a clean server close.
+        setRunOutcome((prev) => (prev === 'pending' ? 'error' : prev));
+        setRunning(false);
+        es.close();
+        sourceRef.current = null;
+      };
+
       requestAnimationFrame(() => {
         document.getElementById('progress')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
@@ -58,17 +166,12 @@ export default function LauncherPage() {
     [detection],
   );
 
-  const phaseState = (id: PhaseId): Phase => {
-    if (!running) return 'idle';
-    if (id === 'A' || id === 'B') return 'done';
-    if (id === 'C') return 'active';
-    return 'idle';
-  };
-
   const toggleTheme = () => {
     const root = document.documentElement;
     root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
   };
+
+  const showProgress = running || runOutcome !== 'pending';
 
   return (
     <>
@@ -173,7 +276,13 @@ export default function LauncherPage() {
                 key={item.path}
                 type="button"
                 className={s.recentItem}
-                onClick={() => setPath(item.path.startsWith('/') ? item.path : `/Users/zmy/intership/5.10+/${item.path}`)}
+                onClick={() =>
+                  setPath(
+                    item.path.startsWith('/')
+                      ? item.path
+                      : `/Users/zmy/intership/5.10+/${item.path}`,
+                  )
+                }
               >
                 <span className={s.recentPath}>{item.label}</span>
                 <span className={s.recentWhen}>{item.when}</span>
@@ -182,40 +291,31 @@ export default function LauncherPage() {
           </aside>
         </section>
 
-        {running && (
+        {showProgress && (
           <section id="progress" className={s.progress}>
             <div className={s.progressHead}>
               <p className={s.eyebrow} style={{ margin: 0 }}>
-                Run in progress · <span>00:12.847</span>
+                {runOutcomeHeader(runOutcome, running)} · {formatElapsed(elapsedNow)}
               </p>
               <div className={s.progressTotal}>
                 <span className={s.progressTotalLabel}>run</span>
-                <span>r_01HX7E…</span>
+                <span>{runId ?? '—'}</span>
               </div>
             </div>
             <div className={s.phases}>
-              {PHASES.map((p) => {
-                const state = phaseState(p.id);
-                return (
-                  <div
-                    key={p.id}
-                    className={`${s.phase} ${
-                      state === 'done' ? s.phaseDone : state === 'active' ? s.phaseActive : s.phaseIdle
-                    }`}
-                  >
-                    <div className={s.phaseName}>
-                      <span className={s.phaseDot} />
-                      {p.name}
-                    </div>
-                    <div className={s.phaseTime}>
-                      {state === 'done' && (p.id === 'A' ? '2.30s' : '4.11s')}
-                      {state === 'active' && '6.42s'}
-                      {state === 'idle' && '—'}
-                    </div>
-                  </div>
-                );
-              })}
+              {PHASES.map((p) => (
+                <PhaseCard key={p.id} id={p.id} name={p.name} snapshot={phases[p.id]} />
+              ))}
             </div>
+            {logs.length > 0 && (
+              <ul className={s.logList} aria-label="Run log">
+                {logs.map((entry, i) => (
+                  <li key={i} className={s.logItem} data-level={entry.level}>
+                    {entry.message}
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         )}
 
@@ -223,6 +323,83 @@ export default function LauncherPage() {
       </main>
     </>
   );
+}
+
+function PhaseCard({ id, name, snapshot }: { id: PhaseId; name: string; snapshot: PhaseSnapshot }) {
+  const stateClass =
+    snapshot.status === 'done'
+      ? s.phaseDone
+      : snapshot.status === 'active'
+        ? s.phaseActive
+        : snapshot.status === 'skipped'
+          ? s.phaseSkipped
+          : s.phaseIdle;
+
+  const timeText =
+    snapshot.status === 'idle'
+      ? '—'
+      : snapshot.status === 'skipped'
+        ? 'skipped'
+        : formatElapsed(snapshot.elapsedLatest);
+
+  return (
+    <div className={`${s.phase} ${stateClass}`}>
+      <div className={s.phaseName}>
+        <span className={s.phaseDot} />
+        {name}
+      </div>
+      <div className={s.phaseTime}>{timeText}</div>
+      {snapshot.counters && <div className={s.phaseCounters}>{renderCounters(id, snapshot.counters)}</div>}
+    </div>
+  );
+}
+
+function renderCounters(
+  phase: PhaseId,
+  counters: NonNullable<Extract<LauncherEvent, { type: 'phase' }>['counters']>,
+): string {
+  if (phase === 'A') {
+    const parts: string[] = [];
+    if (counters.passed != null) parts.push(`${counters.passed} ok`);
+    if (counters.failed) parts.push(`${counters.failed} fail`);
+    if (counters.deferred) parts.push(`${counters.deferred} deferred`);
+    return parts.join(' · ');
+  }
+  if (phase === 'B') {
+    const parts: string[] = [];
+    if (counters.passed != null) parts.push(`${counters.passed} gen`);
+    if (counters.failed) parts.push(`${counters.failed} fail`);
+    if (counters.confirmed) parts.push(`${counters.confirmed} y/n`);
+    return parts.join(' · ');
+  }
+  // C
+  const parts: string[] = [];
+  if (counters.passed != null) parts.push(`${counters.passed} fixed`);
+  if (counters.failed) parts.push(`${counters.failed} gave up`);
+  return parts.join(' · ');
+}
+
+function formatElapsed(ms: number): string {
+  const totalSec = ms / 1000;
+  const m = Math.floor(totalSec / 60);
+  const s = (totalSec - m * 60).toFixed(2);
+  return `${m.toString().padStart(2, '0')}:${s.padStart(5, '0')}`;
+}
+
+function runOutcomeHeader(outcome: RunOutcome, running: boolean): string {
+  if (running) return 'Run in progress';
+  switch (outcome) {
+    case 'success':
+      return 'Run complete';
+    case 'budget':
+      return 'Run hit time budget';
+    case 'interrupt':
+      return 'Run interrupted';
+    case 'error':
+      return 'Run failed';
+    default:
+      return 'Run pending';
+  }
 }
 
 function renderHint(detection: DetectionResult | null, isPending: boolean) {
@@ -235,8 +412,15 @@ function renderHint(detection: DetectionResult | null, isPending: boolean) {
   if (!detection.ok) {
     return <p className={s.error}>{detection.error}</p>;
   }
-  const { packageManager, isWorkspace, packageCount, hasNext, nextLocation, hasContracts, contractsCount } =
-    detection.detected;
+  const {
+    packageManager,
+    isWorkspace,
+    packageCount,
+    hasNext,
+    nextLocation,
+    hasContracts,
+    contractsCount,
+  } = detection.detected;
   const parts: string[] = [];
   if (packageManager !== 'unknown') parts.push(packageManager);
   if (isWorkspace) parts.push(`${packageCount} packages`);

@@ -412,11 +412,61 @@
 .phaseIdle .phaseName .phaseDot {
   background: var(--muted-2);
 }
+.phaseSkipped .phaseName {
+  color: var(--muted-2);
+}
+.phaseSkipped .phaseName .phaseDot {
+  background: transparent;
+  border: 1px solid var(--muted-2);
+}
+.phaseSkipped .phaseTime {
+  color: var(--muted-2);
+  font-style: italic;
+}
 .phaseDot {
   width: 8px;
   height: 8px;
   border-radius: var(--r-pill);
   display: inline-block;
+}
+.phaseCounters {
+  margin-top: var(--s-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.phaseActive .phaseCounters {
+  color: color-mix(in oklab, var(--accent) 70%, var(--text));
+}
+.phaseDone .phaseCounters {
+  color: color-mix(in oklab, var(--success) 60%, var(--text));
+}
+
+.logList {
+  margin: var(--s-5) 0 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: var(--s-3);
+}
+.logItem {
+  padding: var(--s-1) 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.logItem::before {
+  content: '› ';
+  color: var(--muted-2);
+}
+.logItem[data-level='warn'] {
+  color: var(--warning);
+}
+.logItem[data-level='error'] {
+  color: var(--error);
 }
 
 @keyframes pulse {
