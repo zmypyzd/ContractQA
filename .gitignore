@@ -13,3 +13,4 @@ artifacts
 dist-host*
 # Next.js auto-generated type stub (regenerated on every build)
 apps/dashboard/next-env.d.ts
+.gstack/
