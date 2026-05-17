@@ -1,0 +1,8 @@
+{
+  "provider": "openai-compatible",
+  "model": "stub",
+  "capturedAt": "2026-05-17T00:00:00.000Z",
+  "promptHash": "v1-2026-05-17",
+  "stub": true,
+  "_note": "STUB — not a real recording. Re-record with: UPDATE_CASSETTES=1 OPENAI_API_KEY=<key> pnpm --filter @contractqa/e2e test autopilot-on-wolfmind"
+}

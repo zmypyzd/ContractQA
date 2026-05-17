@@ -1,0 +1,19 @@
+[
+  {
+    "request": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "placeholder — re-record with UPDATE_CASSETTES=1 OPENAI_API_KEY=<key>"
+        }
+      ]
+    },
+    "response": {
+      "content": "[]",
+      "usage": {
+        "inputTokens": 0,
+        "outputTokens": 0
+      }
+    }
+  }
+]

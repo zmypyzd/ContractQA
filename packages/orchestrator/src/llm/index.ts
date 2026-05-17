@@ -41,3 +41,4 @@ export class LLMTransportError extends Error {
 }
 
 export { pickClient } from './pick-client.js';
+export { RecordingLLMClient } from './recording-client.js';
