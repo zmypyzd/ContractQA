@@ -167,7 +167,22 @@ export default function LauncherPage() {
         setRunId(data.runId);
         // In watch mode, run-start fires for every iteration. Reset phases /
         // logs / elapsed for the new iteration so the strip starts fresh.
-        setIteration((prev) => prev + 1);
+        setIteration((prev) => {
+          const nextIter = prev + 1;
+          // Auto-scroll the progress section into view on every subsequent
+          // iteration so a user who scrolled away during a long pause sees
+          // the new run start immediately. The first iteration is already
+          // scrolled-to by handleSubmit, so skip iter 1 here.
+          if (nextIter > 1) {
+            requestAnimationFrame(() => {
+              document.getElementById('progress')?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+              });
+            });
+          }
+          return nextIter;
+        });
         setPhases(newPhaseMap());
         setLogs([]);
         setRunOutcome('pending');
