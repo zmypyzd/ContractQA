@@ -47,7 +47,7 @@ export function extractTouchedFiles(diff: string): string[] {
   const out = new Set<string>();
   for (const line of diff.split('\n')) {
     const m = /^\+\+\+ b\/(.+)$/.exec(line) || /^--- a\/(.+)$/.exec(line);
-    if (m) out.add(m[1]);
+    if (m?.[1]) out.add(m[1]);
   }
   return Array.from(out);
 }
