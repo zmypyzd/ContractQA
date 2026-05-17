@@ -18,6 +18,46 @@ import { renderReportMarkdown, type AutopilotReport, type SmokeFailure } from '.
 
 const DEFAULT_TIME_BUDGET_MS = 30 * 60 * 1000;
 
+/**
+ * Progress events emitted by `runAutopilot` when an `onProgress` callback is
+ * supplied. The shape mirrors AutopilotReport so a consumer can render live
+ * counters that converge on the final report.
+ *
+ * - `phase` · status transitions and incremental counter updates per phase
+ *   - A · Smoke (`passed` / `failed` / `deferred`)
+ *   - B · Discovery (`generated` / `failed` / `deferred` / `userConfirmed` / `userRejected`)
+ *   - C · Auto-fix (`attempted` / `fixed` / `givenUp`; `skipped` when `fix: false`)
+ *   B and C run concurrently, so events from both may interleave.
+ * - `log` · structured equivalents of the runtime's `console.warn`/`console.error`
+ *   notices (sensitive files, temp-user failures, fix give-ups, diff apply failures).
+ */
+export type AutopilotProgressEvent =
+  | {
+      type: 'phase';
+      phase: 'A' | 'B' | 'C';
+      status: 'active' | 'done' | 'skipped';
+      elapsedMs: number;
+      counters?: AutopilotPhaseCounters;
+    }
+  | {
+      type: 'log';
+      level: 'info' | 'warn' | 'error';
+      message: string;
+      elapsedMs: number;
+    };
+
+export interface AutopilotPhaseCounters {
+  passed?: number;
+  failed?: number;
+  deferred?: number;
+  generated?: number;
+  userConfirmed?: number;
+  userRejected?: number;
+  attempted?: number;
+  fixed?: number;
+  givenUp?: number;
+}
+
 export interface AutopilotOptions {
   cwd: string;
   timeBudgetMs?: number;
@@ -27,6 +67,12 @@ export interface AutopilotOptions {
   llmClient?: LLMClient;
   /** Controls which contracts are re-run after a successful fix to detect regressions. */
   regressionScope?: 'one' | 'touched-files' | 'all';
+  /**
+   * Optional progress callback. Called with phase status transitions, incremental
+   * counter updates, and structured log events. Synchronous; errors thrown by
+   * the callback are swallowed so progress reporting never breaks a run.
+   */
+  onProgress?: (event: AutopilotProgressEvent) => void;
 }
 
 interface QueuedFailure {
@@ -197,6 +243,18 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
   const budget = startTimeBudget(opts.timeBudgetMs ?? DEFAULT_TIME_BUDGET_MS, abortController);
   let budgetTriggered: AutopilotReport['budgetTriggered'] = null;
 
+  // Progress emission helper. Best-effort: a callback that throws does not
+  // poison the run; this is observability, not control flow.
+  const emit = (event: AutopilotProgressEvent): void => {
+    if (!opts.onProgress) return;
+    try {
+      opts.onProgress(event);
+    } catch {
+      // swallow — never let progress reporting break a run.
+    }
+  };
+  const elapsed = (): number => Date.now() - startedAt;
+
   abortController.signal.addEventListener('abort', () => {
     if (!budgetTriggered) budgetTriggered = 'time-budget';
   });
@@ -309,7 +367,14 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
     }
 
     // Phase A: write smoke patterns; run HTTP ones inline, defer Playwright ones.
+    emit({ type: 'phase', phase: 'A', status: 'active', elapsedMs: elapsed() });
     const patterns = applicablePatterns(ctx);
+    emit({
+      type: 'log',
+      level: 'info',
+      message: `Writing ${patterns.length} smoke patterns to qa/contracts/_smoke/`,
+      elapsedMs: elapsed(),
+    });
     const smokePaths = await writeSmokeContracts(opts.cwd, patterns, ctx);
     const queue: QueuedFailure[] = [];
     for (const p of smokePaths) {
@@ -325,13 +390,31 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
         phaseA.failures.push(f);
         queue.push({ priority: 0, failure: f, contractPath: p });
       }
+      emit({
+        type: 'phase',
+        phase: 'A',
+        status: 'active',
+        elapsedMs: elapsed(),
+        counters: { passed: phaseA.passed, failed: phaseA.failed, deferred: phaseA.deferred },
+      });
     }
+    emit({
+      type: 'phase',
+      phase: 'A',
+      status: 'done',
+      elapsedMs: elapsed(),
+      counters: { passed: phaseA.passed, failed: phaseA.failed, deferred: phaseA.deferred },
+    });
 
     // Phase B (sequential per module) — concurrent with Phase C consumer.
     let phaseBDone = false;
 
     // I5: skip Phase C worker entirely when --no-fix is set.
+    if (!fixEnabled) {
+      emit({ type: 'phase', phase: 'C', status: 'skipped', elapsedMs: elapsed() });
+    }
     const phaseCDone = fixEnabled ? (async () => {
+      emit({ type: 'phase', phase: 'C', status: 'active', elapsedMs: elapsed() });
       // Temp dir for fix prompt files written during Phase C.
       const tmpDir = join(opts.cwd, 'qa/.autopilot-fix-tmp');
       await mkdir(tmpDir, { recursive: true });
@@ -352,6 +435,13 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
         // Phase C: Option A — call runFixLoop directly with a custom fix callback.
         // runClaudeFix uses the autopilot's llmClient; no PR, no worktree, in-place fix.
         phaseC.attempted++;
+        emit({
+          type: 'phase',
+          phase: 'C',
+          status: 'active',
+          elapsedMs: elapsed(),
+          counters: { attempted: phaseC.attempted, fixed: phaseC.fixed, givenUp: phaseC.givenUp },
+        });
         try {
           const promptPath = await writeAutopilotFixPrompt(next.contractPath, next.failure, tmpDir);
           const loop = await runFixLoop({
@@ -377,21 +467,46 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
           } else {
             // EXHAUSTED, CONTRACT_REVISION_NEEDED, PARSE_ERROR — give up on this item.
             phaseC.givenUp++;
+            const giveUpMsg = `autopilot: fix gave up on ${next.failure.id} (outcome: ${loop.outcome})`;
+            emit({ type: 'log', level: 'warn', message: giveUpMsg, elapsedMs: elapsed() });
             // eslint-disable-next-line no-console
-            console.warn(`autopilot: fix gave up on ${next.failure.id} (outcome: ${loop.outcome})`);
+            console.warn(giveUpMsg);
           }
         } catch (err) {
           phaseC.givenUp++;
+          const errMsg = `autopilot: fix error for ${next.failure.id}: ${(err as Error).message}`;
+          emit({ type: 'log', level: 'error', message: errMsg, elapsedMs: elapsed() });
           // eslint-disable-next-line no-console
-          console.warn(`autopilot: fix error for ${next.failure.id}: ${(err as Error).message}`);
+          console.warn(errMsg);
         }
+        emit({
+          type: 'phase',
+          phase: 'C',
+          status: 'active',
+          elapsedMs: elapsed(),
+          counters: { attempted: phaseC.attempted, fixed: phaseC.fixed, givenUp: phaseC.givenUp },
+        });
       }
 
       // Clean up temp dir.
       await rm(tmpDir, { recursive: true, force: true });
+      emit({
+        type: 'phase',
+        phase: 'C',
+        status: 'done',
+        elapsedMs: elapsed(),
+        counters: { attempted: phaseC.attempted, fixed: phaseC.fixed, givenUp: phaseC.givenUp },
+      });
     })() : Promise.resolve();
 
     const phaseBRun = (async () => {
+      emit({ type: 'phase', phase: 'B', status: 'active', elapsedMs: elapsed() });
+      emit({
+        type: 'log',
+        level: 'info',
+        message: 'Reading source, asking LLM for per-module contracts',
+        elapsedMs: elapsed(),
+      });
       await discoverByModule(
         ctx,
         llmClient,
@@ -418,11 +533,37 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
               queue.push({ priority: 1, failure: { id: p.split('/').pop()!, reason: r.reason ?? 'unknown' }, contractPath: p });
             }
           }
+          emit({
+            type: 'phase',
+            phase: 'B',
+            status: 'active',
+            elapsedMs: elapsed(),
+            counters: {
+              generated: phaseB.generated,
+              failed: phaseB.failed,
+              deferred: phaseB.deferred,
+              userConfirmed: phaseB.userConfirmed,
+              userRejected: phaseB.userRejected,
+            },
+          });
         },
         abortController.signal,
         { onQuarantine: (raw, m) => { void writeQuarantine(opts.cwd, m, raw); } },
       );
       phaseBDone = true;
+      emit({
+        type: 'phase',
+        phase: 'B',
+        status: 'done',
+        elapsedMs: elapsed(),
+        counters: {
+          generated: phaseB.generated,
+          failed: phaseB.failed,
+          deferred: phaseB.deferred,
+          userConfirmed: phaseB.userConfirmed,
+          userRejected: phaseB.userRejected,
+        },
+      });
     })();
 
     await Promise.all([phaseBRun, phaseCDone]);
