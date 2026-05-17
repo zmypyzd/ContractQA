@@ -1,22 +1,30 @@
 /**
  * SSE endpoint that streams autopilot phase events to the launcher UI.
  *
- * GET /launcher/stream?cwd=<absolute-path>&fix=<true|false>
+ * GET /launcher/stream?cwd=<absolute-path>&fix=<true|false>&watch=<true|false>
  *
- * Calls runAutopilot() from the `contractqa` package directly (in-process)
- * with an onProgress callback that forwards every phase / log event into the
- * stream. The autopilot writes qa/AUTOPILOT_REPORT.md to the target cwd on
- * completion and that path is reported in the run-end event.
+ * - Default: run autopilot once, emit events, then close.
+ * - watch=true: run once, then keep the stream open and re-run on every
+ *   debounced filesystem change in cwd (ignoring node_modules, .git, qa, etc.
+ *   so autopilot's own output doesn't cause an infinite loop). Each iteration
+ *   gets its own DB row and its own run-start/run-end pair.
+ *
+ * Both modes call runAutopilot in-process with an onProgress callback that
+ * forwards every phase/log event into the SSE stream. The autopilot writes
+ * qa/AUTOPILOT_REPORT.md to the target cwd; the path lands in the run-end
+ * event.
  */
 
 import { resolve } from 'node:path';
-import { stat } from 'node:fs/promises';
+import { stat, watch as watchAsync } from 'node:fs/promises';
+import { watch, type FSWatcher } from 'node:fs';
+import { sep } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { eq } from 'drizzle-orm';
 import { runAutopilot } from 'contractqa';
 import type { AutopilotProgressEvent, AutopilotPhaseCounters } from 'contractqa';
-import { pickClient, LLMConfigError } from '@contractqa/orchestrator/llm';
+import { pickClient, LLMConfigError, type LLMClient } from '@contractqa/orchestrator/llm';
 import { type LauncherEvent, encodeEvent } from '../events';
 import { db } from '../../../lib/db';
 import { runs } from '../../../drizzle/schema';
@@ -31,10 +39,27 @@ export const runtime = 'nodejs';
 // route handlers via maxDuration. 0 disables the cap (Node runtime only).
 export const maxDuration = 0;
 
+const WATCH_DEBOUNCE_MS = 2000;
+const WATCH_IGNORED_TOP_DIRS = new Set([
+  'node_modules',
+  '.git',
+  'dist',
+  'build',
+  '.next',
+  '.turbo',
+  '.cache',
+  '.vercel',
+  '.parcel-cache',
+  'coverage',
+  '.nyc_output',
+  'qa', // autopilot's own output — watching it would loop forever
+]);
+
 export async function GET(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const rawCwd = url.searchParams.get('cwd') ?? '';
   const fixEnabled = url.searchParams.get('fix') !== 'false';
+  const watchEnabled = url.searchParams.get('watch') === 'true';
 
   if (!rawCwd.trim()) {
     return errorResponse('Missing cwd query parameter.');
@@ -49,23 +74,20 @@ export async function GET(req: Request): Promise<Response> {
   }
 
   const encoder = new TextEncoder();
-  const startedAt = Date.now();
-  const abortController = new AbortController();
-
-  // Create the DB record up front so the runId in the stream matches the row
-  // in /runs. Falls back to a synthetic id if Postgres is unreachable; the run
-  // continues either way.
   const branch = await detectBranch(cwd);
-  const dbRunId = await createRunRecord(cwd, branch, fixEnabled);
-  const runId = dbRunId ?? newSyntheticId();
-  const usingDb = dbRunId !== null;
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       let closed = false;
+      let watcher: FSWatcher | null = null;
+      let debounceTimer: NodeJS.Timeout | null = null;
+      let inFlight: Promise<void> | null = null;
+
       const close = () => {
         if (closed) return;
         closed = true;
+        if (debounceTimer) clearTimeout(debounceTimer);
+        watcher?.close();
         try {
           controller.close();
         } catch {
@@ -73,6 +95,7 @@ export async function GET(req: Request): Promise<Response> {
         }
       };
 
+      const abortController = new AbortController();
       // Client closed the tab / navigated → abort the autopilot run so we don't
       // burn LLM credits on a result nobody will see.
       req.signal.addEventListener('abort', () => {
@@ -89,102 +112,193 @@ export async function GET(req: Request): Promise<Response> {
         }
       };
 
-      emit({ type: 'run-start', runId, cwd, fixEnabled, startedAt });
-
+      // Pre-flight: pick the LLM client once, shared across iterations in
+      // watch mode. A missing key fails fast with a clean log + run-end.
+      let llmClient: LLMClient;
       try {
-        // Pre-flight: pick the LLM client up front so a missing key fails fast
-        // with a clear log line, not a vague mid-run error.
-        let llmClient;
-        try {
-          llmClient = await pickClient();
-          emit({
-            type: 'log',
-            level: 'info',
-            message: `LLM ready · ${llmClient.providerName} · ${llmClient.modelHint}`,
-            elapsedMs: Date.now() - startedAt,
-          });
-        } catch (err) {
-          if (err instanceof LLMConfigError) {
-            emit({
-              type: 'log',
-              level: 'error',
-              message: `No LLM configured. Tried: ${err.tried.join(', ')}. Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or log in via Claude Code, then restart the dev server.`,
-              elapsedMs: Date.now() - startedAt,
-            });
-            emit({
-              type: 'run-end',
-              runId,
-              outcome: 'error',
-              durationMs: Date.now() - startedAt,
-              error: 'LLMConfigError',
-            });
-            close();
-            return;
-          }
-          throw err;
-        }
-
-        // Track final phase counters for run totals; updated on every phase event.
-        const phaseTotals: Partial<Record<'A' | 'B' | 'C', AutopilotPhaseCounters>> = {};
-
-        const report = await runAutopilot({
-          cwd,
-          fix: fixEnabled,
-          yes: true, // non-interactive: there's no stdin TTY behind a route handler
-          llmClient,
-          onProgress: (event: AutopilotProgressEvent) => {
-            // Autopilot's event shape was deliberately aligned with LauncherEvent
-            // — counter field names match AutopilotReport. So this is a
-            // structural passthrough; we only widen the type.
-            if (event.type === 'phase' && event.counters) {
-              phaseTotals[event.phase] = event.counters;
-            }
-            emit(event as LauncherEvent);
-          },
-        });
-
-        const outcome: 'success' | 'budget' | 'interrupt' =
-          report.budgetTriggered === 'user-interrupt'
-            ? 'interrupt'
-            : report.budgetTriggered === 'time-budget'
-              ? 'budget'
-              : 'success';
-
-        // Aggregate totals across all phases for the runs row.
-        const totalsForDb = aggregateTotals(phaseTotals);
-
-        if (usingDb) {
-          await completeRunRecord(runId, mapOutcomeToStatus(outcome, false), totalsForDb);
-        }
-
-        emit({
-          type: 'run-end',
-          runId,
-          outcome,
-          durationMs: report.durationMs,
-          reportPath: `${cwd}/qa/AUTOPILOT_REPORT.md`,
-        });
+        llmClient = await pickClient();
       } catch (err) {
-        const isAbort = err instanceof Error && (err.name === 'AbortError' || abortController.signal.aborted);
+        const isLlmErr = err instanceof LLMConfigError;
+        const runId = newSyntheticId();
+        emit({ type: 'run-start', runId, cwd, fixEnabled, startedAt: Date.now() });
         emit({
           type: 'log',
           level: 'error',
-          message: err instanceof Error ? err.message : String(err),
-          elapsedMs: Date.now() - startedAt,
+          message: isLlmErr
+            ? `No LLM configured. Tried: ${(err as LLMConfigError).tried.join(', ')}. Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or log in via Claude Code, then restart the dev server.`
+            : err instanceof Error ? err.message : String(err),
+          elapsedMs: 0,
         });
-        if (usingDb) {
-          await completeRunRecord(runId, mapOutcomeToStatus(isAbort ? 'interrupt' : 'error', true), null);
-        }
         emit({
           type: 'run-end',
           runId,
-          outcome: isAbort ? 'interrupt' : 'error',
-          durationMs: Date.now() - startedAt,
-          error: err instanceof Error ? err.message : String(err),
+          outcome: 'error',
+          durationMs: 0,
+          error: isLlmErr ? 'LLMConfigError' : (err instanceof Error ? err.message : String(err)),
         });
-      } finally {
         close();
+        return;
       }
+
+      emit({
+        type: 'log',
+        level: 'info',
+        message: `LLM ready · ${llmClient.providerName} · ${llmClient.modelHint}`,
+        elapsedMs: 0,
+      });
+
+      // Single-iteration runner. Returns when the run finishes (success or
+      // error); never throws. In watch mode, called repeatedly.
+      const runOnce = async (trigger: string): Promise<void> => {
+        if (closed) return;
+        const iterStartedAt = Date.now();
+        const dbRunId = await createRunRecord(cwd, branch, fixEnabled);
+        const runId = dbRunId ?? newSyntheticId();
+        const usingDb = dbRunId !== null;
+
+        emit({ type: 'run-start', runId, cwd, fixEnabled, startedAt: iterStartedAt });
+        if (trigger !== 'initial') {
+          emit({
+            type: 'log',
+            level: 'info',
+            message: `watch · re-run triggered by ${trigger}`,
+            elapsedMs: 0,
+          });
+        }
+
+        const phaseTotals: Partial<Record<'A' | 'B' | 'C', AutopilotPhaseCounters>> = {};
+
+        try {
+          const report = await runAutopilot({
+            cwd,
+            fix: fixEnabled,
+            yes: true,
+            llmClient,
+            onProgress: (event: AutopilotProgressEvent) => {
+              if (event.type === 'phase' && event.counters) {
+                phaseTotals[event.phase] = event.counters;
+              }
+              emit(event as LauncherEvent);
+            },
+          });
+
+          const outcome: 'success' | 'budget' | 'interrupt' =
+            report.budgetTriggered === 'user-interrupt'
+              ? 'interrupt'
+              : report.budgetTriggered === 'time-budget'
+                ? 'budget'
+                : 'success';
+
+          if (usingDb) {
+            await completeRunRecord(runId, mapOutcomeToStatus(outcome, false), aggregateTotals(phaseTotals));
+          }
+
+          emit({
+            type: 'run-end',
+            runId,
+            outcome,
+            durationMs: report.durationMs,
+            reportPath: `${cwd}/qa/AUTOPILOT_REPORT.md`,
+          });
+        } catch (err) {
+          const isAbort = err instanceof Error && (err.name === 'AbortError' || abortController.signal.aborted);
+          emit({
+            type: 'log',
+            level: 'error',
+            message: err instanceof Error ? err.message : String(err),
+            elapsedMs: Date.now() - iterStartedAt,
+          });
+          if (usingDb) {
+            await completeRunRecord(runId, mapOutcomeToStatus(isAbort ? 'interrupt' : 'error', true), null);
+          }
+          emit({
+            type: 'run-end',
+            runId,
+            outcome: isAbort ? 'interrupt' : 'error',
+            durationMs: Date.now() - iterStartedAt,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      };
+
+      // Run once.
+      await runOnce('initial');
+
+      if (!watchEnabled || closed) {
+        close();
+        return;
+      }
+
+      // Watch mode: stay open, debounce-rerun on file changes. Chain instead
+      // of overlapping so two autopilot calls can't race on the same cwd.
+      emit({
+        type: 'log',
+        level: 'info',
+        message: `watch · watching ${cwd} (ignoring node_modules, .git, qa, ...)`,
+        elapsedMs: 0,
+      });
+
+      const scheduleRun = (trigger: string): void => {
+        if (closed) return;
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          debounceTimer = null;
+          const start = async () => {
+            await runOnce(trigger);
+            inFlight = null;
+          };
+          if (inFlight) {
+            inFlight = inFlight.then(() => start());
+          } else {
+            inFlight = start();
+          }
+        }, WATCH_DEBOUNCE_MS);
+      };
+
+      try {
+        watcher = watch(cwd, { recursive: true, persistent: true }, (_event, filename) => {
+          if (!filename) return;
+          const top = filename.split(sep)[0] ?? '';
+          if (WATCH_IGNORED_TOP_DIRS.has(top)) return;
+          if (top.startsWith('.') && top !== '.env' && top !== '.env.local') return;
+          scheduleRun(filename);
+        });
+      } catch (err) {
+        emit({
+          type: 'log',
+          level: 'error',
+          message: `watch · could not start recursive watch: ${err instanceof Error ? err.message : String(err)}`,
+          elapsedMs: 0,
+        });
+        close();
+        return;
+      }
+
+      // Hold the stream open until the client closes it. Active autopilot
+      // runs continue in the inFlight chain.
+      await new Promise<void>((resolveHold) => {
+        req.signal.addEventListener('abort', () => resolveHold());
+        const interval = setInterval(() => {
+          if (closed) {
+            clearInterval(interval);
+            resolveHold();
+          }
+        }, 500);
+      });
+
+      // Best-effort: wait for any in-flight run to settle so the DB row gets
+      // closed out properly before we close the stream.
+      if (inFlight) {
+        try {
+          await inFlight;
+        } catch {
+          // already-logged
+        }
+      }
+      close();
+
+      // Keep watchAsync import alive in case future iterations want async API.
+      void watchAsync;
     },
   });
 
@@ -206,7 +320,6 @@ function errorResponse(message: string): Response {
 }
 
 function newSyntheticId(): string {
-  // Used when Postgres is unreachable. Format: r_<base36 ms><4 random>.
   const ms = Date.now().toString(36);
   const rnd = Math.floor(Math.random() * 36 ** 4)
     .toString(36)
@@ -214,10 +327,6 @@ function newSyntheticId(): string {
   return `r_${ms}${rnd}`.toUpperCase();
 }
 
-/**
- * Read the current git branch in the target cwd. Best-effort: returns null if
- * git isn't installed or the dir isn't a repo.
- */
 async function detectBranch(cwd: string): Promise<string | null> {
   try {
     const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd });
@@ -228,10 +337,6 @@ async function detectBranch(cwd: string): Promise<string | null> {
   }
 }
 
-/**
- * Insert a fresh runs row with status=running. Returns the DB-generated UUID,
- * or null when Postgres is unavailable. Never throws.
- */
 async function createRunRecord(cwd: string, branch: string | null, _fixEnabled: boolean): Promise<string | null> {
   try {
     const [row] = await db
@@ -250,11 +355,6 @@ async function createRunRecord(cwd: string, branch: string | null, _fixEnabled: 
   }
 }
 
-/**
- * Update the runs row with final status / endedAt / totals. Silently swallows
- * errors so a flapping DB connection can't crash the stream after the run
- * has finished.
- */
 async function completeRunRecord(
   id: string,
   status: 'passed' | 'failed' | 'interrupted' | 'error',
@@ -270,16 +370,13 @@ async function completeRunRecord(
       })
       .where(eq(runs.id, id));
   } catch {
-    // already-logged elsewhere
+    // ignore
   }
 }
 
 function aggregateTotals(
   phaseTotals: Partial<Record<'A' | 'B' | 'C', AutopilotPhaseCounters>>,
 ): Record<string, number> {
-  // Roll the per-phase counter map into a single object that maps cleanly to
-  // /runs's "Totals" column display: passed (across all phases), failed,
-  // deferred, plus the autopilot-native fields for inspection.
   const a = phaseTotals.A ?? {};
   const b = phaseTotals.B ?? {};
   const c = phaseTotals.C ?? {};
