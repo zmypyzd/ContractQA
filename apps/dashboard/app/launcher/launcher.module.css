@@ -444,6 +444,80 @@
   color: color-mix(in oklab, var(--success) 60%, var(--text));
 }
 
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  cursor: pointer;
+  user-select: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+.toggle:hover {
+  color: var(--text);
+}
+.toggleInput {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.toggleSwitch {
+  width: 30px;
+  height: 16px;
+  border-radius: var(--r-pill);
+  background: var(--border-2);
+  position: relative;
+  transition: background 120ms ease-out;
+}
+.toggleSwitch::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-pill);
+  background: var(--muted);
+  top: 2px;
+  left: 2px;
+  transition:
+    transform 120ms ease-out,
+    background 120ms ease-out;
+}
+.toggleInput:checked + .toggleSwitch {
+  background: color-mix(in oklab, var(--accent) 30%, var(--border-2));
+}
+.toggleInput:checked + .toggleSwitch::after {
+  background: var(--accent);
+  transform: translateX(14px);
+}
+.toggleInput:focus-visible + .toggleSwitch {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 20%, transparent);
+}
+.toggleLabel {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 10.5px;
+}
+.toggleSubLabel {
+  color: var(--muted-2);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+.iterationCounter {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  border: 1px solid color-mix(in oklab, var(--accent) 40%, var(--border-2));
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-left: var(--s-3);
+}
+
 .logList {
   margin: var(--s-5) 0 0;
   padding: 0;

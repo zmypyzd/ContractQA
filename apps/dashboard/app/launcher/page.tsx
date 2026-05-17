@@ -72,6 +72,7 @@ export default function LauncherPage() {
   const [detection, setDetection] = useState<DetectionResult | null>(null);
   const [recentItems, setRecentItems] = useState<RecentProjectRow[]>(RECENT_SEED);
   const [isPending, startTransition] = useTransition();
+  const [watchMode, setWatchMode] = useState(false);
 
   const [phases, setPhases] = useState<PhaseMap>(newPhaseMap);
   const [runId, setRunId] = useState<string | null>(null);
@@ -79,6 +80,7 @@ export default function LauncherPage() {
   const [running, setRunning] = useState(false);
   const [elapsedNow, setElapsedNow] = useState(0);
   const [logs, setLogs] = useState<Array<{ message: string; level: 'info' | 'warn' | 'error' }>>([]);
+  const [iteration, setIteration] = useState(0);
 
   const sourceRef = useRef<EventSource | null>(null);
   const runStartedAtRef = useRef<number | null>(null);
@@ -146,6 +148,7 @@ export default function LauncherPage() {
       setLogs([]);
       setRunId(null);
       setRunOutcome('pending');
+      setIteration(0);
       runStartedAtRef.current = Date.now();
       setElapsedNow(0);
       setRunning(true);
@@ -154,7 +157,7 @@ export default function LauncherPage() {
       // swallows errors so DB outages can't break the run.
       void recordRecentProject(detection.resolvedPath, detection.detected);
 
-      const url = `/launcher/stream?cwd=${encodeURIComponent(detection.resolvedPath)}&fix=true`;
+      const url = `/launcher/stream?cwd=${encodeURIComponent(detection.resolvedPath)}&fix=true${watchMode ? '&watch=true' : ''}`;
       const es = new EventSource(url);
       sourceRef.current = es;
 
@@ -162,6 +165,14 @@ export default function LauncherPage() {
         const data = JSON.parse((ev as MessageEvent).data) as Extract<LauncherEvent, { type: 'run-start' }>;
         runStartedAtRef.current = data.startedAt;
         setRunId(data.runId);
+        // In watch mode, run-start fires for every iteration. Reset phases /
+        // logs / elapsed for the new iteration so the strip starts fresh.
+        setIteration((prev) => prev + 1);
+        setPhases(newPhaseMap());
+        setLogs([]);
+        setRunOutcome('pending');
+        setRunning(true);
+        setElapsedNow(0);
       });
 
       es.addEventListener('phase', (ev) => {
@@ -189,8 +200,12 @@ export default function LauncherPage() {
         const data = JSON.parse((ev as MessageEvent).data) as Extract<LauncherEvent, { type: 'run-end' }>;
         setRunOutcome(data.outcome);
         setRunning(false);
-        es.close();
-        sourceRef.current = null;
+        // In watch mode, the stream stays open and another run-start may fire.
+        // Only close the EventSource on a non-watch run.
+        if (!watchMode) {
+          es.close();
+          sourceRef.current = null;
+        }
       });
 
       es.onerror = () => {
@@ -206,7 +221,7 @@ export default function LauncherPage() {
         document.getElementById('progress')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     },
-    [detection],
+    [detection, watchMode],
   );
 
   const toggleTheme = () => {
@@ -300,14 +315,21 @@ export default function LauncherPage() {
                   className={`${s.btn} ${s.btnPrimary}`}
                   disabled={!detection?.ok || running}
                 >
-                  <span aria-hidden>▶</span> {running ? 'Running…' : 'Run autopilot'}
+                  <span aria-hidden>▶</span>{' '}
+                  {running ? 'Running…' : watchMode ? 'Watch & re-run' : 'Run autopilot'}
                 </button>
-                <button type="button" className={s.btn} disabled>
-                  contractqa run (existing contracts)
-                </button>
-                <button type="button" className={`${s.btn} ${s.btnGhost} ${s.btnMono}`} disabled>
-                  --dry-run
-                </button>
+                <label className={s.toggle} title="Re-run autopilot every time a source file changes">
+                  <input
+                    type="checkbox"
+                    className={s.toggleInput}
+                    checked={watchMode}
+                    onChange={(e) => setWatchMode(e.target.checked)}
+                    disabled={running}
+                  />
+                  <span className={s.toggleSwitch} aria-hidden />
+                  <span className={s.toggleLabel}>Watch</span>
+                  <span className={s.toggleSubLabel}>re-run on file change</span>
+                </label>
               </div>
             </div>
           </form>
@@ -340,6 +362,9 @@ export default function LauncherPage() {
             <div className={s.progressHead}>
               <p className={s.eyebrow} style={{ margin: 0 }}>
                 {runOutcomeHeader(runOutcome, running)} · {formatElapsed(elapsedNow)}
+                {watchMode && iteration > 0 && (
+                  <span className={s.iterationCounter}>iteration {iteration}</span>
+                )}
               </p>
               <div className={s.progressTotal}>
                 <span className={s.progressTotalLabel}>run</span>
