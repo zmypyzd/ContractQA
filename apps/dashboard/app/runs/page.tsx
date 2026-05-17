@@ -2,25 +2,12 @@ import Link from 'next/link';
 import { desc } from 'drizzle-orm';
 import { db } from '../../lib/db';
 import { runs } from '../../drizzle/schema';
+import { RunsList, type RunRow } from './RunsList';
 import s from './runs.module.css';
 
 export const dynamic = 'force-dynamic';
 
-interface Totals {
-  passed?: number;
-  failed?: number;
-  skipped?: number;
-  // alternative names that older runs may carry
-  ok?: number;
-  fail?: number;
-  skip?: number;
-  deferred?: number;
-}
-
 export default async function RunsPage() {
-  // DB may be unreachable in dev (no Postgres running). Render an honest
-  // empty/error state rather than a 500 — the rest of the dashboard works
-  // without a DB (launcher uses the local filesystem only).
   let rows: typeof runs.$inferSelect[] = [];
   let dbError: string | null = null;
   try {
@@ -28,6 +15,16 @@ export default async function RunsPage() {
   } catch (err) {
     dbError = err instanceof Error ? err.message : String(err);
   }
+
+  const clientRows: RunRow[] = rows.map((r) => ({
+    id: r.id,
+    triggerType: r.triggerType ?? null,
+    branch: r.branch,
+    status: r.status,
+    startedAt: r.startedAt?.toISOString() ?? null,
+    totals: (r.totals ?? null) as RunRow['totals'],
+    watchSessionId: r.watchSessionId ?? null,
+  }));
 
   return (
     <>
@@ -73,75 +70,11 @@ export default async function RunsPage() {
             <code style={{ fontFamily: 'var(--font-mono)' }}>contractqa autopilot</code> from a project directory.
           </div>
         ) : (
-          <div className={s.tableWrap}>
-            <table className={s.table}>
-              <thead>
-                <tr>
-                  <th style={{ width: 200 }}>Started</th>
-                  <th style={{ width: 120 }}>Trigger</th>
-                  <th>Branch</th>
-                  <th style={{ width: 120 }}>Status</th>
-                  <th style={{ width: 240 }}>Totals</th>
-                  <th style={{ width: 80 }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => {
-                  const totals = (r.totals ?? {}) as Totals;
-                  const passed = totals.passed ?? totals.ok ?? 0;
-                  const failed = totals.failed ?? totals.fail ?? 0;
-                  const skipped = totals.skipped ?? totals.skip ?? totals.deferred ?? 0;
-                  const isRunning = r.status === 'running' || r.status === 'in-progress';
-                  const isError = r.status === 'failed' || r.status === 'error';
-                  const isActive = isRunning;
-                  return (
-                    <tr key={r.id} className={`${isActive ? s.active : ''} ${s.clickableRow}`} data-href={`/runs/${r.id}`}>
-                      <td className={s.colMono}>
-                        <Link href={`/runs/${r.id}`} className={s.rowLinkInvisible}>{formatTimestamp(r.startedAt)}</Link>
-                      </td>
-                      <td className={s.colMono}>{r.triggerType ?? '—'}</td>
-                      <td className={s.colBranch}>{r.branch ?? '—'}</td>
-                      <td>
-                        <span className={s.statusCell}>
-                          <span
-                            className={`${s.dot} ${
-                              isRunning ? s.dotWarning : isError ? s.dotError : r.status === 'passed' || r.status === 'success' ? s.dotSuccess : s.dotIdle
-                            }`}
-                          />
-                          <span style={{ color: isRunning ? 'var(--accent)' : isError ? 'var(--error)' : undefined }}>
-                            {r.status ?? 'unknown'}
-                          </span>
-                        </span>
-                      </td>
-                      <td>
-                        <span className={s.totals}>
-                          <span className={s.totalOk}>{passed} ok</span>
-                          {failed > 0 && <span className={s.totalBad}>{failed} fail</span>}
-                          {skipped > 0 && <span className={s.totalSkip}>{skipped} skip</span>}
-                        </span>
-                      </td>
-                      <td>
-                        <Link href={`/runs/${r.id}`} className={s.rowLink}>
-                          view →
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <RunsList rows={clientRows} />
         )}
 
         <p className={s.footnote}>ContractQA · Diagnostic Modern · /runs</p>
       </main>
     </>
   );
-}
-
-function formatTimestamp(d: Date | null): string {
-  if (!d) return '—';
-  // YYYY-MM-DD HH:MM:SS in user's local time, no timezone suffix to keep table tight.
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }

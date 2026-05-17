@@ -11,6 +11,9 @@ export const runs = pgTable('runs', {
   totals: jsonb('totals'),
   /** Absolute project folder path for launcher-triggered runs (null otherwise). */
   cwd: text('cwd'),
+  /** UUID grouping every iteration that came from the same `?watch=true`
+   *  SSE connection. Null for one-shot runs. */
+  watchSessionId: uuid('watch_session_id'),
 });
 
 export const issues = pgTable('issues', {
