@@ -1,0 +1,440 @@
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in oklab, var(--bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s-3) var(--s-5);
+  gap: var(--s-3);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.duck {
+  width: 22px;
+  height: 22px;
+}
+.duck path {
+  fill: var(--accent);
+}
+.versionBadge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  border: 1px solid color-mix(in oklab, var(--accent) 40%, var(--border-2));
+  color: var(--accent);
+  margin-left: var(--s-2);
+}
+.toolbarMeta {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.controls {
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+}
+@media (max-width: 720px) {
+  .toolbarMeta {
+    display: none;
+  }
+  .toolbar {
+    padding: var(--s-3) var(--s-4);
+  }
+}
+
+.shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--s-7) var(--s-5) var(--s-9);
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 var(--s-2);
+}
+
+.hDisplay {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  font-size: clamp(48px, 8vw, 96px);
+  line-height: 1.02;
+  margin: 0 0 var(--s-4);
+}
+.hDisplay em {
+  font-style: italic;
+  color: var(--muted);
+}
+
+.lede {
+  font-size: 17px;
+  line-height: 1.55;
+  max-width: 64ch;
+  color: var(--muted);
+  margin: 0 0 var(--s-7);
+}
+.lede strong {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.launcher {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: var(--s-7);
+  align-items: start;
+}
+@media (max-width: 880px) {
+  .launcher {
+    grid-template-columns: 1fr;
+  }
+}
+
+.field {
+  margin-bottom: var(--s-5);
+}
+.label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: var(--s-2);
+}
+.req {
+  color: var(--accent);
+  margin-left: var(--s-1);
+}
+.hint {
+  font-size: 12px;
+  color: var(--muted-2);
+  margin-top: var(--s-1);
+  line-height: 1.45;
+}
+.hint code,
+.lede code,
+.helper code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--surface);
+  padding: 1px 5px;
+  border-radius: var(--r-sm);
+  color: var(--muted);
+}
+.error {
+  color: var(--error);
+  font-size: 12px;
+  margin-top: var(--s-1);
+  font-family: var(--font-mono);
+}
+
+.rowFiles {
+  display: flex;
+  gap: var(--s-2);
+}
+.rowFiles .inputWrap {
+  flex: 1;
+}
+
+.input {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-2);
+  background: var(--bg);
+  color: var(--text);
+  width: 100%;
+  transition:
+    border-color 80ms ease-out,
+    box-shadow 80ms ease-out;
+  font-variant-numeric: tabular-nums;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 20%, transparent);
+}
+.input::placeholder {
+  color: var(--muted-2);
+}
+.inputInvalid {
+  border-color: var(--error);
+}
+
+.row {
+  display: flex;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.btn {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 13px;
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-2);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    background 80ms ease-out,
+    border-color 80ms ease-out,
+    color 80ms ease-out;
+  letter-spacing: -0.005em;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.btn:hover {
+  border-color: var(--text);
+}
+.btn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 20%, transparent);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btnPrimary {
+  background: var(--accent);
+  color: #0a0a0b;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.btnPrimary:hover {
+  background: var(--accent-d);
+  border-color: var(--accent-d);
+}
+.btnGhost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+.btnGhost:hover {
+  color: var(--text);
+  border-color: var(--border-2);
+}
+.btnMono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-2);
+  color: var(--muted);
+  background: var(--surface);
+}
+.pillAccent {
+  color: var(--accent);
+  border-color: color-mix(in oklab, var(--accent) 40%, var(--border-2));
+}
+.pillDim {
+  color: var(--muted-2);
+}
+.pillError {
+  color: var(--error);
+  border-color: color-mix(in oklab, var(--error) 40%, var(--border-2));
+}
+.pill .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: currentColor;
+}
+
+.recent {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: var(--s-4);
+  border-radius: var(--r-md);
+}
+.recent h4 {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 var(--s-3);
+  font-weight: 500;
+}
+.recentItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: var(--s-2) 0;
+  border-top: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 80ms ease-out;
+  background: none;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  width: 100%;
+  text-align: left;
+}
+.recentItem:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.recentItem:hover {
+  color: var(--text);
+}
+.recentItem:hover .recentPath {
+  color: var(--accent);
+}
+.recentPath {
+  color: var(--text);
+  transition: color 80ms ease-out;
+}
+.recentWhen {
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--muted-2);
+}
+
+.progress {
+  margin-top: var(--s-7);
+  border-top: 1px solid var(--border);
+  padding-top: var(--s-5);
+}
+.progressHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--s-3);
+}
+.progressTotal {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+.progressTotalLabel {
+  color: var(--muted);
+  margin-right: var(--s-2);
+}
+.phases {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--s-2);
+}
+@media (max-width: 760px) {
+  .phases {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.phase {
+  padding: var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  transition:
+    border-color 120ms ease-out,
+    background 120ms ease-out;
+}
+.phaseName {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.phaseTime {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 18px;
+  margin-top: var(--s-2);
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.phaseDone .phaseName {
+  color: var(--success);
+}
+.phaseDone .phaseName .phaseDot {
+  background: var(--success);
+}
+.phaseActive {
+  border-color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 8%, var(--surface));
+}
+.phaseActive .phaseName {
+  color: var(--accent);
+}
+.phaseActive .phaseName .phaseDot {
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.phaseIdle .phaseTime {
+  color: var(--muted-2);
+}
+.phaseIdle .phaseName .phaseDot {
+  background: var(--muted-2);
+}
+.phaseDot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  display: inline-block;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.footnote {
+  margin-top: var(--s-9);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--border);
+  color: var(--muted-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-align: center;
+}

@@ -1,0 +1,112 @@
+/* ContractQA · Diagnostic Modern · DESIGN.md is the source of truth.
+   Edits here should be reflected in DESIGN.md and vice versa. */
+
+:root[data-theme='dark'] {
+  --bg: #0a0a0b;
+  --surface: #141416;
+  --surface-2: #1b1b1f;
+  --border: #26262b;
+  --border-2: #34343a;
+  --text: #fafaf9;
+  --muted: #9a9a95;
+  --muted-2: #6e6e6a;
+  --accent: #f4d03f;
+  --accent-d: #c9a82f;
+  --success: #3b9e5b;
+  --warning: #f4d03f;
+  --error: #d4453a;
+  --info: #7a8a9b;
+}
+
+:root[data-theme='light'] {
+  --bg: #fafaf9;
+  --surface: #ffffff;
+  --surface-2: #f5f5f2;
+  --border: #e5e5e1;
+  --border-2: #d4d4cd;
+  --text: #0a0a0b;
+  --muted: #6e6e6a;
+  --muted-2: #9a9a95;
+  --accent: #c9a82f;
+  --accent-d: #f4d03f;
+  --success: #2d7d45;
+  --warning: #b8842a;
+  --error: #b6362c;
+  --info: #5a6a7b;
+}
+
+:root {
+  --s-0: 2px;
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+  --s-9: 96px;
+
+  --r-sm: 2px;
+  --r-md: 4px;
+  --r-pill: 9999px;
+
+  --font-display: 'Instrument Serif', Georgia, serif;
+  --font-body: 'Geist', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
+  --font-code: 'JetBrains Mono', 'Geist Mono', ui-monospace, monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  transition:
+    background 120ms ease-out,
+    color 120ms ease-out;
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: var(--accent);
+  color: #0a0a0b;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+[data-pretext] {
+  box-sizing: content-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
