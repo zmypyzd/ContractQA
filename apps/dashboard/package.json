@@ -16,7 +16,9 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "drizzle-orm": "^0.36.4",
-    "pg": "^8.13.1"
+    "pg": "^8.13.1",
+    "contractqa": "workspace:*",
+    "@contractqa/orchestrator": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

@@ -367,15 +367,18 @@ function renderCounters(
   }
   if (phase === 'B') {
     const parts: string[] = [];
-    if (counters.passed != null) parts.push(`${counters.passed} gen`);
+    if (counters.generated != null) parts.push(`${counters.generated} gen`);
     if (counters.failed) parts.push(`${counters.failed} fail`);
-    if (counters.confirmed) parts.push(`${counters.confirmed} y/n`);
+    if (counters.deferred) parts.push(`${counters.deferred} deferred`);
+    const yn = (counters.userConfirmed ?? 0) + (counters.userRejected ?? 0);
+    if (yn) parts.push(`${yn} y/n`);
     return parts.join(' · ');
   }
   // C
   const parts: string[] = [];
-  if (counters.passed != null) parts.push(`${counters.passed} fixed`);
-  if (counters.failed) parts.push(`${counters.failed} gave up`);
+  if (counters.attempted != null && counters.attempted > 0) parts.push(`${counters.attempted} tried`);
+  if (counters.fixed != null && counters.fixed > 0) parts.push(`${counters.fixed} fixed`);
+  if (counters.givenUp != null && counters.givenUp > 0) parts.push(`${counters.givenUp} gave up`);
   return parts.join(' · ');
 }
 
