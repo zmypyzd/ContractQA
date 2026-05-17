@@ -50,4 +50,27 @@ describe('createSupabaseTempUser', () => {
     await handle.dispose();
     expect(adminClient.auth.admin.deleteUser).toHaveBeenCalledOnce();
   });
+
+  it('dispose is retryable: fails on first call, succeeds on retry (disposed only set after success)', async () => {
+    let calls = 0;
+    const adminClient = {
+      auth: { admin: {
+        createUser: vi.fn().mockResolvedValue({ data: { user: { id: 'uid-2', email: 'y@y' } }, error: null }),
+        deleteUser: vi.fn().mockImplementation(async () => {
+          calls++;
+          if (calls === 1) return { data: null, error: new Error('transient failure') };
+          return { data: null, error: null };
+        }),
+      }},
+    };
+    const handle = await createSupabaseTempUser({ adminClient: adminClient as any });
+    // First dispose should throw (deleteUser fails).
+    await expect(handle.dispose()).rejects.toThrow(/transient failure/);
+    // Second dispose should succeed (deleteUser succeeds on retry).
+    await handle.dispose();
+    expect(adminClient.auth.admin.deleteUser).toHaveBeenCalledTimes(2);
+    // Third call should be a no-op (idempotent after success).
+    await handle.dispose();
+    expect(adminClient.auth.admin.deleteUser).toHaveBeenCalledTimes(2);
+  });
 });

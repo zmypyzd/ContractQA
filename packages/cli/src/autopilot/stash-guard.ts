@@ -33,6 +33,21 @@ export interface StashGuard {
   release(): Promise<void>;
 }
 
+async function checkDirtySubmodules(cwd: string): Promise<string[]> {
+  try {
+    const { stdout } = await exec('git', ['submodule', 'status'], { cwd });
+    const dirty: string[] = [];
+    for (const line of stdout.split('\n').filter(Boolean)) {
+      // Lines starting with '+' indicate dirty submodule.
+      const m = /^[+\-U]\w+\s+(\S+)/.exec(line);
+      if (m && m[1] && line.startsWith('+')) dirty.push(m[1]);
+    }
+    return dirty;
+  } catch {
+    return []; // no submodules or git error
+  }
+}
+
 export function createStashGuard(cwd: string): StashGuard {
   let stashRef: string | undefined;
   let stashedItems: readonly StashedItem[] = [];
@@ -67,11 +82,19 @@ export function createStashGuard(cwd: string): StashGuard {
 
   return {
     async protect(opts) {
+      const dirtySubmodules = await checkDirtySubmodules(cwd);
+      if (dirtySubmodules.length > 0) {
+        const ok = await opts.confirmSensitive(
+          dirtySubmodules.map((path) => ({ path: `${path} (submodule)`, state: 'modified' as const, isSensitive: true })),
+        );
+        if (!ok) throw new Error('autopilot aborted by user (dirty submodules cannot be protected)');
+      }
       const items = await enumerate();
       const trackedDirty = items.filter((i) => i.state !== 'untracked-gitignored');
-      const sensitiveAll = items.filter((i) => i.isSensitive);
-      if (sensitiveAll.length > 0) {
-        const ok = await opts.confirmSensitive(sensitiveAll);
+      const sensitiveTracked = items
+        .filter((i) => i.state !== 'untracked-gitignored' && i.isSensitive);
+      if (sensitiveTracked.length > 0) {
+        const ok = await opts.confirmSensitive(sensitiveTracked);
         if (!ok) throw new Error('autopilot aborted by user (sensitive files in stash scope)');
       }
       if (trackedDirty.length === 0) {

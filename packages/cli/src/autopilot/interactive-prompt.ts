@@ -19,7 +19,20 @@ export interface ConfirmResult {
 }
 
 function ask(rl: Interface, question: string): Promise<string> {
-  return new Promise((resolve) => rl.question(question, (a) => resolve(a.trim())));
+  return new Promise((resolve) => {
+    const onClose = () => resolve('');
+    rl.once('close', onClose);
+    try {
+      rl.question(question, (a) => {
+        rl.removeListener('close', onClose);
+        resolve(a.trim());
+      });
+    } catch {
+      // readline was already closed (e.g. input stream ended or SIGINT fired).
+      rl.removeListener('close', onClose);
+      resolve('');
+    }
+  });
 }
 
 export async function confirmUncertainProposals(

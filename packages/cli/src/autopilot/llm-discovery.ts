@@ -35,7 +35,7 @@ const ProposalSchema = z.object({
 
 const ProposalsSchema = z.array(ProposalSchema);
 
-export const DISCOVERY_PROMPT_VERSION = '1';
+export const DISCOVERY_PROMPT_VERSION = '2';
 
 function buildSystemPrompt(ctx: TargetContext): string {
   return [
@@ -46,6 +46,32 @@ function buildSystemPrompt(ctx: TargetContext): string {
     `- Framework: ${ctx.framework}`,
     `- Auth provider: ${ctx.authProvider}`,
     `- Entry routes: ${ctx.routes.join(', ') || '(unknown)'}`,
+    '',
+    'Each contract YAML must conform to this shape:',
+    '  id: <string-id>',
+    '  title: <human-readable title>',
+    '  area: <auth | core | admin | ...>',
+    '  severity: <P0 | P1 | P2>',
+    '  preconditions: { auth_state: logged_in | anonymous, role: <role-name> }',
+    '  actions: [ { type: goto, path: <path> } | { type: click, target: { role, name_regex } } | { type: fill, target, value } | { type: wait, ms } ]',
+    '  expected: { url: { matches: <regex> }, http_status: { lt | gte | one_of }, localStorage: { no_key_matches: <regex> }, auth_state: { fully_logged_out: bool } }',
+    '  verification: { wait_ms?, retries? }',
+    '',
+    'Example (the canonical auth invariant):',
+    '  id: INV-A2',
+    '  title: Logged-out users cannot access protected routes',
+    '  area: auth',
+    '  severity: P0',
+    '  preconditions: { auth_state: logged_in, role: normal_user }',
+    '  actions:',
+    '    - { type: goto, path: /lobby }',
+    '    - type: click',
+    '      target: { role: button, name_regex: "logout|sign out" }',
+    '    - { type: goto, path: /agents }',
+    '  expected:',
+    '    url: { matches: "^/login" }',
+    '    localStorage: { no_key_matches: "^sb-" }',
+    '    auth_state: { fully_logged_out: true }',
     '',
     'Confidence rubric:',
     '- high: invariant directly evidenced by code (e.g., explicit redirect after logout); no ambiguity.',
@@ -87,7 +113,11 @@ async function callWithBackoff(
         ?? (err as { statusCode?: number; status?: number }).status;
       if (status === 429 || status === 503 || (status !== undefined && status >= 500)) {
         const wait = opts.backoffMs * (2 ** attempt);
-        await new Promise((r) => setTimeout(r, wait));
+        await new Promise<void>((resolve, reject) => {
+          const t = setTimeout(resolve, wait);
+          const onAbort = () => { clearTimeout(t); reject(new Error('aborted during backoff')); };
+          signal.addEventListener('abort', onAbort, { once: true });
+        });
         attempt++;
         continue;
       }

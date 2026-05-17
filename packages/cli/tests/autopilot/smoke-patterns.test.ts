@@ -28,10 +28,17 @@ describe('smoke-patterns', () => {
   });
 
   it('SMOKE-logout-clears-keys only applies when auth provider is known', () => {
-    const withAuth = applicablePatterns(ctx({ authProvider: 'supabase' }));
+    const withAuth = applicablePatterns(ctx({ authProvider: 'supabase', testCredentials: { source: 'env', email: 'x@x', password: 'p' } }));
     const withoutAuth = applicablePatterns(ctx({ authProvider: 'unknown' }));
     expect(withAuth.find((p) => p.id === 'SMOKE-logout-clears-keys')).toBeDefined();
     expect(withoutAuth.find((p) => p.id === 'SMOKE-logout-clears-keys')).toBeUndefined();
+  });
+
+  it('SMOKE-logout-clears-keys requires credentials', () => {
+    const noCreds = applicablePatterns(ctx({ authProvider: 'supabase', testCredentials: { source: 'none' } }));
+    expect(noCreds.find((p) => p.id === 'SMOKE-logout-clears-keys')).toBeUndefined();
+    const withCreds = applicablePatterns(ctx({ authProvider: 'supabase', testCredentials: { source: 'env', email: 'x@x', password: 'p' } }));
+    expect(withCreds.find((p) => p.id === 'SMOKE-logout-clears-keys')).toBeDefined();
   });
 
   it('every pattern generate() returns valid YAML-loadable structure', () => {

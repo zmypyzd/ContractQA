@@ -42,4 +42,17 @@ describe('assembleTargetContext', () => {
     expect(ctx.authProvider).toBe('supabase');
     expect(ctx.testCredentials).toMatchObject({ source: 'env', email: 'test@x' });
   });
+
+  it('.env.local overrides .env (highest-priority env file wins)', async () => {
+    writeFileSync(join(tmp, 'package.json'), JSON.stringify({
+      name: 'demo',
+      dependencies: { next: '^15.0.0' },
+    }));
+    // Low-priority: .env sets email to base@example.com
+    writeFileSync(join(tmp, '.env'), 'TEST_USER_EMAIL=base@example.com\nTEST_USER_PASSWORD=pw\n');
+    // High-priority: .env.local overrides with local@example.com
+    writeFileSync(join(tmp, '.env.local'), 'TEST_USER_EMAIL=local@example.com\nTEST_USER_PASSWORD=pw\n');
+    const ctx = await assembleTargetContext(tmp);
+    expect(ctx.testCredentials).toMatchObject({ source: 'env', email: 'local@example.com' });
+  });
 });

@@ -48,4 +48,17 @@ describe('confirmUncertainProposals', () => {
     const r = await p;
     expect(r.skipped.length).toBe(1);
   });
+
+  it('stream closing mid-session resolves without hanging (no SIGINT hang)', async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const proposals = [makeProposal('A'), makeProposal('B')];
+    const p = confirmUncertainProposals('auth', proposals, { in: input, out: output }, {});
+    // End the input stream (EOF) before any answer is provided, simulating a closed pipe.
+    // readline emits 'close' on input end, which the fixed ask() resolves on.
+    setImmediate(() => input.end());
+    const r = await p;
+    // Should resolve without hanging; all unanswered proposals must be accounted for.
+    expect(r.skipped.length + r.accepted.length + r.rejected.length).toBe(proposals.length);
+  }, 10000);
 });

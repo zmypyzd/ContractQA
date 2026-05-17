@@ -87,7 +87,8 @@ export const SMOKE_PATTERNS: readonly SmokePattern[] = [
   {
     id: 'SMOKE-logout-clears-keys',
     title: 'Logout clears provider-specific storage keys',
-    appliesTo: (ctx) => ctx.authProvider in LOGOUT_KEY_BY_PROVIDER,
+    appliesTo: (ctx) => ctx.authProvider in LOGOUT_KEY_BY_PROVIDER &&
+                       ctx.testCredentials.source !== 'none',
     generate: (ctx) => ({
       id: 'SMOKE-logout-clears-keys',
       title: `Logout clears ${ctx.authProvider} storage keys`,

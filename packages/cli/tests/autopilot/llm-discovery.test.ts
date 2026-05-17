@@ -66,4 +66,31 @@ describe('discoverByModule', () => {
     });
     expect(attempts).toBeGreaterThanOrEqual(2);
   });
+
+  it('AbortSignal abort during backoff exits promptly', async () => {
+    const ac = new AbortController();
+    let attempts = 0;
+    const llm: LLMClient = {
+      providerName: 'openai-compatible',
+      modelHint: 'fake',
+      async generate() {
+        attempts++;
+        // Always fail with 429 to trigger backoff; abort after first attempt.
+        if (attempts === 1) {
+          // Schedule abort to fire during the backoff sleep (backoffMs=100ms).
+          setTimeout(() => ac.abort(), 10);
+        }
+        throw Object.assign(new Error('rate'), { statusCode: 429 });
+      },
+    };
+    const start = Date.now();
+    // backoffMs=100 → first backoff would be 100ms, but abort fires at 10ms.
+    await discoverByModule(ctx, llm, async () => {}, ac.signal, {
+      modules: ['auth'],
+      backoffMs: 100,
+    });
+    const elapsed = Date.now() - start;
+    // Should exit well before the 100ms backoff completes.
+    expect(elapsed).toBeLessThan(500);
+  });
 });

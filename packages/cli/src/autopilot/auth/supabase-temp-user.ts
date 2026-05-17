@@ -41,9 +41,9 @@ export async function createSupabaseTempUser(opts: CreateOpts): Promise<TempUser
     uid: user.id,
     async dispose() {
       if (disposed) return;
-      disposed = true;
       const dr = await opts.adminClient.auth.admin.deleteUser(user.id);
       if (dr.error) throw new Error(`Supabase deleteUser failed: ${(dr.error as Error).message}`);
+      disposed = true;
     },
   };
 }

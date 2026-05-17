@@ -38,7 +38,7 @@ const ENV_CRED_PAIRS: Array<{ email: string; password: string }> = [
   { email: 'DEV_USER_EMAIL', password: 'DEV_USER_PASSWORD' },
 ];
 
-const ENV_FILE_CANDIDATES = ['.env.local', '.env.test', '.env.development.local', '.env'];
+const ENV_FILE_CANDIDATES = ['.env', '.env.example', '.env.development.local', '.env.test', '.env.local'];
 
 function parseEnvFile(content: string): Record<string, string> {
   const out: Record<string, string> = {};
