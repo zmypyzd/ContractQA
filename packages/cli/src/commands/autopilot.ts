@@ -1,5 +1,5 @@
 // packages/cli/src/commands/autopilot.ts
-import { mkdir, writeFile, readFile, rm, access } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, readdir, rm, access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
@@ -267,6 +267,9 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
   // llmClient, bypassing the shadow-pipeline GitHub wrapper (no PR/worktree needed).
   let phaseC: { attempted: number; fixed: number; givenUp: number; skipped: number; diffs: string[] } = { attempted: 0, fixed: 0, givenUp: 0, skipped: 0, diffs: [] };
   let costTracker: CostTracker = { inputTokens: 0, outputTokens: 0, provider: '' };
+  // Issue evidence paths written this run — surfaced on the report so the
+  // dashboard / downstream consumers can register one issues row per file.
+  const issuesWritten: string[] = [];
 
   // Idempotent report writer — called from both the happy path and the catch block.
   let reportWritten = false;
@@ -289,6 +292,7 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
       budgetTriggered,
       durationMs: Date.now() - startedAt,
       llmCost,
+      issuesWritten,
     };
     cachedReport = report;
     await mkdir(join(opts.cwd, 'qa'), { recursive: true });
@@ -317,6 +321,12 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
   const accumulatedDiffs: string[] = [];
 
   try {
+    // Scan qa/issues/ BEFORE stashGuard runs — otherwise any uncommitted issue
+    // evidence (e.g., from a prior `contractqa run` whose results weren't
+    // committed yet) would be hidden in the stash for the rest of the run.
+    // The dashboard de-dupes by issue_json_path so re-scanning is safe.
+    await scanOrphanIssues(opts.cwd, issuesWritten);
+
     await stashGuard.protect({
       confirmSensitive: async (items) => {
         if (opts.yes) return true; // CI / non-interactive — accept (the stash itself is reversible)
@@ -389,6 +399,13 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
         const f: SmokeFailure = { id: p.split('/').pop()!, reason: r.reason ?? 'unknown' };
         phaseA.failures.push(f);
         queue.push({ priority: 0, failure: f, contractPath: p });
+        const issuePath = await writeIssueEvidence(opts.cwd, {
+          contractPath: p,
+          phase: 'A',
+          contractId: f.id,
+          reason: f.reason,
+        });
+        if (issuePath) issuesWritten.push(issuePath);
       }
       emit({
         type: 'phase',
@@ -530,7 +547,16 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
               // Playwright-based contracts are written but not executed; do not enqueue for fix.
             } else if (r.passed === false) {
               phaseB.failed++;
-              queue.push({ priority: 1, failure: { id: p.split('/').pop()!, reason: r.reason ?? 'unknown' }, contractPath: p });
+              const failureId = p.split('/').pop()!;
+              const failureReason = r.reason ?? 'unknown';
+              queue.push({ priority: 1, failure: { id: failureId, reason: failureReason }, contractPath: p });
+              const issuePath = await writeIssueEvidence(opts.cwd, {
+                contractPath: p,
+                phase: 'B',
+                contractId: failureId,
+                reason: failureReason,
+              });
+              if (issuePath) issuesWritten.push(issuePath);
             }
           }
           emit({
@@ -601,5 +627,81 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
     }
     budget.cancel();
     await stashGuard.release();
+  }
+}
+
+/**
+ * Walks qa/issues/*\/issue.json under cwd and merges any not already in
+ * `issuesWritten` into the array. This lets `contractqa run` (or a hand-
+ * crafted evidence drop) be picked up by the autopilot report so downstream
+ * consumers don't have to scan separately.
+ */
+async function scanOrphanIssues(cwd: string, issuesWritten: string[]): Promise<void> {
+  try {
+    const issuesRoot = join(cwd, 'qa', 'issues');
+    const entries = await readdir(issuesRoot, { withFileTypes: true });
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      const path = join(issuesRoot, e.name, 'issue.json');
+      try {
+        await access(path);
+      } catch {
+        continue; // no issue.json — skip
+      }
+      if (!issuesWritten.includes(path)) issuesWritten.push(path);
+    }
+  } catch {
+    // qa/issues/ doesn't exist — nothing to scan, not an error
+  }
+}
+
+/**
+ * Write a minimal issue.json + state-diff.json stub for a contract failure
+ * during Phase A or Phase B. Returns the absolute path to the issue.json
+ * (or null on write failure). Stub state-diff carries no real before/after
+ * data — Phase A/B are HTTP-only and can't capture browser state. Downstream
+ * (contractqa run / Playwright) replaces this with rich evidence later.
+ */
+async function writeIssueEvidence(
+  cwd: string,
+  input: { contractPath: string; phase: 'A' | 'B'; contractId: string; reason: string },
+): Promise<string | null> {
+  try {
+    const safeId = input.contractId.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_-]/g, '_');
+    const issueDir = join(cwd, 'qa', 'issues', `i_phase${input.phase}_${safeId}`);
+    await mkdir(join(issueDir, 'diffs'), { recursive: true });
+
+    const issueJson = {
+      title: `Phase ${input.phase} contract failed: ${input.contractId}`,
+      contract_id: input.contractId,
+      contract_path: input.contractPath,
+      severity: input.phase === 'A' ? 'medium' : 'low',
+      confidence: 0.8,
+      phase: input.phase,
+      reason: input.reason,
+      expected: 'contract assertion to hold',
+      actual: input.reason,
+      artifacts: {
+        state_diff: 'diffs/state-diff.json',
+      },
+    };
+    const issueJsonPath = join(issueDir, 'issue.json');
+    await writeFile(issueJsonPath, JSON.stringify(issueJson, null, 2));
+
+    // Stub state diff so the dashboard's StateDiffViewer has something to
+    // render. Real diffs come from Playwright runs via contractqa run.
+    const stubDiff = {
+      diff: {
+        url: { before: '', after: '', changed: false },
+        localStorage: { added: [], removed: [] },
+        cookies: { added: [], removed: [] },
+      },
+    };
+    await writeFile(join(issueDir, 'diffs', 'state-diff.json'), JSON.stringify(stubDiff, null, 2));
+
+    return issueJsonPath;
+  } catch {
+    // Best-effort: never let evidence writing break a run.
+    return null;
   }
 }

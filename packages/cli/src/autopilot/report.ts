@@ -32,6 +32,12 @@ export interface AutopilotReport {
   budgetTriggered: 'time-budget' | 'user-interrupt' | null;
   durationMs: number;
   llmCost?: { provider: string; inputTokens: number; outputTokens: number; estimatedUsd?: number };
+  /**
+   * Absolute paths to issue.json evidence files written during this run.
+   * Dashboard / downstream consumers register one row per path in their issues
+   * table at run-end. Empty array when no failures had evidence captured.
+   */
+  issuesWritten?: string[];
 }
 
 function ms(d: number): string {

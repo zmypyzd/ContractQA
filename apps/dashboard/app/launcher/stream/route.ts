@@ -16,18 +16,19 @@
  */
 
 import { resolve } from 'node:path';
-import { stat, watch as watchAsync } from 'node:fs/promises';
+import { stat, readFile, watch as watchAsync } from 'node:fs/promises';
 import { watch, type FSWatcher } from 'node:fs';
 import { sep } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { runAutopilot } from 'contractqa';
 import type { AutopilotProgressEvent, AutopilotPhaseCounters } from 'contractqa';
 import { pickClient, LLMConfigError, type LLMClient } from '@contractqa/orchestrator/llm';
 import { type LauncherEvent, encodeEvent } from '../events';
 import { db } from '../../../lib/db';
-import { runs } from '../../../drizzle/schema';
+import { runs, issues } from '../../../drizzle/schema';
 
 const execFileAsync = promisify(execFile);
 
@@ -75,6 +76,9 @@ export async function GET(req: Request): Promise<Response> {
 
   const encoder = new TextEncoder();
   const branch = await detectBranch(cwd);
+  // One watch session per SSE connection in watch mode; null otherwise. All
+  // run rows produced by this connection share the id so /runs can group them.
+  const watchSessionId = watchEnabled ? randomUUID() : null;
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -152,7 +156,7 @@ export async function GET(req: Request): Promise<Response> {
       const runOnce = async (trigger: string): Promise<void> => {
         if (closed) return;
         const iterStartedAt = Date.now();
-        const dbRunId = await createRunRecord(cwd, branch, fixEnabled);
+        const dbRunId = await createRunRecord(cwd, branch, fixEnabled, watchSessionId);
         const runId = dbRunId ?? newSyntheticId();
         const usingDb = dbRunId !== null;
 
@@ -191,6 +195,17 @@ export async function GET(req: Request): Promise<Response> {
 
           if (usingDb) {
             await completeRunRecord(runId, mapOutcomeToStatus(outcome, false), aggregateTotals(phaseTotals));
+            // Register any issue evidence the autopilot wrote this iteration.
+            // Safe to call even when nothing was written (returns 0).
+            const registered = await registerIssuesFromReport(runId, report.issuesWritten ?? []);
+            if (registered > 0) {
+              emit({
+                type: 'log',
+                level: 'info',
+                message: `registered ${registered} issue${registered === 1 ? '' : 's'} from evidence`,
+                elapsedMs: report.durationMs,
+              });
+            }
           }
 
           emit({
@@ -337,16 +352,22 @@ async function detectBranch(cwd: string): Promise<string | null> {
   }
 }
 
-async function createRunRecord(cwd: string, branch: string | null, _fixEnabled: boolean): Promise<string | null> {
+async function createRunRecord(
+  cwd: string,
+  branch: string | null,
+  _fixEnabled: boolean,
+  watchSessionId: string | null,
+): Promise<string | null> {
   try {
     const [row] = await db
       .insert(runs)
       .values({
-        triggerType: 'launcher',
+        triggerType: watchSessionId ? 'launcher-watch' : 'launcher',
         branch,
         cwd,
         status: 'running',
         startedAt: new Date(),
+        watchSessionId,
       })
       .returning({ id: runs.id });
     return row?.id ?? null;
@@ -372,6 +393,51 @@ async function completeRunRecord(
   } catch {
     // ignore
   }
+}
+
+/**
+ * Reads every issue.json path produced this run and INSERTs an issues row
+ * linked to the runId. Best-effort: malformed JSON, unreadable files, or DB
+ * outages are silently skipped (the autopilot run still completed, the report
+ * on disk is still the source of truth). Returns the number of rows actually
+ * inserted so the SSE log can mention it.
+ */
+async function registerIssuesFromReport(runId: string, issuePaths: string[]): Promise<number> {
+  if (issuePaths.length === 0) return 0;
+  let inserted = 0;
+  for (const issueJsonPath of issuePaths) {
+    try {
+      // De-dupe by path: autopilot's orphan-scan re-emits the same paths on
+      // every run, so without this check the issues table would grow unboundedly
+      // for each watch iteration.
+      const existing = await db
+        .select({ id: issues.id })
+        .from(issues)
+        .where(eq(issues.issueJsonPath, issueJsonPath))
+        .limit(1);
+      if (existing.length > 0) continue;
+
+      const raw = await readFile(issueJsonPath, 'utf8');
+      const parsed = JSON.parse(raw) as {
+        title?: string;
+        severity?: string;
+        confidence?: number;
+        status?: string;
+      };
+      await db.insert(issues).values({
+        runId,
+        title: parsed.title ?? null,
+        severity: parsed.severity ?? null,
+        confidence: parsed.confidence != null ? String(parsed.confidence) : null,
+        status: parsed.status ?? 'open',
+        issueJsonPath,
+      });
+      inserted++;
+    } catch {
+      // skip malformed / unreadable; do not block the rest
+    }
+  }
+  return inserted;
 }
 
 function aggregateTotals(
