@@ -9,6 +9,7 @@ import { runContracts } from '../src/commands/run.js';
 import { initProject } from '../src/commands/init.js';
 import { scanProject } from '../src/commands/scan.js';
 import { doctor, renderDoctorReport, type FixName } from '../src/commands/doctor.js';
+import { runAutopilot } from '../src/commands/autopilot.js';
 const program = new Command('contractqa');
 
 program
@@ -99,6 +100,25 @@ program
     });
     console.log(renderDoctorReport(report));
     process.exit(report.summary === 'READY' ? 0 : 1);
+  });
+
+program
+  .command('autopilot')
+  .description('Zero-YAML onboarding: generate, run, and auto-fix contracts for a project')
+  .option('--time-budget <ms>', 'Time budget in milliseconds', String(30 * 60 * 1000))
+  .option('--no-fix', 'Report-only mode; skip Phase C auto-fix')
+  .option('--yes', 'Accept LLM defaults for uncertain proposals; no interactive prompts')
+  .option('--regenerate', 'Force re-run of LLM discovery, ignoring existing qa/contracts/')
+  .option('--regression-scope <scope>', 'one|touched-files|all (default touched-files)', 'touched-files')
+  .action(async (opts: { timeBudget: string; fix: boolean; yes?: boolean; regenerate?: boolean }) => {
+    const report = await runAutopilot({
+      cwd: process.cwd(),
+      timeBudgetMs: Number(opts.timeBudget),
+      fix: opts.fix,
+      yes: opts.yes,
+      regenerate: opts.regenerate,
+    });
+    process.exit(report.phaseA.failed + (report.phaseC?.givenUp ?? 0) === 0 ? 0 : 1);
   });
 
 program.parseAsync().catch((e: unknown) => {

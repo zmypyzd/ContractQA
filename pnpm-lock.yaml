@@ -212,6 +212,12 @@ importers:
 
   packages/cli:
     dependencies:
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: ^0.1.0
+        version: 0.1.77(zod@3.25.76)
+      '@anthropic-ai/sdk':
+        specifier: ^0.30.0
+        version: 0.30.1
       '@contractqa/adapters':
         specifier: workspace:*
         version: link:../adapters
@@ -239,6 +245,9 @@ importers:
       commander:
         specifier: ^12.1.0
         version: 12.1.0
+      openai:
+        specifier: ^4.0.0
+        version: 4.104.0(ws@8.20.1)(zod@3.25.76)
       semver:
         specifier: ^7.8.0
         version: 7.8.0
@@ -390,6 +399,9 @@ packages:
     engines: {node: '>=18.0.0'}
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
+
+  '@anthropic-ai/sdk@0.30.1':
+    resolution: {integrity: sha512-nuKvp7wOIz6BFei8WrTdhmSsx5mwnArYyJgh4+vYu3V4J0Ltb8Xm3odPm51n1aSI0XxNCrDl7O88cxCtUdAkaw==}
 
   '@anthropic-ai/sdk@0.40.1':
     resolution: {integrity: sha512-DJMWm8lTEM9Lk/MSFL+V+ugF7jKOn0M2Ujvb5fN8r2nY14aHbGPZ1k6sgjL+tpJ3VuOGJNG+4R83jEpOuYPv8w==}
@@ -3278,6 +3290,18 @@ snapshots:
       '@img/sharp-linuxmusl-arm64': 0.33.5
       '@img/sharp-linuxmusl-x64': 0.33.5
       '@img/sharp-win32-x64': 0.33.5
+
+  '@anthropic-ai/sdk@0.30.1':
+    dependencies:
+      '@types/node': 18.19.130
+      '@types/node-fetch': 2.6.13
+      abort-controller: 3.0.0
+      agentkeepalive: 4.6.0
+      form-data-encoder: 1.7.2
+      formdata-node: 4.4.1
+      node-fetch: 2.7.0
+    transitivePeerDependencies:
+      - encoding
 
   '@anthropic-ai/sdk@0.40.1':
     dependencies:
