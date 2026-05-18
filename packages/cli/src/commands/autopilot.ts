@@ -80,6 +80,16 @@ export interface AutopilotOptions {
    */
   fixStrategy?: 'inPlace' | 'shadow';
   shadowCoordinator?: import('../autopilot/shadow-fix-coordinator.js').ShadowFixCoordinator;
+  /**
+   * Phase B discovery strategy. 'modules' (default) uses the existing
+   * hardcoded 3-module × 3-8 cap. 'deep' uses LLM-driven surface enumeration
+   * targeting 1 contract per interaction.
+   */
+  discoveryMode?: 'modules' | 'deep';
+  /** Concurrency for Stage 2 LLM calls in deep mode. Default 4. */
+  deepConcurrency?: number;
+  /** Hard cap on contracts generated in a single deep run. Default 500. */
+  deepMaxContracts?: number;
 }
 
 interface QueuedFailure {
@@ -587,58 +597,94 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
         message: 'Reading source, asking LLM for per-module contracts',
         elapsedMs: elapsed(),
       });
-      await discoverByModule(
-        ctx,
-        llmClient,
-        async (module, proposals) => {
-          phaseB.generated += proposals.length;
-          const highConf = proposals.filter((p) => p.confidence === 'high');
-          const uncertain = proposals.filter((p) => p.confidence !== 'high');
-          const written: ContractProposal[] = [...highConf];
-          if (uncertain.length > 0) {
-            const result = await confirmUncertainProposals(module, uncertain, { in: process.stdin, out: process.stdout }, { yes: opts.yes });
-            phaseB.userConfirmed += result.accepted.length;
-            phaseB.userRejected += result.rejected.length;
-            written.push(...result.accepted);
-          }
-          const paths = await writeProposals(opts.cwd, module, written);
-          for (const p of paths) {
-            if (abortController.signal.aborted) break;
-            const r = await runContractPath(p, opts.cwd, abortController.signal);
-            if (r.passed === 'deferred') {
-              phaseB.deferred++;
-              // Playwright-based contracts are written but not executed; do not enqueue for fix.
-            } else if (r.passed === false) {
-              phaseB.failed++;
-              const failureId = p.split('/').pop()!;
-              const failureReason = r.reason ?? 'unknown';
-              const issuePath = await writeIssueEvidence(opts.cwd, {
-                contractPath: p,
+      if (opts.discoveryMode === 'deep') {
+        emit({ type: 'log', level: 'info', message: '[autopilot] Phase B using deep (interaction-driven) discovery', elapsedMs: elapsed() });
+        const { discoverByInteraction } = await import('../autopilot/interaction-discovery.js');
+        const result = await discoverByInteraction({
+          cwd: opts.cwd,
+          llmClient,
+          signal: abortController.signal,
+          concurrency: opts.deepConcurrency,
+          maxContracts: opts.deepMaxContracts,
+          onEvent: (e) => {
+            if (e.type === 'log') {
+              emit({ type: 'log', level: e.level, message: e.message, elapsedMs: elapsed() });
+            } else if (e.type === 'progress') {
+              emit({
+                type: 'phase',
                 phase: 'B',
-                contractId: failureId,
-                reason: failureReason,
+                status: 'active',
+                elapsedMs: elapsed(),
+                counters: { generated: e.done },
               });
-              if (issuePath) issuesWritten.push(issuePath);
-              queue.push({ priority: 1, failure: { id: failureId, reason: failureReason }, contractPath: p, evidencePath: issuePath ?? undefined });
+            } else if (e.type === 'stage') {
+              const msg = `[autopilot] deep discovery ${e.stage}: ${e.status}`;
+              emit({ type: 'log', level: 'info', message: msg, elapsedMs: elapsed() });
             }
-          }
-          emit({
-            type: 'phase',
-            phase: 'B',
-            status: 'active',
-            elapsedMs: elapsed(),
-            counters: {
-              generated: phaseB.generated,
-              failed: phaseB.failed,
-              deferred: phaseB.deferred,
-              userConfirmed: phaseB.userConfirmed,
-              userRejected: phaseB.userRejected,
-            },
-          });
-        },
-        abortController.signal,
-        { onQuarantine: (raw, m) => { void writeQuarantine(opts.cwd, m, raw); } },
-      );
+          },
+        });
+        // The deep path writes contracts directly to disk. Skip the per-module
+        // callback that the modules path uses. Phase B counters reflect generated
+        // contracts:
+        phaseB.generated += result.contractsWritten;
+        if (result.fallbackUsed) {
+          emit({ type: 'log', level: 'warn', message: `[autopilot] deep fell back: ${result.fallbackReason}`, elapsedMs: elapsed() });
+        }
+      } else {
+        // existing modules path — unchanged below
+        await discoverByModule(
+          ctx,
+          llmClient,
+          async (module, proposals) => {
+            phaseB.generated += proposals.length;
+            const highConf = proposals.filter((p) => p.confidence === 'high');
+            const uncertain = proposals.filter((p) => p.confidence !== 'high');
+            const written: ContractProposal[] = [...highConf];
+            if (uncertain.length > 0) {
+              const result = await confirmUncertainProposals(module, uncertain, { in: process.stdin, out: process.stdout }, { yes: opts.yes });
+              phaseB.userConfirmed += result.accepted.length;
+              phaseB.userRejected += result.rejected.length;
+              written.push(...result.accepted);
+            }
+            const paths = await writeProposals(opts.cwd, module, written);
+            for (const p of paths) {
+              if (abortController.signal.aborted) break;
+              const r = await runContractPath(p, opts.cwd, abortController.signal);
+              if (r.passed === 'deferred') {
+                phaseB.deferred++;
+                // Playwright-based contracts are written but not executed; do not enqueue for fix.
+              } else if (r.passed === false) {
+                phaseB.failed++;
+                const failureId = p.split('/').pop()!;
+                const failureReason = r.reason ?? 'unknown';
+                const issuePath = await writeIssueEvidence(opts.cwd, {
+                  contractPath: p,
+                  phase: 'B',
+                  contractId: failureId,
+                  reason: failureReason,
+                });
+                if (issuePath) issuesWritten.push(issuePath);
+                queue.push({ priority: 1, failure: { id: failureId, reason: failureReason }, contractPath: p, evidencePath: issuePath ?? undefined });
+              }
+            }
+            emit({
+              type: 'phase',
+              phase: 'B',
+              status: 'active',
+              elapsedMs: elapsed(),
+              counters: {
+                generated: phaseB.generated,
+                failed: phaseB.failed,
+                deferred: phaseB.deferred,
+                userConfirmed: phaseB.userConfirmed,
+                userRejected: phaseB.userRejected,
+              },
+            });
+          },
+          abortController.signal,
+          { onQuarantine: (raw, m) => { void writeQuarantine(opts.cwd, m, raw); } },
+        );
+      }
       phaseBDone = true;
       emit({
         type: 'phase',
