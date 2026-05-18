@@ -9,6 +9,7 @@
 // and dotfiles at the root.
 
 import { watch, type FSWatcher } from 'node:fs';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -17,6 +18,15 @@ import { runAutopilot, type AutopilotOptions } from './autopilot.js';
 import { checkGhAvailable, checkGitVersion, type ExecFn } from '../autopilot/gh-pr.js';
 
 const execFileAsync = promisify(execFile);
+
+export class AutoPrPreflightError extends Error {
+  readonly reason: string;
+  constructor(reason: string) {
+    super(reason);
+    this.name = 'AutoPrPreflightError';
+    this.reason = reason;
+  }
+}
 
 export interface AutoPrPreflightResult {
   ok: boolean;
@@ -56,16 +66,17 @@ export async function runAutoPrPreflight(opts: {
 }
 
 async function defaultExecForWatch(): Promise<ExecFn> {
-  const { execFile: ef } = await import('node:child_process');
-  const { promisify: prom } = await import('node:util');
-  const efAsync = prom(ef);
-  return async (cmd, args, execOpts) => {
+  return async (cmd, args, opts) => {
     try {
-      const r = await efAsync(cmd, args, { cwd: execOpts?.cwd });
+      const r = await execFileAsync(cmd, args, { cwd: opts?.cwd });
       return { stdout: r.stdout, stderr: r.stderr, exitCode: 0 };
     } catch (err) {
-      const e = err as { stdout?: string; stderr?: string; code?: number };
-      return { stdout: e.stdout ?? '', stderr: e.stderr ?? String(err), exitCode: e.code ?? 1 };
+      const e = err as { stdout?: string; stderr?: string; code?: unknown };
+      return {
+        stdout: e.stdout || '',
+        stderr: e.stderr || String(err),
+        exitCode: typeof e.code === 'number' ? e.code : 1,
+      };
     }
   };
 }
@@ -115,7 +126,7 @@ export async function watchAndRerun(
     preflight = await runAutoPrPreflight({ cwd: baseOpts.cwd });
     if (!preflight.ok) {
       log(`[watch] ${preflight.reason}`);
-      throw new Error(preflight.reason);
+      throw new AutoPrPreflightError(preflight.reason ?? 'preflight failed');
     }
     log(`[watch] auto-pr ON · base branch: ${preflight.baseBranch} · regression scope: ${watchOpts.regressionScope ?? 'touched-files'}`);
     log(`[watch] note: new fixes are only discovered when source files change.`);
@@ -146,7 +157,12 @@ export async function watchAndRerun(
           return writeAutopilotFixPromptFromBundle(bundlePath, dest);
         },
         runContract: async (contractPath) => {
-          const r = await runContractPath(contractPath, baseOpts.cwd, new AbortController().signal);
+          // TODO(night-shift v1.1): plumb autopilot's abortController.signal through
+          // ShadowFixCoordinator constructor instead of using a per-call timeout.
+          // Until then, use a 60s hard limit so a stuck contract can't hang the
+          // regression check past any reasonable time-budget.
+          const signal = AbortSignal.timeout(60_000);
+          const r = await runContractPath(contractPath, baseOpts.cwd, signal);
           if (r.passed === true) return { contractPath, status: 'pass' };
           if (r.passed === false) return { contractPath, status: 'fail' };
           return { contractPath, status: 'skipped' };
@@ -391,14 +407,12 @@ function aggregateTotals(report: {
 }
 
 async function ensureWorktreeRoot(cwd: string): Promise<string> {
-  const { mkdir } = await import('node:fs/promises');
   const root = join(cwd, '.contractqa-worktrees');
   await mkdir(root, { recursive: true });
   return root;
 }
 
 async function writeAutopilotFixPromptFromBundle(bundlePath: string, dest: string): Promise<string> {
-  const { readFile, writeFile } = await import('node:fs/promises');
   const issue = await readFile(join(bundlePath, 'issue.json'), 'utf8');
   const body = `You are fixing a product invariant violation reported by contractqa autopilot.
 
