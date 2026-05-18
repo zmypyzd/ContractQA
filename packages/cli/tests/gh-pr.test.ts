@@ -104,7 +104,6 @@ describe('openFixPR', () => {
       worktreePath: '/tmp/wt/abc',
       branch: 'contractqa-fix/abc',
       baseBranch: 'main',
-      issueId: 'smoke:abc',
       filesChanged: ['src/auth.ts', '.contractqa-fix-prompt.md', 'qa/.autopilot-fix-tmp/abc.md'],
       prTitle: 'fix(contractqa): smoke:abc — strip session',
       prBody: 'body here',
@@ -129,7 +128,6 @@ describe('openFixPR', () => {
       worktreePath: '/tmp/wt/abc',
       branch: 'b',
       baseBranch: 'main',
-      issueId: 'x',
       filesChanged: ['.contractqa-fix-prompt.md', 'qa/.autopilot-fix-tmp/foo.md'],
       prTitle: 't',
       prBody: 'b',
@@ -150,7 +148,6 @@ describe('openFixPR', () => {
       worktreePath: '/tmp/wt/abc',
       branch: 'b',
       baseBranch: 'main',
-      issueId: 'x',
       filesChanged: ['src/a.ts'],
       prTitle: 't',
       prBody: 'b',
@@ -176,7 +173,6 @@ describe('openFixPR', () => {
       worktreePath: '/tmp/wt/abc',
       branch: 'b',
       baseBranch: 'main',
-      issueId: 'x',
       filesChanged: ['src/a.ts'],
       prTitle: 't',
       prBody: 'b',
@@ -184,5 +180,15 @@ describe('openFixPR', () => {
     });
     expect(result.status).toBe('already-exists');
     expect(result.prUrl).toBe(PR_URL);
+  });
+});
+
+describe('defaultExec ENOENT handling', () => {
+  it('checkGitVersion returns ok=false with reason when git binary is missing', async () => {
+    // Use a binary that definitely doesn't exist — exercises the real defaultExec ENOENT path
+    const result = await checkGitVersion({ gitBin: '/nonexistent/no-such-git-binary-xyz' });
+    expect(result.ok).toBe(false);
+    // reason should be informative, not empty
+    expect(result.reason).toBeTruthy();
   });
 });

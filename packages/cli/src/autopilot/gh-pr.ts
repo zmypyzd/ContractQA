@@ -26,10 +26,10 @@ const defaultExec: ExecFn = async (cmd, args, opts) => {
     const { stdout, stderr } = await execFileAsync(cmd, args, { cwd: opts.cwd });
     return { stdout, stderr, exitCode: 0 };
   } catch (err) {
-    const e = err as { stdout?: string; stderr?: string; code?: number };
+    const e = err as { stdout?: string; stderr?: string; code?: unknown };
     return {
-      stdout: e.stdout ?? '',
-      stderr: e.stderr ?? String(err),
+      stdout: e.stdout || '',
+      stderr: e.stderr || String(err),
       exitCode: typeof e.code === 'number' ? e.code : 1,
     };
   }
@@ -114,7 +114,6 @@ export interface OpenFixPrInput {
   worktreePath: string;
   branch: string;
   baseBranch: string;
-  issueId: string;
   filesChanged: string[];
   prTitle: string;
   prBody: string;
