@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
@@ -8,8 +8,14 @@ import {
   enumerateSurface,
   generateContractFor,
   runPool,
+  buildExistingIndex,
+  mergeContracts,
+  contentHash,
+  parseContract,
   type Interaction,
+  type MergeEvent,
 } from '../src/autopilot/interaction-discovery.js';
+import type { ContractProposal } from '../src/autopilot/llm-discovery.js';
 
 // Stub out assembleTargetContext so tests don't need a real git repo.
 vi.mock('../src/autopilot/bootstrap.js', () => ({
@@ -320,5 +326,198 @@ describe('runPool', () => {
     expect(results[2]).toBeNull();
     expect(results[3]).toBe(4);
     expect(results[4]).toBe(5);
+  });
+});
+
+describe('buildExistingIndex', () => {
+  it('returns empty maps when qa/contracts does not exist', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'idx-'));
+    const idx = await buildExistingIndex(cwd);
+    expect(idx.byId.size).toBe(0);
+    expect(idx.byHash.size).toBe(0);
+  });
+
+  it('indexes all yaml files under qa/contracts recursively', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'idx-'));
+    await mkdir(path.join(cwd, 'qa/contracts/auth'), { recursive: true });
+    await mkdir(path.join(cwd, 'qa/contracts/core'), { recursive: true });
+    await writeFile(
+      path.join(cwd, 'qa/contracts/auth/login.yml'),
+      'id: INV-AUTH-LOGIN\ntitle: login\nactions:\n  - {type: goto, path: /login}\nexpected: {}\n',
+    );
+    await writeFile(
+      path.join(cwd, 'qa/contracts/core/feed.yaml'),
+      'id: INV-CORE-FEED\ntitle: feed\nactions:\n  - {type: goto, path: /feed}\nexpected: {}\n',
+    );
+
+    const idx = await buildExistingIndex(cwd);
+
+    expect(idx.byId.size).toBe(2);
+    expect(idx.byId.has('INV-AUTH-LOGIN')).toBe(true);
+    expect(idx.byId.has('INV-CORE-FEED')).toBe(true);
+    expect(idx.byHash.size).toBe(2);
+  });
+
+  it('skips malformed yaml without throwing', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'idx-'));
+    await mkdir(path.join(cwd, 'qa/contracts'), { recursive: true });
+    await writeFile(path.join(cwd, 'qa/contracts/broken.yml'), 'this is: not [valid yaml');
+    await writeFile(
+      path.join(cwd, 'qa/contracts/good.yml'),
+      'id: INV-GOOD\ntitle: t\nactions: []\nexpected: {}\n',
+    );
+
+    const idx = await buildExistingIndex(cwd);
+    expect(idx.byId.has('INV-GOOD')).toBe(true);
+    expect(idx.byId.size).toBe(1);
+  });
+});
+
+describe('contentHash', () => {
+  it('produces same hash regardless of key order in nested objects', () => {
+    const a = { actions: [{ type: 'goto', path: '/x' }], expected: { url: '/y' }, title: 't' };
+    const b = { title: 't', expected: { url: '/y' }, actions: [{ type: 'goto', path: '/x' }] };
+    expect(contentHash(a)).toBe(contentHash(b));
+  });
+
+  it('omits id from the hash', () => {
+    const a = { id: 'INV-1', actions: [], expected: {} };
+    const b = { id: 'INV-2', actions: [], expected: {} };
+    expect(contentHash(a)).toBe(contentHash(b));
+  });
+
+  it('changes when actions differ', () => {
+    const a = { id: 'x', actions: [{ type: 'goto', path: '/a' }], expected: {} };
+    const b = { id: 'x', actions: [{ type: 'goto', path: '/b' }], expected: {} };
+    expect(contentHash(a)).not.toBe(contentHash(b));
+  });
+});
+
+describe('mergeContracts', () => {
+  const interaction: Interaction = {
+    id: 'btn-x',
+    type: 'button',
+    file: 'app/x.tsx',
+    name: 'X',
+    module: 'core',
+    rationale: 'r',
+  };
+
+  const proposal = (id: string, area: string, action: string = '/x'): ContractProposal => ({
+    yaml: `id: ${id}\ntitle: t\narea: ${area}\nactions:\n  - {type: goto, path: ${action}}\nexpected:\n  url: { matches: "${action}" }\n`,
+    confidence: 'high',
+    module: area,
+    evidence: { sourceFiles: ['app/x.tsx'], rationale: 'r' },
+  });
+
+  it('writes a new contract when nothing exists', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'merge-'));
+    const result = await mergeContracts({
+      cwd,
+      proposals: [{ interaction, proposal: proposal('INV-NEW-1', 'core') }],
+    });
+
+    expect(result.written).toHaveLength(1);
+    expect(result.written[0]).toBe(path.join(cwd, 'qa/contracts/core/INV-NEW-1.yml'));
+    expect(result.skipped).toHaveLength(0);
+  });
+
+  it('Layer 1 — skips on id collision with existing', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'merge-'));
+    await mkdir(path.join(cwd, 'qa/contracts/core'), { recursive: true });
+    await writeFile(
+      path.join(cwd, 'qa/contracts/core/INV-DUPE.yml'),
+      'id: INV-DUPE\ntitle: existing\nactions: []\nexpected: {}\n',
+    );
+
+    const result = await mergeContracts({
+      cwd,
+      proposals: [{ interaction, proposal: proposal('INV-DUPE', 'core', '/different') }],
+    });
+
+    expect(result.written).toHaveLength(0);
+    expect(result.skipped[0]).toMatchObject({ id: 'INV-DUPE', reason: expect.stringContaining('id collision') });
+  });
+
+  it('Layer 2 — skips on content hash duplicate (different id, same content)', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'merge-'));
+    await mkdir(path.join(cwd, 'qa/contracts/core'), { recursive: true });
+    await writeFile(
+      path.join(cwd, 'qa/contracts/core/INV-A.yml'),
+      'id: INV-A\ntitle: t\narea: core\nactions:\n  - {type: goto, path: /x}\nexpected:\n  url: { matches: "/x" }\n',
+    );
+
+    const result = await mergeContracts({
+      cwd,
+      proposals: [{ interaction, proposal: proposal('INV-B', 'core') }],
+    });
+
+    expect(result.written).toHaveLength(0);
+    expect(result.skipped[0]).toMatchObject({ id: 'INV-B', reason: expect.stringContaining('content duplicate') });
+  });
+
+  it('Layer 3 — skips when target file already exists (race-safety)', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'merge-'));
+    await mkdir(path.join(cwd, 'qa/contracts/core'), { recursive: true });
+    // Index does NOT see this file (it's added after buildExistingIndex would scan):
+    // Simulate by writing a file that won't be in the in-memory index because we'll
+    // intentionally place it AFTER mergeContracts builds the index. For this unit
+    // test, we put a syntactically-broken file so it's skipped by buildExistingIndex
+    // but still exists on disk.
+    await writeFile(path.join(cwd, 'qa/contracts/core/INV-RACE.yml'), '[not valid yaml');
+
+    const result = await mergeContracts({
+      cwd,
+      proposals: [{ interaction, proposal: proposal('INV-RACE', 'core', '/race') }],
+    });
+
+    expect(result.written).toHaveLength(0);
+    expect(result.skipped[0]).toMatchObject({ id: 'INV-RACE', reason: expect.stringContaining('file exists') });
+  });
+
+  it('writes generated-by frontmatter on written files', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'merge-'));
+    await mergeContracts({
+      cwd,
+      proposals: [{ interaction, proposal: proposal('INV-FRONTMATTER', 'core') }],
+    });
+    const written = await readFile(path.join(cwd, 'qa/contracts/core/INV-FRONTMATTER.yml'), 'utf8');
+    expect(written).toContain('# generated-by: deep-discovery v1');
+    expect(written).toContain('# interaction: btn-x (button)');
+  });
+
+  it('stops at maxContracts cap and emits cap-reached event', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'merge-'));
+    const events: MergeEvent[] = [];
+    const proposals = Array.from({ length: 5 }, (_, i) => ({
+      interaction,
+      proposal: proposal(`INV-CAP-${i}`, 'core', `/${i}`),
+    }));
+
+    const result = await mergeContracts({
+      cwd,
+      proposals,
+      maxContracts: 3,
+      onEvent: (e) => events.push(e),
+    });
+
+    expect(result.written).toHaveLength(3);
+    expect(result.hitCap).toBe(true);
+    expect(events.find((e) => e.type === 'cap-reached')).toBeDefined();
+  });
+
+  it('falls back to interaction.module when contract YAML has no area', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'merge-'));
+    const noArea: ContractProposal = {
+      yaml: 'id: INV-NO-AREA\ntitle: t\nactions: []\nexpected: {}\n',
+      confidence: 'high',
+      module: 'mod-x',
+      evidence: { sourceFiles: [], rationale: 'r' },
+    };
+    await mergeContracts({ cwd, proposals: [{ interaction, proposal: noArea }] });
+    expect(
+      await readFile(path.join(cwd, 'qa/contracts/core/INV-NO-AREA.yml'), 'utf8').catch(() => null),
+    ).not.toBeNull();
+    // interaction.module is 'core' → falls back to that
   });
 });

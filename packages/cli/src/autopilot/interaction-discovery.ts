@@ -92,8 +92,10 @@ export interface DiscoverByInteractionResult {
 
 // Implementations below.
 
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, readFile, stat, mkdir, writeFile, access } from 'node:fs/promises';
 import path from 'node:path';
+import { parse as yamlParse } from 'yaml';
+import { createHash } from 'node:crypto';
 
 const DEFAULT_ENUMERATE_MAX_TOKENS = 50_000;
 const ENTRY_FILE_MAX_BYTES = 32 * 1024;
@@ -474,4 +476,175 @@ export async function runPool<T, R>(
   const workerCount = Math.max(1, Math.min(limit, items.length));
   await Promise.all(Array.from({ length: workerCount }, () => worker()));
   return results;
+}
+
+// ─── Stage 3: buildExistingIndex + mergeContracts ────────────────────────────
+
+export interface ParsedContract {
+  id: string;
+  area?: string;
+  [k: string]: unknown;
+}
+
+export function parseContract(yamlStr: string): ParsedContract {
+  const obj = yamlParse(yamlStr) as Record<string, unknown> | null;
+  if (!obj || typeof obj !== 'object') {
+    throw new Error('contract YAML is not an object');
+  }
+  if (typeof obj.id !== 'string' || obj.id.length === 0) {
+    throw new Error('contract YAML missing required `id` field');
+  }
+  return obj as ParsedContract;
+}
+
+/** Deterministic JSON: sorts object keys recursively. */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return '[' + value.map(stableStringify).join(',') + ']';
+  const keys = Object.keys(value as Record<string, unknown>).sort();
+  return '{' + keys.map((k) => JSON.stringify(k) + ':' + stableStringify((value as Record<string, unknown>)[k])).join(',') + '}';
+}
+
+/** Hash the full parsed contract minus `id` — see spec §7.2 Layer 2. */
+export function contentHash(parsed: Record<string, unknown>): string {
+  const { id: _id, ...rest } = parsed;
+  return createHash('sha256').update(stableStringify(rest)).digest('hex');
+}
+
+export interface ExistingContractMeta {
+  id: string;
+  filePath: string;
+  contentHash: string;
+}
+
+export interface ExistingIndex {
+  byId: Map<string, ExistingContractMeta>;
+  byHash: Map<string, ExistingContractMeta>;
+}
+
+async function walkYamlFiles(dir: string): Promise<string[]> {
+  const out: string[] = [];
+  async function rec(d: string): Promise<void> {
+    let entries: import('node:fs').Dirent[];
+    try {
+      entries = await readdir(d, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      const full = path.join(d, e.name as string);
+      if (e.isDirectory()) {
+        await rec(full);
+      } else if (e.isFile() && ((e.name as string).endsWith('.yml') || (e.name as string).endsWith('.yaml'))) {
+        out.push(full);
+      }
+    }
+  }
+  await rec(dir);
+  return out;
+}
+
+export async function buildExistingIndex(cwd: string): Promise<ExistingIndex> {
+  const byId = new Map<string, ExistingContractMeta>();
+  const byHash = new Map<string, ExistingContractMeta>();
+  const files = await walkYamlFiles(path.join(cwd, 'qa', 'contracts'));
+  for (const filePath of files) {
+    try {
+      const content = await readFile(filePath, 'utf8');
+      const parsed = parseContract(content);
+      const hash = contentHash(parsed);
+      const meta: ExistingContractMeta = { id: parsed.id, filePath, contentHash: hash };
+      byId.set(parsed.id, meta);
+      byHash.set(hash, meta);
+    } catch {
+      // skip malformed silently — they won't dedup but also won't block
+    }
+  }
+  return { byId, byHash };
+}
+
+const DEFAULT_MAX_CONTRACTS = 500;
+
+async function fileExists(p: string): Promise<boolean> {
+  try {
+    await access(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function mergeContracts(input: MergeContractsInput): Promise<MergeContractsResult> {
+  const maxContracts = input.maxContracts ?? DEFAULT_MAX_CONTRACTS;
+  const emit = (e: MergeEvent) => input.onEvent?.(e);
+  const existing = await buildExistingIndex(input.cwd);
+  const written: string[] = [];
+  const skipped: Array<{ id: string; reason: string }> = [];
+
+  for (const { interaction, proposal } of input.proposals) {
+    if (written.length >= maxContracts) {
+      emit({ type: 'cap-reached', cap: maxContracts });
+      return { written, skipped, hitCap: true };
+    }
+
+    let parsed: ParsedContract;
+    try {
+      parsed = parseContract(proposal.yaml);
+    } catch (err) {
+      skipped.push({ id: '(unparseable)', reason: `parse failed: ${(err as Error).message}` });
+      continue;
+    }
+
+    // Layer 1: id collision
+    if (existing.byId.has(parsed.id)) {
+      const reason = `id collision with ${existing.byId.get(parsed.id)!.filePath}`;
+      skipped.push({ id: parsed.id, reason });
+      emit({ type: 'skip-id-collision', id: parsed.id });
+      continue;
+    }
+
+    // Layer 2: content hash duplicate
+    const hash = contentHash(parsed as unknown as Record<string, unknown>);
+    if (existing.byHash.has(hash)) {
+      const existingId = existing.byHash.get(hash)!.id;
+      const reason = `content duplicate of ${existingId}`;
+      skipped.push({ id: parsed.id, reason });
+      emit({ type: 'skip-content-duplicate', id: parsed.id, existingId });
+      continue;
+    }
+
+    // Layer 3: file-exists guard (race-safety)
+    const dir = typeof parsed.area === 'string' && parsed.area.length > 0 ? parsed.area : interaction.module;
+    const targetPath = path.join(input.cwd, 'qa', 'contracts', dir, `${parsed.id}.yml`);
+    if (await fileExists(targetPath)) {
+      const reason = `file exists at ${targetPath}`;
+      skipped.push({ id: parsed.id, reason });
+      emit({ type: 'skip-file-exists', id: parsed.id, targetPath });
+      continue;
+    }
+
+    // Write with frontmatter. Per spec §8 row 6: on write failure, emit error
+    // log and continue with the next proposal (don't throw out of the batch).
+    try {
+      await mkdir(path.dirname(targetPath), { recursive: true });
+      const frontmatter = [
+        '# generated-by: deep-discovery v1',
+        `# interaction: ${interaction.id} (${interaction.type})`,
+        `# rationale: ${interaction.rationale}`,
+      ].join('\n');
+      await writeFile(targetPath, `${frontmatter}\n${proposal.yaml}`);
+      written.push(targetPath);
+      emit({ type: 'write', id: parsed.id, targetPath });
+    } catch (err) {
+      skipped.push({ id: parsed.id, reason: `write failed: ${(err as Error).message}` });
+      continue;  // don't index it; don't throw
+    }
+
+    // Add to in-memory index so subsequent proposals in the same batch dedup correctly.
+    const meta: ExistingContractMeta = { id: parsed.id, filePath: targetPath, contentHash: hash };
+    existing.byId.set(parsed.id, meta);
+    existing.byHash.set(hash, meta);
+  }
+
+  return { written, skipped, hitCap: false };
 }
