@@ -24,6 +24,9 @@ export const issues = pgTable('issues', {
   confidence: numeric('confidence'),
   status: text('status'),
   issueJsonPath: text('issue_json_path'),
+  fixPrUrl: text('fix_pr_url'),
+  fixOutcome: text('fix_outcome'),
+  fixBranch: text('fix_branch'),
 });
 
 export const recentProjects = pgTable('recent_projects', {
