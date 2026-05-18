@@ -116,7 +116,23 @@ program
   .option('--watch', 'Watch the project directory and re-run autopilot on every file change')
   .option('--watch-debounce <ms>', 'Debounce window for --watch (default 2000ms)', '2000')
   .option('--dashboard-url <url>', 'Report each --watch iteration to a running ContractQA dashboard (or set DASHBOARD_URL env)')
-  .action(async (opts: { timeBudget: string; fix: boolean; yes?: boolean; regenerate?: boolean; regressionScope?: string; autoPr?: boolean; watch?: boolean; watchDebounce?: string; dashboardUrl?: string }) => {
+  .option('--discovery-mode <mode>', 'Phase B discovery: modules (default) or deep (1 contract per interaction)', 'modules')
+  .option('--deep-concurrency <n>', 'Concurrent LLM calls in deep Stage 2 (default 4)', '4')
+  .option('--deep-max-contracts <n>', 'Hard cap on contracts generated per deep run (default 500)', '500')
+  .action(async (opts: {
+    timeBudget: string;
+    fix: boolean;
+    yes?: boolean;
+    regenerate?: boolean;
+    regressionScope?: string;
+    watch?: boolean;
+    watchDebounce?: string;
+    dashboardUrl?: string;
+    autoPr?: boolean;
+    discoveryMode?: string;
+    deepConcurrency?: string;
+    deepMaxContracts?: string;
+  }) => {
     const baseOpts = {
       cwd: process.cwd(),
       timeBudgetMs: Number(opts.timeBudget),
@@ -124,7 +140,15 @@ program
       yes: opts.yes,
       regenerate: opts.regenerate,
       regressionScope: opts.regressionScope as ('one' | 'touched-files' | 'all' | undefined),
+      discoveryMode: (opts.discoveryMode === 'deep' ? 'deep' : 'modules') as 'modules' | 'deep',
+      deepConcurrency: Number(opts.deepConcurrency ?? '4'),
+      deepMaxContracts: Number(opts.deepMaxContracts ?? '500'),
     };
+
+    if (opts.discoveryMode && opts.discoveryMode !== 'modules' && opts.discoveryMode !== 'deep') {
+      console.error(`Invalid --discovery-mode: ${opts.discoveryMode}. Must be 'modules' or 'deep'.`);
+      process.exit(2);
+    }
 
     if (opts.autoPr && !opts.watch) {
       console.error('--auto-pr requires --watch (use: contractqa autopilot --watch --auto-pr)');

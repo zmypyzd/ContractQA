@@ -556,6 +556,47 @@
   color: var(--error);
 }
 
+.errorsBanner {
+  border: 1px solid var(--error, #b94c4c);
+  background: rgba(185, 76, 76, 0.08);
+  border-radius: var(--r-sm);
+  padding: var(--s-3, 12px);
+  margin: var(--s-3, 12px) 0;
+}
+.errorsBanner header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  margin-bottom: var(--s-2, 8px);
+}
+.errorsBanner ul {
+  margin: 0;
+  padding-left: var(--s-4, 16px);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text);
+}
+.errorsBanner li {
+  margin-bottom: var(--s-1, 4px);
+  word-break: break-word;
+}
+.errorsClear {
+  background: transparent;
+  border: 1px solid var(--border, #26262b);
+  color: var(--muted);
+  padding: 2px 8px;
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+.errorsClear:hover {
+  color: var(--text);
+  border-color: var(--text);
+}
+
 @keyframes pulse {
   0%,
   100% {

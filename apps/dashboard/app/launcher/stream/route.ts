@@ -66,6 +66,7 @@ export async function GET(req: Request): Promise<Response> {
   const fixEnabled = url.searchParams.get('fix') !== 'false';
   const watchEnabled = url.searchParams.get('watch') === 'true';
   const autoPrEnabled = url.searchParams.get('autoPr') === 'true';
+  const discoveryMode = url.searchParams.get('discoveryMode') === 'deep' ? 'deep' : 'modules';
 
   if (!rawCwd.trim()) {
     return errorResponse('Missing cwd query parameter.');
@@ -236,6 +237,7 @@ export async function GET(req: Request): Promise<Response> {
             llmClient,
             fixStrategy: shadowCoordinator ? 'shadow' : 'inPlace',
             shadowCoordinator: shadowCoordinator ?? undefined,
+            discoveryMode,                  // ← new
             onProgress: (event: AutopilotProgressEvent) => {
               if (event.type === 'phase' && event.counters) {
                 phaseTotals[event.phase] = event.counters;

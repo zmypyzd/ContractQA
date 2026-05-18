@@ -74,6 +74,9 @@ export default function LauncherPage() {
   const [recentItems, setRecentItems] = useState<RecentProjectRow[]>(RECENT_SEED);
   const [isPending, startTransition] = useTransition();
   const [watchMode, setWatchMode] = useState(false);
+  const [deepMode, setDeepMode] = useState(false);
+  const [errors, setErrors] = useState<Array<{ id: number; message: string }>>([]);
+  const errorIdRef = useRef(0);
 
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -157,6 +160,7 @@ export default function LauncherPage() {
       runStartedAtRef.current = Date.now();
       setElapsedNow(0);
       setRunning(true);
+      setErrors([]);  // a fresh run clears stale errors
 
       // Fire-and-forget: persist this project as a recent. Server action
       // swallows errors so DB outages can't break the run.
@@ -168,6 +172,7 @@ export default function LauncherPage() {
       });
       if (isContinuous) params.set('watch', 'true');
       if (mode === 'night-shift') params.set('autoPr', 'true');
+      if (deepMode) params.set('discoveryMode', 'deep');  // ← new
       const url = `/launcher/stream?${params.toString()}`;
       const es = new EventSource(url);
       sourceRef.current = es;
@@ -220,6 +225,10 @@ export default function LauncherPage() {
       es.addEventListener('log', (ev) => {
         const data = JSON.parse((ev as MessageEvent).data) as Extract<LauncherEvent, { type: 'log' }>;
         setLogs((prev) => [...prev.slice(-9), { message: data.message, level: data.level }]);
+        if (data.level === 'error') {
+          const id = ++errorIdRef.current;
+          setErrors((prev) => [...prev, { id, message: data.message }]);
+        }
       });
 
       es.addEventListener('run-end', (ev) => {
@@ -247,7 +256,7 @@ export default function LauncherPage() {
         document.getElementById('progress')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     },
-    [detection, watchMode],
+    [detection, watchMode, deepMode],
   );
 
   const handleSubmit = useCallback(
@@ -378,6 +387,18 @@ export default function LauncherPage() {
                   <span className={s.toggleLabel}>Watch</span>
                   <span className={s.toggleSubLabel}>re-run on file change</span>
                 </label>
+                <label className={s.toggle} title="Scan all UI/API surfaces, 1 contract per interaction. 5-15 min, ~$3-5 LLM.">
+                  <input
+                    type="checkbox"
+                    className={s.toggleInput}
+                    checked={deepMode}
+                    onChange={(e) => setDeepMode(e.target.checked)}
+                    disabled={running}
+                  />
+                  <span className={s.toggleSwitch} aria-hidden />
+                  <span className={s.toggleLabel}>DEEP</span>
+                  <span className={s.toggleSubLabel}>discover all interactions</span>
+                </label>
               </div>
             </div>
           </form>
@@ -404,6 +425,22 @@ export default function LauncherPage() {
             )}
           </aside>
         </section>
+
+        {errors.length > 0 && (
+          <section className={s.errorsBanner} aria-label="Errors during this session">
+            <header>
+              <strong>{errors.length} error{errors.length === 1 ? '' : 's'}</strong>
+              <button type="button" className={s.errorsClear} onClick={() => setErrors([])}>
+                Clear
+              </button>
+            </header>
+            <ul>
+              {errors.map((e) => (
+                <li key={e.id}>{e.message}</li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {showProgress && (
           <section id="progress" className={s.progress}>
