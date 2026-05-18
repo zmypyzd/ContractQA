@@ -151,6 +151,16 @@ Built by `interaction-discovery.ts`:
 
 3. **Token budget**: cap at 50,000 tokens (5x the original v1 cap). If file tree + entry files exceed it, truncate the file tree (entry files are higher signal — keep them whole).
 
+4. **Framework / package-manager / router detection** (used to fill `{framework}`, `{packageManager}`, `{router}` placeholders in §5.2's prompt) reuses the existing detection in `packages/cli/src/autopilot/bootstrap.ts` (`assembleTargetContext`). When the existing detector returns `'unknown'`, the placeholder renders as the literal string `unknown` and the LLM is told nothing was inferred (still functional, just less guided).
+
+### 5.1.1 Degradation on large projects
+
+50k is enough headroom for projects up to ~150 source files of typical TS density. **Larger monorepos degrade gracefully but with known limits**:
+
+- File tree truncation: alphabetical-first 80% kept, rest replaced with `[... N more files truncated]`. The LLM sees the truncation marker explicitly so it knows enumeration is incomplete.
+- A `level: 'warn'` log fires when truncation triggers: `[deep] file tree exceeded 50k cap, truncated to N files; consider chunking by top-level dir`.
+- **Chunking by top-level directory (e.g., one Stage 1 call per `apps/<name>` and `packages/<name>`) is a v1.1 followup** — not in this spec. Single-call Stage 1 is acceptable for v1 because (a) most users have small projects, (b) the failure mode is "fewer interactions enumerated" not "wrong contracts generated", and (c) the warn log puts the user in the driver's seat.
+
 ### 5.2 System prompt
 
 ```
@@ -177,14 +187,25 @@ external link), emit ONE Interaction:
   }
 
 Rules:
-1. Only list interactions the user can directly trigger. Skip pure presentation
-   components (Card, Badge, layout).
-2. Skip test files, .test.*, .spec.*, storybook (*.stories.*), mocks (__mocks__).
-3. `id` MUST be deterministic and unique within this list. Re-running on
+1. **Bias toward inclusion. Better to list 300 interactions and prune later than
+   to skip a real one. When uncertain, INCLUDE.**
+2. Target output: at least 1 interaction per route + 1 per button/form/link in
+   each route's component tree. For a project with 30 routes and ~5 interactive
+   elements per route, expect ~150 interactions. Undershooting is a failure
+   mode.
+3. Include any element a user can click, type into, submit, drag, or navigate
+   to — even if it looks like a "presentation" component. A `<Card onClick>`
+   IS an interaction. A `<Badge as={Link}>` IS an interaction. When in doubt,
+   include and let the dedup layer handle duplicates.
+4. The ONLY hard skips:
+   - Test files (`.test.*`, `.spec.*`, `*.stories.*`, `__mocks__/**`)
+   - Pure type-definition files (`.d.ts`)
+   - Files with zero JSX/handler tokens after a quick grep
+5. If conditional rendering hides an interaction, still list it.
+6. `id` MUST be deterministic and unique within this list. Re-running on
    unchanged source MUST produce the same `id` for the same interaction
    (this drives Stage 3 dedup).
-4. If conditional rendering hides an interaction, still list it — coverage > certainty.
-5. Strict JSON output: a single top-level array. No prose.
+7. Strict JSON output: a single top-level array. No prose.
 ```
 
 ### 5.3 Output validation
@@ -286,28 +307,32 @@ interface ContractMeta {
 For each new `ContractProposal`:
 
 **Helpers (both implemented in `interaction-discovery.ts`):**
-- `parseContractId(yamlStr)`: runs `yaml.parse(yamlStr)` and returns the top-level `id` field. Throws if missing.
-- `stableStringify(obj)`: deterministic JSON serialization with sorted keys at every depth. Required so `{actions: [...], expected: {...}}` produces the same hash regardless of key order.
+- `parseContract(yamlStr)`: runs `yaml.parse(yamlStr)` and returns the parsed object. Throws if `id` missing.
+- `stableStringify(obj)`: deterministic JSON serialization with sorted keys at every depth.
+- `contentHash(parsed)`: `sha256(stableStringify(omit(parsed, 'id')))` — hash the **entire parsed contract minus the `id` field**, not just `{actions, expected}`. Two contracts that differ only in `id` but match on all other fields (title, severity, preconditions, actions, expected, verification) are semantically the same invariant under a renamed id, and Layer 2 must catch them.
 
 **Layer 1 — ID collision:**
 ```
-const newId = parseContractId(proposal.yaml);
-if (existing.byId.has(newId)) → skip, emit info `[deep] skipped <id>: id collision`
+const parsed = parseContract(proposal.yaml);
+if (existing.byId.has(parsed.id)) → skip, emit info `[deep] skipped <id>: id collision`
 ```
 
-**Layer 2 — Content hash:**
+**Layer 2 — Content hash (full-parsed-minus-id):**
 ```
-const newHash = sha256(stableStringify({actions, expected}));
+const newHash = contentHash(parsed);
 if (existing.byHash.has(newHash)) → skip, emit info `[deep] skipped <id>: content duplicate of <existing-id>`
 ```
 
 **Layer 3 — File-exists guard:**
 ```
-const targetPath = `qa/contracts/${interaction.module}/${newId}.yml`;
+const dir = parsed.area ?? interaction.module;   // prefer contract's own `area` for consistency with discoverByModule
+const targetPath = `qa/contracts/${dir}/${parsed.id}.yml`;
 if (await fs.exists(targetPath)) → skip, emit info `[deep] skipped <id>: file exists at ${targetPath}`
 ```
 
-Layer 3 is the final safety net — protects user-written contracts that aren't in our existing index (e.g., user just added a file we haven't loaded yet).
+The directory is derived from the contract's `area` field (matching `discoverByModule`'s convention — see `autopilot.ts:128`) and falls back to `interaction.module` only when `area` is missing. The filename uses the contract's `id` (Layer 1 already guarantees uniqueness against the existing index).
+
+Layer 3 is a safety net against (a) mid-run partial-write races, and (b) contracts the user just added since `existing` was indexed at the start of Stage 3.
 
 ### 7.3 Write surviving proposals
 
@@ -406,14 +431,21 @@ Assert:
 
 ## 10. Cost & performance expectations
 
-For a medium-sized project (~50-200 source files, ~100 interactions):
+For a medium-sized project (~50-200 source files, ~100 interactions), using
+Sonnet 4.5 pricing ($3/MTok in, $15/MTok out as of 2026-05):
 
 | Stage | Calls | Tokens (in+out) | Cost (Sonnet) |
 |---|---|---|---|
-| Stage 1 | 1 | ~50k in, ~10k out | ~$0.20 |
-| Stage 2 | 100 (sequential equivalent) | ~10k in each, ~1k out | ~$1.00 total |
+| Stage 1 | 1 | ~50k in, ~10k out | ~$0.30 |
+| Stage 2 | 100 | ~10k in × 100, ~1k out × 100 | ~$4.50 total |
 | Stage 3 | 0 | 0 | $0 |
-| **Total** | **~101** | | **~$1-2** per discovery run |
+| **Total** | **~101** | | **~$3-5** per discovery run |
+
+If the user runs through their **Claude Code subscription** instead of an API
+key (the default when `ANTHROPIC_API_KEY` is unset), the run still happens but
+**eats from the weekly limit** (5h/week on Pro, 35h/week on Max). A single
+deep-discovery run can easily consume 10-30 minutes of LLM wall-time. Watch
+mode amplifies this dramatically — see warning below.
 
 At `--deep-concurrency 4`, wall-clock time: **5-15 minutes** depending on LLM latency.
 
