@@ -1,4 +1,8 @@
 // packages/cli/src/autopilot/report.ts
+import type { CoordinatorFixOutcome } from './shadow-fix-coordinator.js';
+
+export type { CoordinatorFixOutcome };
+
 export interface SmokeFailure { id: string; reason: string; }
 
 export interface AutopilotReport {
@@ -38,6 +42,11 @@ export interface AutopilotReport {
    * table at run-end. Empty array when no failures had evidence captured.
    */
   issuesWritten?: string[];
+  /**
+   * Per-failure outcomes from the shadow-fix pipeline. Populated only when
+   * fixStrategy === 'shadow'. Each entry corresponds to one Phase C queue item.
+   */
+  fixOutcomes?: CoordinatorFixOutcome[];
 }
 
 function ms(d: number): string {
