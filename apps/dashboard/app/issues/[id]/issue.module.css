@@ -293,8 +293,8 @@
   text-transform: uppercase;
 }
 .fixOutcomeSuccess {
-  background: var(--accent);
-  color: #000;
+  background: var(--success);
+  color: #fff;
 }
 .fixOutcomeRegression {
   background: color-mix(in oklab, var(--error) 25%, var(--surface));
