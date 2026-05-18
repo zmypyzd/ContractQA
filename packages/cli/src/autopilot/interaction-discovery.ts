@@ -289,3 +289,173 @@ export async function enumerateSurface(opts: EnumerateSurfaceOptions): Promise<E
     diagnostics: { fileCount: allFiles.length, tokensEstimate: estimateTokens(user) },
   };
 }
+
+const DEFAULT_GENERATE_MAX_TOKENS = 10_000;
+const WINDOW_LINES_BEFORE = 40;
+const WINDOW_LINES_AFTER = 40;
+const FALLBACK_WINDOW_LINES = 80;
+
+function extractWindow(fileContent: string, matchTokens: string[]): string {
+  const lines = fileContent.split('\n');
+  let matchIdx = -1;
+  for (const token of matchTokens) {
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i]!.includes(token)) { matchIdx = i; break; }
+    }
+    if (matchIdx >= 0) break;
+  }
+  if (matchIdx < 0) {
+    return lines.slice(0, FALLBACK_WINDOW_LINES).join('\n');
+  }
+  const start = Math.max(0, matchIdx - WINDOW_LINES_BEFORE);
+  const end = Math.min(lines.length, matchIdx + WINDOW_LINES_AFTER + 1);
+  return lines.slice(start, end).join('\n');
+}
+
+function buildGenerateSystemPrompt(): string {
+  // Reuse the existing schema description from llm-discovery.ts. We replicate
+  // it here (rather than importing) because llm-discovery's prompt is
+  // constructed from a TargetContext and includes 'modules' framing.
+  return [
+    'You are an expert QA engineer. Given a single user-triggerable',
+    'interaction in a project and its surrounding source code, output a JSON',
+    'array of 0-3 ContractProposal objects describing user-visible invariants',
+    'of that interaction. No prose, no markdown fences.',
+    '',
+    'ContractProposal:',
+    '  {',
+    '    yaml: string,              // YAML for one contract',
+    '    confidence: "high" | "medium" | "low",',
+    '    module: string,',
+    '    uncertainQuestions?: [{ text, type, defaultAnswer, appliesTo, choices? }],',
+    '    evidence: { sourceFiles: string[], rationale: string }',
+    '  }',
+    '',
+    'Each YAML contract:',
+    '  id: <kebab-case-id>',
+    '  title: <human title>',
+    '  area: <auth|core|admin|...>',
+    '  severity: <P0|P1|P2>',
+    '  preconditions: { auth_state: logged_in|anonymous, role: ... }',
+    '  actions: [ {type:goto,path}, {type:click,target:{role,name_regex}}, ... ]',
+    '  expected: { url?, http_status?, localStorage?, auth_state? }',
+    '',
+    'If the interaction has no user-visible invariant beyond "it renders",',
+    'output an empty array [].',
+    'Strict JSON output: single top-level array. No prose.',
+  ].join('\n');
+}
+
+function buildGenerateUserPrompt(interaction: Interaction, window: string): string {
+  return [
+    `Interaction:`,
+    `  id: ${interaction.id}`,
+    `  type: ${interaction.type}`,
+    `  name: ${interaction.name}`,
+    `  route: ${interaction.route ?? 'n/a'}`,
+    `  module: ${interaction.module}`,
+    `  file: ${interaction.file}`,
+    `  rationale: ${interaction.rationale}`,
+    '',
+    `Source context (around the interaction):`,
+    '```',
+    window,
+    '```',
+  ].join('\n');
+}
+
+const ProposalSchema = z.object({
+  yaml: z.string(),
+  confidence: z.enum(['high', 'medium', 'low']),
+  module: z.string(),
+  uncertainQuestions: z.array(z.object({
+    text: z.string(),
+    type: z.enum(['yes-no', 'multiple-choice']),
+    choices: z.array(z.string()).optional(),
+    defaultAnswer: z.string(),
+    appliesTo: z.union([z.literal('whole-contract'), z.object({ jsonPath: z.string() })]),
+  })).optional(),
+  evidence: z.object({ sourceFiles: z.array(z.string()), rationale: z.string() }),
+});
+const ProposalsSchema = z.array(ProposalSchema);
+
+export async function generateContractFor(opts: GenerateContractForOptions): Promise<GenerateContractForResult> {
+  const maxTokens = opts.maxTokens ?? DEFAULT_GENERATE_MAX_TOKENS;
+  const filePath = path.join(opts.cwd, opts.interaction.file);
+
+  let fileContent = '';
+  try {
+    fileContent = await readFile(filePath, 'utf8');
+  } catch (err) {
+    return { proposals: [], error: `failed to read ${opts.interaction.file}: ${(err as Error).message}` };
+  }
+
+  // Try matching by name first, then by id (kebab-case won't match much in source).
+  let window = extractWindow(fileContent, [opts.interaction.name, opts.interaction.id]);
+
+  // Truncate if window itself exceeds the per-call cap (preserve middle).
+  if (estimateTokens(window) > maxTokens - 1000) {
+    const lines = window.split('\n');
+    const keep = Math.floor(lines.length * ((maxTokens - 1000) / estimateTokens(window)));
+    const trimStart = Math.floor((lines.length - keep) / 2);
+    window = lines.slice(trimStart, trimStart + keep).join('\n');
+  }
+
+  const system = buildGenerateSystemPrompt();
+  const user = buildGenerateUserPrompt(opts.interaction, window);
+
+  let content: string;
+  try {
+    const r = await opts.llmClient.generate({
+      system,
+      messages: [{ role: 'user', content: user }],
+      temperature: 0.2,
+      signal: opts.signal,
+    });
+    content = r.content;
+  } catch (err) {
+    return { proposals: [], error: `LLM call failed: ${(err as Error).message}` };
+  }
+
+  let json: unknown;
+  try {
+    json = JSON.parse(content);
+  } catch {
+    return { proposals: [], rawResponse: content, error: 'LLM response is not valid JSON' };
+  }
+
+  const parsed = ProposalsSchema.safeParse(json);
+  if (!parsed.success) {
+    return { proposals: [], rawResponse: content, error: `Zod validation failed: ${parsed.error.message}` };
+  }
+
+  return { proposals: parsed.data as ContractProposal[] };
+}
+
+/**
+ * Process `items` with a worker pool of `limit` concurrent workers.
+ * Returns results in input order. Individual failures become `null` —
+ * other items continue.
+ */
+export async function runPool<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<Array<R | null>> {
+  const results: Array<R | null> = new Array(items.length).fill(null);
+  let nextIdx = 0;
+  async function worker(): Promise<void> {
+    while (true) {
+      const myIdx = nextIdx++;
+      if (myIdx >= items.length) return;
+      try {
+        results[myIdx] = await fn(items[myIdx]!);
+      } catch {
+        results[myIdx] = null;
+      }
+    }
+  }
+  const workerCount = Math.max(1, Math.min(limit, items.length));
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
