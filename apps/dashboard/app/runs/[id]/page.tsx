@@ -148,6 +148,11 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
         <section className={s.section}>
           <h2 className={s.sectionHead}>
             Issues {issuesForRun.length > 0 && <span style={{ color: 'var(--muted)', fontSize: '0.6em' }}>· {issuesForRun.length}</span>}
+            {issuesForRun.some((i) => i.fixPrUrl) && (
+              <span className={s.chipPrs}>
+                {issuesForRun.filter((i) => i.fixPrUrl).length} PR{issuesForRun.filter((i) => i.fixPrUrl).length !== 1 ? 's' : ''}
+              </span>
+            )}
           </h2>
           {issuesForRun.length === 0 ? (
             <div className={s.empty}>
