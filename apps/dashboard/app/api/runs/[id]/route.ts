@@ -13,6 +13,9 @@
  *   issuesWritten?: string[],   // absolute paths to issue.json files;
  *                               // each is read + INSERTed as an issue row
  *                               // (de-duped by issue_json_path)
+ *   fixOutcomes?: Array<{ issueJsonPath: string; outcome: string; prUrl?: string; branch?: string }>,
+ *                               // fix results from the auto-PR agent; matched
+ *                               // to inserted issues by issueJsonPath
  * }
  * Response: { ok: true, registeredIssues: N }
  *           { error } on failure
@@ -29,11 +32,19 @@ export const dynamic = 'force-dynamic';
 
 type Status = 'passed' | 'failed' | 'interrupted' | 'error' | 'running';
 
+type FixOutcome = {
+  issueJsonPath: string;
+  outcome: string;
+  prUrl?: string;
+  branch?: string;
+};
+
 interface UpdateRunBody {
   status?: Status;
   endedAt?: string;
   totals?: Record<string, number> | null;
   issuesWritten?: string[];
+  fixOutcomes?: FixOutcome[];
 }
 
 export async function PATCH(
@@ -63,10 +74,16 @@ export async function PATCH(
       })
       .where(eq(runs.id, id));
 
+    // Build a lookup map from issueJsonPath → fix outcome for fast O(1) access.
+    const fixMap = new Map<string, FixOutcome>();
+    for (const fo of body.fixOutcomes ?? []) {
+      fixMap.set(fo.issueJsonPath, fo);
+    }
+
     // Register any issue evidence the caller wrote.
     let registered = 0;
     if (body.issuesWritten && body.issuesWritten.length > 0) {
-      registered = await registerIssuesFromPaths(id, body.issuesWritten);
+      registered = await registerIssuesFromPaths(id, body.issuesWritten, fixMap);
     }
 
     return NextResponse.json({ ok: true, registeredIssues: registered });
@@ -81,7 +98,11 @@ export async function PATCH(
   }
 }
 
-async function registerIssuesFromPaths(runId: string, paths: string[]): Promise<number> {
+async function registerIssuesFromPaths(
+  runId: string,
+  paths: string[],
+  fixMap?: Map<string, FixOutcome>,
+): Promise<number> {
   let inserted = 0;
   for (const issueJsonPath of paths) {
     try {
@@ -101,6 +122,9 @@ async function registerIssuesFromPaths(runId: string, paths: string[]): Promise<
         confidence?: number;
         status?: string;
       };
+
+      // Attach fix columns if the caller reported an outcome for this path.
+      const fo = fixMap?.get(issueJsonPath);
       await db.insert(issues).values({
         runId,
         title: parsed.title ?? null,
@@ -108,6 +132,9 @@ async function registerIssuesFromPaths(runId: string, paths: string[]): Promise<
         confidence: parsed.confidence != null ? String(parsed.confidence) : null,
         status: parsed.status ?? 'open',
         issueJsonPath,
+        fixOutcome: fo?.outcome ?? null,
+        fixPrUrl: fo?.prUrl ?? null,
+        fixBranch: fo?.branch ?? null,
       });
       inserted++;
     } catch {
