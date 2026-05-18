@@ -254,6 +254,41 @@ describe('generateContractFor', () => {
   });
 });
 
+describe('generateContractFor symmetric truncation anchor preservation', () => {
+  it('preserves the anchor line when symmetric truncation would otherwise excise it', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'gen-anchor-'));
+    await mkdir(path.join(cwd, 'app/login'), { recursive: true });
+    // 1000 lines, anchor at line 10 (near the start)
+    const lines = Array.from({ length: 1000 }, (_, i) => `// padding line ${i}`);
+    lines[10] = '<button>UniqueAnchor999</button>';
+    await writeFile(path.join(cwd, 'app/login/page.tsx'), lines.join('\n'));
+
+    let receivedUserContent = '';
+    const llm: LLMClient = {
+      providerName: 'anthropic-sdk',
+      modelHint: 'test',
+      generate: vi.fn(async (opts) => {
+        receivedUserContent = opts.messages[0]!.content;
+        return { content: '[]', usage: { inputTokens: 0, outputTokens: 0 } };
+      }),
+    };
+
+    // Use a tight per-call token cap to force truncation
+    const interaction: Interaction = {
+      id: 'btn-anchor',
+      type: 'button',
+      file: 'app/login/page.tsx',
+      name: 'UniqueAnchor999',
+      module: 'auth',
+      rationale: 'r',
+    };
+    await generateContractFor({ interaction, cwd, llmClient: llm, maxTokens: 800 });
+
+    // The anchor MUST be inside the window the LLM saw
+    expect(receivedUserContent).toContain('UniqueAnchor999');
+  });
+});
+
 describe('runPool', () => {
   it('processes all items respecting the concurrency limit', async () => {
     let inFlight = 0;

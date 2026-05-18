@@ -390,14 +390,30 @@ export async function generateContractFor(opts: GenerateContractForOptions): Pro
     return { proposals: [], error: `failed to read ${opts.interaction.file}: ${(err as Error).message}` };
   }
 
-  // Try matching by name first, then by id (kebab-case won't match much in source).
-  let window = extractWindow(fileContent, [opts.interaction.name, opts.interaction.id]);
+  // Try matching by id first (unique/precise), then name as fallback.
+  let window = extractWindow(fileContent, [opts.interaction.id, opts.interaction.name]);
 
-  // Truncate if window itself exceeds the per-call cap (preserve middle).
+  // Truncate if window itself exceeds the per-call cap (anchor-preserving).
   if (estimateTokens(window) > maxTokens - 1000) {
     const lines = window.split('\n');
     const keep = Math.floor(lines.length * ((maxTokens - 1000) / estimateTokens(window)));
-    const trimStart = Math.floor((lines.length - keep) / 2);
+
+    // Locate the anchor line inside the window (same tokens as extractWindow).
+    let matchIdx = -1;
+    for (const token of [opts.interaction.id, opts.interaction.name]) {
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i]!.includes(token)) { matchIdx = i; break; }
+      }
+      if (matchIdx >= 0) break;
+    }
+
+    let trimStart = Math.floor((lines.length - keep) / 2);
+    if (matchIdx >= 0) {
+      // Clamp so matchIdx is inside [trimStart, trimStart + keep).
+      if (matchIdx < trimStart) trimStart = matchIdx;
+      else if (matchIdx >= trimStart + keep) trimStart = Math.max(0, matchIdx - keep + 1);
+    }
+
     window = lines.slice(trimStart, trimStart + keep).join('\n');
   }
 
