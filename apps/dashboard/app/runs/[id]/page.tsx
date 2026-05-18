@@ -144,14 +144,20 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
 
         <section className={s.section}>
           <h2 className={s.sectionHead}>Totals</h2>
-          <ul className={s.totalsList}>
-            {renderTotals(totals).map(([k, v]) => (
-              <li key={k}>
-                <span className={s.totalsKey}>{k}</span>
-                <span>{v}</span>
-              </li>
-            ))}
-          </ul>
+          {renderTotals(totals).length === 0 ? (
+            <p className={s.metaValue} style={{ color: 'var(--muted)' }}>
+              No counters recorded — the run {status === 'error' || status === 'interrupted' ? 'ended before any phase completed' : 'did not produce phase totals'}.
+            </p>
+          ) : (
+            <ul className={s.totalsList}>
+              {renderTotals(totals).map(([k, v]) => (
+                <li key={k}>
+                  <span className={s.totalsKey}>{k}</span>
+                  <span>{v}</span>
+                </li>
+              ))}
+            </ul>
+          )}
           {(totals.b_interactionsFound != null || totals.b_fallbackUsed) && (
             <ul className={s.totalsList} style={{ marginTop: 'var(--s-3)' }}>
               {totals.b_interactionsFound != null && (
