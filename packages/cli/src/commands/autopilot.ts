@@ -442,6 +442,11 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
       emit({ type: 'phase', phase: 'C', status: 'skipped', elapsedMs: elapsed() });
     }
     const phaseCDone = fixEnabled ? (async () => {
+      // Validate config once, up front.
+      if (opts.fixStrategy === 'shadow' && !opts.shadowCoordinator) {
+        throw new Error('fixStrategy=shadow requires shadowCoordinator');
+      }
+
       emit({ type: 'phase', phase: 'C', status: 'active', elapsedMs: elapsed() });
       // Temp dir for fix prompt files written during Phase C (in-place mode only).
       const tmpDir = join(opts.cwd, 'qa/.autopilot-fix-tmp');
@@ -474,15 +479,24 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
         if (opts.fixStrategy === 'shadow') {
           // Phase C: shadow strategy — delegate each failure to shadowCoordinator.
           // Creates a worktree per fix and opens a GitHub PR. No in-place edits.
-          if (!opts.shadowCoordinator) {
-            throw new Error('fixStrategy=shadow requires shadowCoordinator');
+          // Defensive: writeIssueEvidence may return null on write failure. Skip rather than
+          // forward an empty path to the coordinator (which would then try to readFile('')).
+          if (!next.evidencePath) {
+            phaseC.givenUp++;
+            emit({
+              type: 'log',
+              level: 'warn',
+              message: `autopilot: shadow-fix skipped ${next.failure.id} — no evidence path (writeIssueEvidence returned null)`,
+              elapsedMs: elapsed(),
+            });
+            continue;
           }
           try {
-            const outcome = await opts.shadowCoordinator.fix({
+            const outcome = await opts.shadowCoordinator!.fix({
               issueId: next.failure.id,
-              issueJsonPath: next.evidencePath ?? '',
+              issueJsonPath: next.evidencePath,
               failingContractPath: next.contractPath,
-              bundlePath: next.evidencePath ? join(next.evidencePath, '..') : opts.cwd,
+              bundlePath: join(next.evidencePath, '..'),
             });
             fixOutcomes.push(outcome);
             if (outcome.outcome === 'SUCCESS' || outcome.outcome === 'SKIPPED_PR_EXISTS') {

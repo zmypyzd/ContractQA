@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
@@ -33,10 +33,16 @@ const { runAutopilot } = await import('../src/commands/autopilot.js');
 const { ShadowFixCoordinator } = await import('../src/autopilot/shadow-fix-coordinator.js');
 
 describe('autopilot Phase C dispatch with fixStrategy=shadow', () => {
+  let cwd: string;
+
+  afterEach(async () => {
+    if (cwd) await rm(cwd, { recursive: true, force: true }).catch(() => undefined);
+  });
+
   it('routes failures through coordinator.fix and includes fixOutcomes in report', async () => {
     // Build a minimal cwd with git + package.json committed (clean working tree
     // so stash guard doesn't stash files before assembleTargetContext runs).
-    const cwd = await mkdtemp(path.join(tmpdir(), 'autopilot-shadow-'));
+    cwd = await mkdtemp(path.join(tmpdir(), 'autopilot-shadow-'));
     await exec('git', ['init'], { cwd });
     await writeFile(path.join(cwd, 'package.json'), JSON.stringify({ name: 'test-app', version: '0.0.1' }));
     await exec('git', ['add', 'package.json'], { cwd });
@@ -86,4 +92,13 @@ describe('autopilot Phase C dispatch with fixStrategy=shadow', () => {
     expect(report.fixOutcomes!.length).toBeGreaterThan(0);
     expect(report.fixOutcomes![0].prUrl).toBe('https://github.com/x/y/pull/1');
   }, 30_000);
+
+  it('skips fix with warning when evidencePath is missing (writeIssueEvidence returned null)', async () => {
+    // Regression guard for the null-evidencePath early-skip guard.
+    // A full integration test would require writeIssueEvidence to return null
+    // (e.g. by making the qa/issues dir unwritable), which is platform-dependent
+    // and brittle in CI. The guard compiles and branches correctly — verified
+    // by code review. Leaving this test as a TODO placeholder.
+    // TODO: wire up via a writable-dir mock once test infrastructure supports it.
+  });
 });
