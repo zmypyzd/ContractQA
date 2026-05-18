@@ -559,7 +559,7 @@
 .errorsBanner {
   border: 1px solid var(--error, #b94c4c);
   background: rgba(185, 76, 76, 0.08);
-  border-radius: 2px;
+  border-radius: var(--r-sm);
   padding: var(--s-3, 12px);
   margin: var(--s-3, 12px) 0;
 }
@@ -587,7 +587,7 @@
   border: 1px solid var(--border, #26262b);
   color: var(--muted);
   padding: 2px 8px;
-  border-radius: 2px;
+  border-radius: var(--r-sm);
   font-family: var(--font-mono);
   font-size: 11px;
   cursor: pointer;
