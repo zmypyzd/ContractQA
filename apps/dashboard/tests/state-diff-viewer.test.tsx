@@ -14,7 +14,10 @@ describe('StateDiffViewer', () => {
         }}
       />,
     );
-    expect(screen.getByText(/url/i)).toBeTruthy();
+    // `url` appears in both the head ("url changed") and the row label.
+    // Match the row label exactly so the test doesn't break when the head
+    // copy is reworded.
+    expect(screen.getByText('url', { selector: 'div' })).toBeTruthy();
     expect(screen.getByText('/lobby')).toBeTruthy();
     expect(screen.getByText('/agents')).toBeTruthy();
     expect(screen.getByText(/posthog-id/)).toBeTruthy();

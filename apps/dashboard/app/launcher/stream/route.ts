@@ -254,7 +254,7 @@ export async function GET(req: Request): Promise<Response> {
                 : 'success';
 
           if (usingDb) {
-            await completeRunRecord(runId, mapOutcomeToStatus(outcome, false), aggregateTotals(phaseTotals));
+            await completeRunRecord(runId, mapOutcomeToStatus(outcome, false), aggregateTotals(phaseTotals, report.llmCost));
             // Register any issue evidence the autopilot wrote this iteration.
             // Safe to call even when nothing was written (returns 0).
             const registered = await registerIssuesFromReport(runId, report.issuesWritten ?? [], report.fixOutcomes);
@@ -439,7 +439,7 @@ async function createRunRecord(
 async function completeRunRecord(
   id: string,
   status: 'passed' | 'failed' | 'interrupted' | 'error',
-  totals: Record<string, number> | null,
+  totals: Record<string, unknown> | null,
 ): Promise<void> {
   try {
     await db
@@ -527,14 +527,15 @@ async function registerIssuesFromReport(
 
 function aggregateTotals(
   phaseTotals: Partial<Record<'A' | 'B' | 'C', AutopilotPhaseCounters>>,
-): Record<string, number> {
+  llmCost?: { provider: string; inputTokens: number; outputTokens: number; estimatedUsd?: number },
+): Record<string, unknown> {
   const a = phaseTotals.A ?? {};
   const b = phaseTotals.B ?? {};
   const c = phaseTotals.C ?? {};
   const passed = (a.passed ?? 0) + (b.generated ?? 0);
   const failed = (a.failed ?? 0) + (b.failed ?? 0) + (c.givenUp ?? 0);
   const deferred = (a.deferred ?? 0) + (b.deferred ?? 0);
-  return {
+  const out: Record<string, unknown> = {
     passed,
     failed,
     deferred,
@@ -548,6 +549,20 @@ function aggregateTotals(
     c_fixed: c.fixed ?? 0,
     c_givenUp: c.givenUp ?? 0,
   };
+  // Deep-discovery diagnostics: only meaningful when discoveryMode='deep' ran.
+  if (b.interactionsFound != null) out.b_interactionsFound = b.interactionsFound;
+  if (b.fallbackUsed) {
+    out.b_fallbackUsed = true;
+    if (b.fallbackReason) out.b_fallbackReason = b.fallbackReason;
+  }
+  // LLM cost: surfaced on the run detail page so users can see what they spent.
+  if (llmCost) {
+    out.llm_provider = llmCost.provider;
+    out.llm_input_tokens = llmCost.inputTokens;
+    out.llm_output_tokens = llmCost.outputTokens;
+    if (llmCost.estimatedUsd != null) out.llm_estimated_usd = llmCost.estimatedUsd;
+  }
+  return out;
 }
 
 function mapOutcomeToStatus(

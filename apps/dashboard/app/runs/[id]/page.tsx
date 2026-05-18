@@ -19,6 +19,15 @@ interface TotalsShape {
   c_attempted?: number;
   c_fixed?: number;
   c_givenUp?: number;
+  // Deep-discovery diagnostics (present only when discoveryMode='deep' ran)
+  b_interactionsFound?: number;
+  b_fallbackUsed?: boolean;
+  b_fallbackReason?: string;
+  // LLM cost (present when runAutopilot tracked usage)
+  llm_provider?: string;
+  llm_input_tokens?: number;
+  llm_output_tokens?: number;
+  llm_estimated_usd?: number;
   // legacy / alternative names
   ok?: number;
   fail?: number;
@@ -143,6 +152,43 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
               </li>
             ))}
           </ul>
+          {(totals.b_interactionsFound != null || totals.b_fallbackUsed) && (
+            <ul className={s.totalsList} style={{ marginTop: 'var(--s-3)' }}>
+              {totals.b_interactionsFound != null && (
+                <li>
+                  <span className={s.totalsKey}>B · interactions found</span>
+                  <span>{totals.b_interactionsFound}</span>
+                </li>
+              )}
+              {totals.b_fallbackUsed && (
+                <li>
+                  <span className={s.totalsKey}>B · fell back to modules</span>
+                  <span>{totals.b_fallbackReason ?? 'unknown'}</span>
+                </li>
+              )}
+            </ul>
+          )}
+          {totals.llm_provider && (
+            <ul className={s.totalsList} style={{ marginTop: 'var(--s-3)' }}>
+              <li>
+                <span className={s.totalsKey}>LLM provider</span>
+                <span>{totals.llm_provider}</span>
+              </li>
+              <li>
+                <span className={s.totalsKey}>tokens (in / out)</span>
+                <span>
+                  {(totals.llm_input_tokens ?? 0).toLocaleString()} /{' '}
+                  {(totals.llm_output_tokens ?? 0).toLocaleString()}
+                </span>
+              </li>
+              {totals.llm_estimated_usd != null && (
+                <li>
+                  <span className={s.totalsKey}>estimated cost</span>
+                  <span>${totals.llm_estimated_usd.toFixed(4)}</span>
+                </li>
+              )}
+            </ul>
+          )}
         </section>
 
         <section className={s.section}>
