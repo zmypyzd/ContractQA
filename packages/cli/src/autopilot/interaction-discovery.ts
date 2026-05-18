@@ -96,6 +96,7 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 const DEFAULT_ENUMERATE_MAX_TOKENS = 50_000;
+const ENTRY_FILE_MAX_BYTES = 32 * 1024;
 
 const IGNORED_DIRS = new Set([
   'node_modules', '.git', 'dist', 'build', '.next', '.turbo', '.cache',
@@ -135,7 +136,7 @@ async function walkProject(cwd: string): Promise<string[]> {
     }
   }
   await rec(cwd);
-  return out;
+  return out.sort();   // alphabetical sort so truncation is deterministic
 }
 
 async function loadEntryFiles(cwd: string): Promise<Array<{ path: string; content: string }>> {
@@ -144,7 +145,10 @@ async function loadEntryFiles(cwd: string): Promise<Array<{ path: string; conten
     if (found.length >= 5) break;
     try {
       const full = path.join(cwd, candidate);
-      const content = await readFile(full, 'utf8');
+      let content = await readFile(full, 'utf8');
+      if (content.length > ENTRY_FILE_MAX_BYTES) {
+        content = content.slice(0, ENTRY_FILE_MAX_BYTES) + '\n// [... truncated for token budget]';
+      }
       found.push({ path: candidate, content });
     } catch {
       // not present; skip

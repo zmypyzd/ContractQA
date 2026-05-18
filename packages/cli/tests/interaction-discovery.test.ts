@@ -139,3 +139,29 @@ describe('enumerateSurface', () => {
     expect(result.truncated).toBe(true);
   });
 });
+
+describe('enumerateSurface entry-file size cap', () => {
+  it('truncates oversized entry files (e.g. huge package.json) before LLM call', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'enum-surface-bigfile-'));
+    // 50kB package.json (over the 32kB cap)
+    const huge = 'x'.repeat(50 * 1024);
+    await writeFile(path.join(cwd, 'package.json'), `{"name":"x","junk":"${huge}"}`);
+
+    let receivedUserContent = '';
+    const llm: LLMClient = {
+      providerName: 'anthropic-sdk',
+      modelHint: 'test',
+      generate: vi.fn(async (opts) => {
+        receivedUserContent = opts.messages[0]!.content;
+        return { content: '[]', usage: { inputTokens: 0, outputTokens: 0 } };
+      }),
+    };
+
+    await enumerateSurface({ cwd, llmClient: llm });
+
+    expect(receivedUserContent).toContain('// [... truncated for token budget]');
+    // Per-file cap is 32kB, so user content for that file should be at most ~33kB
+    const pkgSection = receivedUserContent.split('--- package.json ---')[1] ?? '';
+    expect(pkgSection.length).toBeLessThan(34 * 1024);
+  });
+});
