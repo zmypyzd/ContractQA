@@ -57,6 +57,12 @@ export interface AutopilotPhaseCounters {
   attempted?: number;
   fixed?: number;
   givenUp?: number;
+  /** Deep-discovery diagnostics (only set when discoveryMode='deep' completes). */
+  interactionsFound?: number;
+  /** True when Stage 1 failed and discoverByModule fallback fired. */
+  fallbackUsed?: boolean;
+  /** Human-readable reason for the fallback (only set when fallbackUsed is true). */
+  fallbackReason?: string;
 }
 
 export interface AutopilotOptions {
@@ -639,6 +645,22 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
         if (result.fallbackUsed) {
           emit({ type: 'log', level: 'warn', message: `[autopilot] deep fell back: ${result.fallbackReason}`, elapsedMs: elapsed() });
         }
+        // Surface deep-discovery diagnostics so the Dashboard can render
+        // "Found N interactions, wrote M contracts" alongside the Phase B chip.
+        // Without this, the dashboard only sees `generated: M` and has no idea
+        // that Stage 1 enumerated N interactions (where N >> M after dedup).
+        emit({
+          type: 'phase',
+          phase: 'B',
+          status: 'done',
+          elapsedMs: elapsed(),
+          counters: {
+            generated: phaseB.generated,
+            interactionsFound: result.interactionsFound,
+            fallbackUsed: result.fallbackUsed,
+            fallbackReason: result.fallbackReason,
+          },
+        });
       } else {
         // existing modules path — unchanged below
         await discoverByModule(

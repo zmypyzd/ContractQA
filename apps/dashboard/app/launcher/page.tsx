@@ -531,11 +531,22 @@ function renderCounters(
   }
   if (phase === 'B') {
     const parts: string[] = [];
-    if (counters.generated != null) parts.push(`${counters.generated} gen`);
+    // Deep-discovery diagnostics: surface "found N → wrote M" when present.
+    // Modules path leaves interactionsFound undefined → falls through to the
+    // simple "M gen" rendering, no behavior change for the default mode.
+    if (counters.interactionsFound != null) {
+      parts.push(`found ${counters.interactionsFound}`);
+      parts.push(`wrote ${counters.generated ?? 0}`);
+    } else if (counters.generated != null) {
+      parts.push(`${counters.generated} gen`);
+    }
     if (counters.failed) parts.push(`${counters.failed} fail`);
     if (counters.deferred) parts.push(`${counters.deferred} deferred`);
     const yn = (counters.userConfirmed ?? 0) + (counters.userRejected ?? 0);
     if (yn) parts.push(`${yn} y/n`);
+    if (counters.fallbackUsed) {
+      parts.push(`⚠ fell back: ${counters.fallbackReason ?? 'unknown'}`);
+    }
     return parts.join(' · ');
   }
   // C

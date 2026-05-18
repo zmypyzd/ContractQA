@@ -25,6 +25,12 @@ export interface PhaseCounters {
   attempted?: number;
   fixed?: number;
   givenUp?: number;
+  /** Deep-discovery diagnostics: total interactions enumerated in Stage 1. */
+  interactionsFound?: number;
+  /** True when Stage 1 failed and discoverByModule fallback fired. */
+  fallbackUsed?: boolean;
+  /** Human-readable reason for the fallback. */
+  fallbackReason?: string;
 }
 
 export interface PhaseEvent {
