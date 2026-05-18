@@ -13,6 +13,7 @@ import { startTimeBudget } from '../autopilot/budget-watchdog.js';
 import { createStashGuard } from '../autopilot/stash-guard.js';
 import { applicablePatterns } from '../autopilot/smoke-patterns.js';
 import { discoverByModule, type ContractProposal } from '../autopilot/llm-discovery.js';
+import { discoverByInteraction } from '../autopilot/interaction-discovery.js';
 import { confirmUncertainProposals } from '../autopilot/interactive-prompt.js';
 import { renderReportMarkdown, type AutopilotReport, type SmokeFailure } from '../autopilot/report.js';
 
@@ -597,9 +598,17 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
         message: 'Reading source, asking LLM for per-module contracts',
         elapsedMs: elapsed(),
       });
+      if (
+        opts.discoveryMode !== undefined &&
+        opts.discoveryMode !== 'modules' &&
+        opts.discoveryMode !== 'deep'
+      ) {
+        throw new Error(
+          `Invalid discoveryMode: ${JSON.stringify(opts.discoveryMode)}. Must be 'modules' or 'deep'.`,
+        );
+      }
       if (opts.discoveryMode === 'deep') {
         emit({ type: 'log', level: 'info', message: '[autopilot] Phase B using deep (interaction-driven) discovery', elapsedMs: elapsed() });
-        const { discoverByInteraction } = await import('../autopilot/interaction-discovery.js');
         const result = await discoverByInteraction({
           cwd: opts.cwd,
           llmClient,

@@ -59,4 +59,27 @@ describe('runAutopilot discoveryMode=deep', () => {
     expect(written).toContain('id: INV-DEEP');
     expect(report.phaseB?.generated).toBeGreaterThan(0);
   }, 30_000);
+
+  it('throws on invalid discoveryMode value', async () => {
+    cwd = await mkdtemp(path.join(tmpdir(), 'deep-mode-invalid-'));
+    await writeFile(path.join(cwd, 'package.json'), '{"name":"x"}');
+    execSync('git init -q && git add . && git -c user.email=t@t.t -c user.name=t commit -q -m init', { cwd, shell: '/bin/bash' });
+
+    const llm: LLMClient = {
+      providerName: 'anthropic-sdk', modelHint: 'test',
+      generate: vi.fn(async () => ({ content: '[]', usage: { inputTokens: 0, outputTokens: 0 } })),
+    };
+
+    await expect(
+      runAutopilot({
+        cwd,
+        timeBudgetMs: 30_000,
+        fix: false,
+        yes: true,
+        regenerate: true,
+        discoveryMode: 'depe' as 'modules' | 'deep',  // intentional typo
+        llmClient: llm,
+      }),
+    ).rejects.toThrow(/Invalid discoveryMode/);
+  }, 15_000);
 });
