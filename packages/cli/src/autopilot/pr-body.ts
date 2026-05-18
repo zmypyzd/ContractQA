@@ -6,9 +6,9 @@
 
 const SECRET_PATTERNS: Array<{ re: RegExp; label: string }> = [
   // OpenAI / Anthropic style API keys: sk-... with ≥ 20 chars
-  { re: /sk-[A-Za-z0-9_-]{20,}/g, label: 'api-key' },
+  { re: /[Ss][Kk]-[A-Za-z0-9_-]{20,}/g, label: 'api-key' },
   // Bearer tokens
-  { re: /Bearer\s+[A-Za-z0-9._\-+/=]+/g, label: 'bearer' },
+  { re: /Bearer\s+[A-Za-z0-9._\-+/=]+/gi, label: 'bearer' },
   // password=... assignments (URL params, env-like)
   { re: /password=[^\s&;]+/gi, label: 'password' },
 ];
@@ -28,7 +28,9 @@ export interface BuildPrTitleInput {
 
 export function buildPrTitle({ issueId, rootCause }: BuildPrTitleInput): string {
   const raw = rootCause?.trim();
-  const summary = raw ? redactSecrets(raw).split(/[.!?\n]/)[0]!.slice(0, 79) : 'auto-fix';
+  const summary = raw
+    ? [...redactSecrets(raw).split(/[.!?\n]/)[0]!].slice(0, 79).join('')
+    : 'auto-fix';
   return `fix(contractqa): ${issueId} — ${summary}`;
 }
 

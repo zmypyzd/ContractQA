@@ -13,6 +13,18 @@ describe('redactSecrets', () => {
     );
   });
 
+  it('redacts lowercase bearer tokens (HTTP/curl output)', () => {
+    expect(redactSecrets('authorization: bearer eyJhbGc.payload.sig')).toBe(
+      'authorization: [REDACTED:bearer]',
+    );
+  });
+
+  it('redacts uppercase SK- API key prefix', () => {
+    expect(redactSecrets('leaked: SK-ant-AAAAAAAAAAAAAAAAAAAA')).toBe(
+      'leaked: [REDACTED:api-key]',
+    );
+  });
+
   it('redacts password=... assignments', () => {
     expect(redactSecrets('login with password=hunter2!')).toBe('login with [REDACTED:password]');
   });
@@ -51,6 +63,17 @@ describe('buildPrTitle', () => {
   it('redacts secrets in root_cause before including', () => {
     const title = buildPrTitle({ issueId: 'x', rootCause: 'leak: sk-abcdefghijklmnopqrstuvwx' });
     expect(title).toContain('[REDACTED:api-key]');
+  });
+
+  it('truncates safely with emoji (no broken surrogate pairs)', () => {
+    // 79 'a' chars followed by an emoji — slice at 79 should NOT split the emoji
+    const longEmoji = 'a'.repeat(79) + '🦆';
+    const title = buildPrTitle({ issueId: 'x', rootCause: longEmoji });
+    // The title must be valid UTF-16 (no lone surrogates). Verify by re-encoding.
+    expect(() => new TextEncoder().encode(title)).not.toThrow();
+    // The summary part is exactly the first 79 'a's; emoji is dropped (it's at index 79)
+    expect(title.includes('🦆')).toBe(false);
+    expect(title.endsWith('a')).toBe(true);
   });
 });
 
