@@ -63,8 +63,14 @@ export function FolderPicker({ initialPath, onSelect, onCancel }: Props) {
         </header>
 
         <div className={s.crumbs}>
-          <button type="button" className={s.crumb} onClick={() => load('/')}>
-            /
+          <button
+            type="button"
+            className={`${s.crumb} ${s.crumbRoot}`}
+            onClick={() => load('/')}
+            aria-label="Go to filesystem root"
+            title="Filesystem root"
+          >
+            ▸ /
           </button>
           {breadcrumbSegments.map((seg) => (
             <span key={seg.path} className={s.crumbWrap}>

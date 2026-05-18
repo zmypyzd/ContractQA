@@ -85,6 +85,16 @@
   color: var(--text);
 }
 
+.crumbRoot {
+  color: var(--text);
+  font-weight: 500;
+  border: 1px solid var(--border-2);
+}
+
+.crumbRoot:hover {
+  border-color: var(--text);
+}
+
 .sep {
   color: var(--text-3, var(--text-2));
   user-select: none;
