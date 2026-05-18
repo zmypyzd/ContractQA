@@ -6,7 +6,7 @@
 // tie issueId → bundlePath → failingContractPath.
 import path from 'node:path';
 import { runShadowFix, runClaudeFix, createFixWorktree } from '@contractqa/orchestrator';
-import type { ClaudeFixResult } from '@contractqa/orchestrator';
+import type { ClaudeFixResult, ShadowFixResult, ShadowFixOutcome } from '@contractqa/orchestrator';
 import type { LLMClient } from '@contractqa/orchestrator/llm';
 import { openFixPR, findExistingPr, type ExecFn } from './gh-pr.js';
 import { buildPrTitle, buildPrBody } from './pr-body.js';
@@ -30,7 +30,15 @@ export interface CoordinatorFixOutcome {
   skippedBrowserContracts: number;
 }
 
-/** Sanitize an autopilot failure.id for use as a git branch / dir name. */
+/**
+ * Sanitize an autopilot failure.id for use as a git branch / dir name.
+ *
+ * NOTE: distinct ids can collide (e.g., 'smoke:foo' and 'smoke-foo' both
+ * collapse to 'smoke-foo'). The idempotency probe in fix() will then return
+ * SKIPPED_PR_EXISTS for the second issue, attributing its PR to the first.
+ * If collisions are observed in practice, suffix with a short hash of the
+ * original id.
+ */
 export function sanitizeIssueId(raw: string): string {
   return raw.replace(/[^a-zA-Z0-9._/-]/g, '-');
 }
@@ -38,7 +46,12 @@ export function sanitizeIssueId(raw: string): string {
 export interface ShadowFixCoordinatorDeps {
   /** Per-issue path to write the autopilot-flavoured prompt. */
   writePromptFile: (bundlePath: string, dest: string) => Promise<string>;
-  /** Run a single contract by YAML path. Returns 'pass'|'fail'|'skipped' (skipped = browser, see spec §5.1). */
+  /**
+   * Run a single contract by YAML path. May return 'skipped' for browser
+   * contracts (autopilot doesn't spin Playwright at fix-time — see plan §5.1).
+   * The coordinator translates 'skipped' → 'pass' before forwarding to
+   * shadow-pipeline, which only accepts 'pass' | 'fail'.
+   */
   runContract: (contractPath: string) => Promise<{
     contractPath: string;
     status: 'pass' | 'fail' | 'skipped';
@@ -173,10 +186,11 @@ export class ShadowFixCoordinator {
           ghBin: this.opts.ghBin,
           gitBin: this.opts.gitBin,
         });
-        // shadow-pipeline expects {url}. On non-success, surface the error
-        // by throwing — shadow-pipeline currently has no failure path for
-        // openFixPR, so we coerce status into a URL or an empty string and
-        // record the real status via lastOpenFixResult.
+        // INVARIANT: shadow-pipeline's openFixPR callback signature requires us to
+        // return { url: string } and treats any return value as SUCCESS. We cannot
+        // throw here (shadow-pipeline doesn't catch). Instead we record the real
+        // outcome in `this.lastOpenFixResult` and let `mapResult` translate the
+        // upstream 'SUCCESS' into our actual outcome (SUCCESS / EXHAUSTED).
         this.lastOpenFixResult = r;
         return { url: r.prUrl ?? '' };
       },
@@ -199,7 +213,7 @@ export class ShadowFixCoordinator {
     req: FixRequest;
     branchSafeId: string;
     branch: string;
-    result: { outcome: string; prUrl?: string; attempts: number; regressionContract?: string };
+    result: ShadowFixResult;     // ← typed union, not string
     skippedBrowserContracts: number;
   }): CoordinatorFixOutcome {
     const base = {

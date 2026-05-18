@@ -77,12 +77,9 @@ describe('ShadowFixCoordinator.fix happy path', () => {
     expect(result.outcome).toBe('SUCCESS');
     expect(result.branchSafeId).toBe('smoke-abc');
     expect(result.issueJsonPath).toBe('/tmp/repo/qa/issues/smoke-abc/issue.json');
-    // gh pr create stdout was empty in mkExec → real shadow-pipeline would
-    // call openFixPR which calls our gh wrapper; we mocked runShadowFix to
-    // call openFixPR with a synthetic input. Our openFixPR ran with the
-    // mocked exec → since gh pr create returned exitCode=0 empty stdout,
-    // status becomes 'gh-failed' from openFixPR — but for THIS test we
-    // verify the wiring works (prUrl from inner openFixPR may be undefined).
+    // mkExec returns a fake URL for `gh pr create` so openFixPR resolves to
+    // status='success' and mapResult promotes runShadowFix's SUCCESS into a
+    // coordinator-level SUCCESS.
   });
 });
 
@@ -147,5 +144,61 @@ describe('ShadowFixCoordinator.fix non-success outcomes', () => {
     });
     const result = await coord.fix(baseReq);
     expect(result.outcome).toBe('EXHAUSTED');
+  });
+});
+
+describe('ShadowFixCoordinator.fix push-failure safety net', () => {
+  it('returns EXHAUSTED when openFixPR push fails even if runShadowFix reports SUCCESS', async () => {
+    // Simulate: runShadowFix calls our openFixPR, which fails (push rejected),
+    // returns {url: ''}, runShadowFix then optimistically reports SUCCESS.
+    // mapResult MUST translate this to EXHAUSTED.
+    const fakeRunShadowFix = vi.fn(async (input) => {
+      const pr = await input.openFixPR({
+        branch: 'contractqa-fix/abc',
+        baseBranch: 'main',
+        issueId: 'abc',
+        filesChanged: ['src/a.ts'],
+      });
+      return { outcome: 'SUCCESS' as const, prUrl: pr.url, attempts: 1 };
+    });
+
+    // Exec mock: idempotency probe returns empty (no existing PR),
+    // then git push fails inside openFixPR.
+    const exec = vi.fn(async (cmd: string, args: string[]) => {
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'list') {
+        return { stdout: '', stderr: '', exitCode: 0 };
+      }
+      if (cmd === 'git' && args[0] === 'push') {
+        return { stdout: '', stderr: 'remote rejected', exitCode: 128 };
+      }
+      return { stdout: '', stderr: '', exitCode: 0 };
+    });
+
+    const coord = new ShadowFixCoordinator(
+      {
+        worktreeRoot: '/tmp/wt',
+        repoRoot: '/tmp/repo',
+        baseBranch: 'main',
+        contractsDir: '/tmp/c',
+        llmClient: stubLlm,
+        regressionScope: 'touched-files',
+      },
+      {
+        writePromptFile: async (_b, dest) => dest,
+        runContract: async (p) => ({ contractPath: p, status: 'pass' }),
+        runShadowFixImpl: fakeRunShadowFix as unknown as typeof runShadowFix,
+        exec,
+      },
+    );
+
+    const result = await coord.fix({
+      issueId: 'abc',
+      issueJsonPath: '/tmp/issue.json',
+      failingContractPath: '/tmp/c.yml',
+      bundlePath: '/tmp',
+    });
+
+    expect(result.outcome).toBe('EXHAUSTED');
+    expect(result.prUrl).toBeUndefined();
   });
 });
