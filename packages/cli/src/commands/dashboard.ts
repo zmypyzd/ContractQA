@@ -76,7 +76,20 @@ function parseHostPort(dbUrl: string): { host: string; port: number } {
   }
 }
 
-async function applyMigrations(rootDir: string, dbUrl: string): Promise<void> {
+/**
+ * Find the Postgres container in this repo's docker compose stack.
+ * Returns the container ID, or null if compose isn't up / no postgres service.
+ */
+function findComposePostgresContainer(composeFile: string): string | null {
+  const r = spawnSync('docker', ['compose', '-f', composeFile, 'ps', '-q', 'postgres'], {
+    encoding: 'utf8',
+  });
+  if (r.status !== 0) return null;
+  const id = r.stdout.trim().split('\n')[0];
+  return id || null;
+}
+
+async function applyMigrations(rootDir: string, dbUrl: string, composeFile: string): Promise<void> {
   const migDir = join(rootDir, 'apps/dashboard/drizzle/migrations');
   let files: string[];
   try {
@@ -85,17 +98,35 @@ async function applyMigrations(rootDir: string, dbUrl: string): Promise<void> {
     return;
   }
   if (files.length === 0) return;
-  const psql = spawnSync('psql', ['--version'], { encoding: 'utf8' });
-  if (psql.status !== 0) {
-    console.log('[dashboard] psql not on PATH — skipping migrations. Apply manually:');
+
+  // Prefer docker exec when the compose Postgres container is up — many devs
+  // don't have psql on the host, but they always have docker (since we just
+  // started the container). Fall back to host psql for --no-docker users.
+  const containerId = findComposePostgresContainer(composeFile);
+  const runner: { kind: 'docker' | 'psql' } | null = containerId
+    ? { kind: 'docker' }
+    : spawnSync('psql', ['--version'], { encoding: 'utf8' }).status === 0
+      ? { kind: 'psql' }
+      : null;
+
+  if (!runner) {
+    console.log('[dashboard] no docker postgres container and no host psql — skipping migrations. Apply manually:');
     for (const f of files) console.log(`  psql "${dbUrl}" -f apps/dashboard/drizzle/migrations/${f}`);
     return;
   }
+
   for (const f of files) {
-    const r = spawnSync('psql', [dbUrl, '-v', 'ON_ERROR_STOP=1', '-f', join(migDir, f)], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      encoding: 'utf8',
-    });
+    const filePath = join(migDir, f);
+    const r = runner.kind === 'docker'
+      ? spawnSync(
+          'sh',
+          ['-c', `docker exec -i ${containerId} psql -U contractqa -d contractqa -v ON_ERROR_STOP=1 < "${filePath}"`],
+          { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8' },
+        )
+      : spawnSync('psql', [dbUrl, '-v', 'ON_ERROR_STOP=1', '-f', filePath], {
+          stdio: ['ignore', 'pipe', 'pipe'],
+          encoding: 'utf8',
+        });
     if (r.status !== 0) {
       console.log(`[dashboard] migration ${f} failed (continuing — may already be applied)`);
       if (r.stderr) console.log(r.stderr.trim().split('\n').map((l) => `  ${l}`).join('\n'));
@@ -134,7 +165,7 @@ export async function runDashboard(opts: DashboardOptions): Promise<number> {
   console.log('[dashboard] Postgres ready.');
 
   if (opts.applyMigrations) {
-    await applyMigrations(root, opts.dbUrl);
+    await applyMigrations(root, opts.dbUrl, composeFile);
   }
 
   const url = `http://localhost:${opts.port}`;
