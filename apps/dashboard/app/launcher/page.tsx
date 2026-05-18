@@ -332,6 +332,10 @@ export default function LauncherPage() {
                     }`}
                     value={path}
                     onChange={(e) => setPath(e.target.value)}
+                    // Password managers and form-autofill extensions inject
+                    // style/data-* attrs onto inputs before React hydrates,
+                    // producing a hydration mismatch under React 19.
+                    suppressHydrationWarning
                   />
                 </div>
                 <button type="button" className={s.btn} onClick={() => setPickerOpen(true)}>
@@ -382,6 +386,7 @@ export default function LauncherPage() {
                     checked={watchMode}
                     onChange={(e) => setWatchMode(e.target.checked)}
                     disabled={running}
+                    suppressHydrationWarning
                   />
                   <span className={s.toggleSwitch} aria-hidden />
                   <span className={s.toggleLabel}>Watch</span>
@@ -394,6 +399,7 @@ export default function LauncherPage() {
                     checked={deepMode}
                     onChange={(e) => setDeepMode(e.target.checked)}
                     disabled={running}
+                    suppressHydrationWarning
                   />
                   <span className={s.toggleSwitch} aria-hidden />
                   <span className={s.toggleLabel}>DEEP</span>
