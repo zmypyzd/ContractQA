@@ -9,6 +9,7 @@ import {
   validateProjectPath,
 } from './actions';
 import type { LauncherEvent, PhaseId, PhaseStatus } from './events';
+import { FolderPicker } from './FolderPicker';
 import s from './launcher.module.css';
 
 interface PhaseSnapshot {
@@ -73,6 +74,8 @@ export default function LauncherPage() {
   const [recentItems, setRecentItems] = useState<RecentProjectRow[]>(RECENT_SEED);
   const [isPending, startTransition] = useTransition();
   const [watchMode, setWatchMode] = useState(false);
+
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const [phases, setPhases] = useState<PhaseMap>(newPhaseMap);
   const [runId, setRunId] = useState<string | null>(null);
@@ -302,7 +305,7 @@ export default function LauncherPage() {
                     onChange={(e) => setPath(e.target.value)}
                   />
                 </div>
-                <button type="button" className={s.btn} disabled>
+                <button type="button" className={s.btn} onClick={() => setPickerOpen(true)}>
                   Browse…
                 </button>
               </div>
@@ -405,6 +408,16 @@ export default function LauncherPage() {
 
         <p className={s.footnote}>ContractQA · Diagnostic Modern · /launcher</p>
       </main>
+      {pickerOpen && (
+        <FolderPicker
+          initialPath={path}
+          onSelect={(p) => {
+            setPath(p);
+            setPickerOpen(false);
+          }}
+          onCancel={() => setPickerOpen(false)}
+        />
+      )}
     </>
   );
 }

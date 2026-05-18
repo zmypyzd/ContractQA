@@ -1,7 +1,7 @@
 'use server';
 
 import { access, readFile, readdir, stat } from 'node:fs/promises';
-import { basename, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { desc, sql } from 'drizzle-orm';
 import { db } from '../../lib/db';
 import { recentProjects } from '../../drizzle/schema';
@@ -164,6 +164,63 @@ async function detectContracts(root: string): Promise<{ hasContracts: boolean; c
   } catch {
     return { hasContracts: false, contractsCount: 0 };
   }
+}
+
+// ============ Directory browser ============
+
+export interface DirectoryEntry {
+  name: string;
+  isHidden: boolean;
+}
+
+export interface DirectoryListing {
+  ok: true;
+  path: string;
+  parent: string | null;
+  entries: DirectoryEntry[];
+}
+
+export type DirectoryListingResult = DirectoryListing | { ok: false; error: string };
+
+/**
+ * List immediate subdirectories of `absolutePath` for the in-dashboard folder
+ * picker. Files are excluded — the picker only navigates directories. The
+ * dashboard runs on localhost so the user can browse their own home directory
+ * without auth; refuses to follow paths the OS itself refuses (permission
+ * errors surface as `ok: false`).
+ *
+ * Pass empty string or `~` to land in the user's HOME.
+ */
+export async function listDirectory(absolutePath: string): Promise<DirectoryListingResult> {
+  const home = process.env.HOME ?? '/';
+  const raw = absolutePath.trim() || home;
+  const expanded = raw.startsWith('~') ? join(home, raw.slice(1)) : raw;
+  const abs = resolve(expanded);
+
+  try {
+    const s = await stat(abs);
+    if (!s.isDirectory()) return { ok: false, error: 'Path is not a directory.' };
+  } catch {
+    return { ok: false, error: 'Path does not exist or is not readable.' };
+  }
+
+  let dirents;
+  try {
+    dirents = await readdir(abs, { withFileTypes: true });
+  } catch (err) {
+    return { ok: false, error: `Cannot list: ${(err as Error).message}` };
+  }
+
+  const entries: DirectoryEntry[] = dirents
+    .filter((d) => d.isDirectory())
+    .map((d) => ({ name: d.name, isHidden: d.name.startsWith('.') }))
+    .sort((a, b) => {
+      if (a.isHidden !== b.isHidden) return a.isHidden ? 1 : -1;
+      return a.name.localeCompare(b.name);
+    });
+
+  const parent = abs === '/' ? null : dirname(abs);
+  return { ok: true, path: abs, parent, entries };
 }
 
 // ============ Recent projects ============
