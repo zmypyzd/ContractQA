@@ -14,8 +14,61 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
 import { runAutopilot, type AutopilotOptions } from './autopilot.js';
+import { checkGhAvailable, checkGitVersion, type ExecFn } from '../autopilot/gh-pr.js';
 
 const execFileAsync = promisify(execFile);
+
+export interface AutoPrPreflightResult {
+  ok: boolean;
+  reason?: string;
+  baseBranch?: string;
+  ghVersion?: string;
+  gitVersion?: string;
+}
+
+export async function runAutoPrPreflight(opts: {
+  cwd: string;
+  exec?: ExecFn;
+}): Promise<AutoPrPreflightResult> {
+  const exec = opts.exec;
+  const gh = await checkGhAvailable({ exec, cwd: opts.cwd });
+  if (!gh.available) return { ok: false, reason: `--auto-pr preflight: ${gh.reason}` };
+
+  const git = await checkGitVersion({ exec, cwd: opts.cwd });
+  if (!git.ok) return { ok: false, reason: `--auto-pr preflight: ${git.reason}`, ghVersion: gh.ghVersion };
+
+  const runExec = exec ?? (await defaultExecForWatch());
+  const head = await runExec('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: opts.cwd });
+  if (head.exitCode !== 0) {
+    return { ok: false, reason: '--auto-pr preflight: git rev-parse failed', ghVersion: gh.ghVersion, gitVersion: git.version };
+  }
+  const baseBranch = head.stdout.trim();
+  if (baseBranch === 'HEAD' || baseBranch === '') {
+    return { ok: false, reason: '--auto-pr preflight: on detached HEAD — checkout a branch first', ghVersion: gh.ghVersion, gitVersion: git.version };
+  }
+
+  const remote = await runExec('git', ['remote', 'get-url', 'origin'], { cwd: opts.cwd });
+  if (remote.exitCode !== 0) {
+    return { ok: false, reason: '--auto-pr preflight: no "origin" remote configured', ghVersion: gh.ghVersion, gitVersion: git.version };
+  }
+
+  return { ok: true, baseBranch, ghVersion: gh.ghVersion, gitVersion: git.version };
+}
+
+async function defaultExecForWatch(): Promise<ExecFn> {
+  const { execFile: ef } = await import('node:child_process');
+  const { promisify: prom } = await import('node:util');
+  const efAsync = prom(ef);
+  return async (cmd, args, execOpts) => {
+    try {
+      const r = await efAsync(cmd, args, { cwd: execOpts?.cwd });
+      return { stdout: r.stdout, stderr: r.stderr, exitCode: 0 };
+    } catch (err) {
+      const e = err as { stdout?: string; stderr?: string; code?: number };
+      return { stdout: e.stdout ?? '', stderr: e.stderr ?? String(err), exitCode: e.code ?? 1 };
+    }
+  };
+}
 
 export interface WatchOptions {
   debounceMs: number;
@@ -27,6 +80,10 @@ export interface WatchOptions {
    * single group. Failures are silent — the watch loop continues regardless.
    */
   dashboardUrl?: string;
+  /** Enable night-shift auto-PR mode: route Phase C through ShadowFixCoordinator. */
+  autoPr?: boolean;
+  /** Defaults to 'touched-files'. Passed to shadow-pipeline's verifyScope. */
+  regressionScope?: 'one' | 'touched-files' | 'all';
 }
 
 const IGNORED_TOP_DIRS = new Set([
@@ -49,6 +106,55 @@ export async function watchAndRerun(
   watchOpts: WatchOptions,
 ): Promise<void> {
   const log = watchOpts.onLog ?? ((line: string) => console.log(line));
+
+  // --auto-pr setup
+  let preflight: AutoPrPreflightResult | null = null;
+  let coordinator: import('../autopilot/shadow-fix-coordinator.js').ShadowFixCoordinator | null = null;
+
+  if (watchOpts.autoPr) {
+    preflight = await runAutoPrPreflight({ cwd: baseOpts.cwd });
+    if (!preflight.ok) {
+      log(`[watch] ${preflight.reason}`);
+      throw new Error(preflight.reason);
+    }
+    log(`[watch] auto-pr ON · base branch: ${preflight.baseBranch} · regression scope: ${watchOpts.regressionScope ?? 'touched-files'}`);
+    log(`[watch] note: new fixes are only discovered when source files change.`);
+    log(`[watch]       If you don't edit code overnight, no new PRs will appear after the initial run.`);
+
+    // Build coordinator. We need pickClient() lazily so this works even when
+    // the user hasn't set ANTHROPIC_API_KEY (falls back to Claude Code subscription).
+    const { pickClient } = await import('@contractqa/orchestrator/llm');
+    const llmClient = await pickClient();
+
+    const { ShadowFixCoordinator } = await import('../autopilot/shadow-fix-coordinator.js');
+    const { runContractPath } = await import('./autopilot.js');
+
+    const dashboardUrlForCoord = (watchOpts.dashboardUrl ?? process.env.DASHBOARD_URL ?? '').replace(/\/$/, '');
+
+    coordinator = new ShadowFixCoordinator(
+      {
+        worktreeRoot: await ensureWorktreeRoot(baseOpts.cwd),
+        repoRoot: baseOpts.cwd,
+        baseBranch: preflight.baseBranch!,
+        contractsDir: join(baseOpts.cwd, 'qa/contracts'),
+        llmClient,
+        regressionScope: watchOpts.regressionScope ?? 'touched-files',
+        dashboardUrl: dashboardUrlForCoord || undefined,
+      },
+      {
+        writePromptFile: async (bundlePath, dest) => {
+          return writeAutopilotFixPromptFromBundle(bundlePath, dest);
+        },
+        runContract: async (contractPath) => {
+          const r = await runContractPath(contractPath, baseOpts.cwd, new AbortController().signal);
+          if (r.passed === true) return { contractPath, status: 'pass' };
+          if (r.passed === false) return { contractPath, status: 'fail' };
+          return { contractPath, status: 'skipped' };
+        },
+      },
+    );
+  }
+
   const dashboardUrl = (watchOpts.dashboardUrl ?? process.env.DASHBOARD_URL ?? '').replace(/\/$/, '');
   // One session UUID per watch loop. Shared with the dashboard so /runs can
   // collapse all iterations into a single group.
@@ -86,14 +192,30 @@ export async function watchAndRerun(
       ? await dashboardCreateRun(dashboardUrl, baseOpts.cwd, branch, watchSessionId)
       : null;
     try {
-      const report = await runAutopilot(baseOpts);
+      const report = await runAutopilot({
+        ...baseOpts,
+        fixStrategy: coordinator ? 'shadow' : 'inPlace',
+        shadowCoordinator: coordinator ?? undefined,
+      });
       const failTotal = report.phaseA.failed + (report.phaseB?.failed ?? 0) + (report.phaseC?.givenUp ?? 0);
       log(`[watch] iteration ${iteration} done · ${failTotal === 0 ? 'all green' : `${failTotal} failures`}`);
       if (dashboardRunId) {
         const totals = aggregateTotals(report);
         const status: 'passed' | 'failed' =
           report.phaseA.failed + (report.phaseB?.failed ?? 0) > 0 ? 'failed' : 'passed';
-        const registered = await dashboardCompleteRun(dashboardUrl, dashboardRunId, status, totals, report.issuesWritten ?? []);
+        const registered = await dashboardCompleteRun(
+          dashboardUrl,
+          dashboardRunId,
+          status,
+          totals,
+          report.issuesWritten ?? [],
+          report.fixOutcomes?.map((o) => ({
+            issueJsonPath: o.issueJsonPath,
+            outcome: o.outcome,
+            prUrl: o.prUrl,
+            branch: o.branch,
+          })),
+        );
         if (registered != null && registered > 0) {
           log(`[watch] registered ${registered} issue${registered === 1 ? '' : 's'} on dashboard run ${dashboardRunId.slice(0, 8)}`);
         }
@@ -175,7 +297,6 @@ export async function watchAndRerun(
   // Best-effort: relative() to keep absolute paths out of logs. Imported so
   // the tsc unused-import check stays happy.
   void relative;
-  void join;
 }
 
 /** Read the project's current git branch. Best-effort. */
@@ -222,6 +343,7 @@ async function dashboardCompleteRun(
   status: 'passed' | 'failed' | 'error',
   totals: Record<string, number> | null,
   issuesWritten: string[],
+  fixOutcomes?: Array<{ issueJsonPath: string; outcome: string; prUrl?: string; branch?: string }>,
 ): Promise<number | null> {
   try {
     const res = await fetch(`${url}/api/runs/${runId}`, {
@@ -232,6 +354,7 @@ async function dashboardCompleteRun(
         endedAt: new Date().toISOString(),
         totals,
         issuesWritten,
+        fixOutcomes,
       }),
       signal: AbortSignal.timeout(10_000),
     });
@@ -265,4 +388,33 @@ function aggregateTotals(report: {
     c_fixed: c?.fixed ?? 0,
     c_givenUp: c?.givenUp ?? 0,
   };
+}
+
+async function ensureWorktreeRoot(cwd: string): Promise<string> {
+  const { mkdir } = await import('node:fs/promises');
+  const root = join(cwd, '.contractqa-worktrees');
+  await mkdir(root, { recursive: true });
+  return root;
+}
+
+async function writeAutopilotFixPromptFromBundle(bundlePath: string, dest: string): Promise<string> {
+  const { readFile, writeFile } = await import('node:fs/promises');
+  const issue = await readFile(join(bundlePath, 'issue.json'), 'utf8');
+  const body = `You are fixing a product invariant violation reported by contractqa autopilot.
+
+Rules:
+1. Read the issue bundle first.
+2. Fix production code, not the contract.
+3. Do not weaken the contract. If it is wrong, emit proposed_contract_revision and STOP.
+4. Keep the patch minimal.
+5. After patching, return JSON with root_cause, files_changed, tests_run, validation_result, patch_diff.
+
+Issue bundle:
+- issue: ${join(bundlePath, 'issue.json')}
+
+issue.json contents:
+${issue}
+`;
+  await writeFile(dest, body);
+  return dest;
 }
