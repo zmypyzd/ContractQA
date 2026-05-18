@@ -118,57 +118,23 @@ export async function watchAndRerun(
 ): Promise<void> {
   const log = watchOpts.onLog ?? ((line: string) => console.log(line));
 
-  // --auto-pr setup
-  let preflight: AutoPrPreflightResult | null = null;
+  // --auto-pr setup — preflight + coordinator. Throws AutoPrPreflightError on preflight failure.
   let coordinator: import('../autopilot/shadow-fix-coordinator.js').ShadowFixCoordinator | null = null;
 
   if (watchOpts.autoPr) {
-    preflight = await runAutoPrPreflight({ cwd: baseOpts.cwd });
-    if (!preflight.ok) {
-      log(`[watch] ${preflight.reason}`);
-      throw new AutoPrPreflightError(preflight.reason ?? 'preflight failed');
-    }
-    log(`[watch] auto-pr ON · base branch: ${preflight.baseBranch} · regression scope: ${watchOpts.regressionScope ?? 'touched-files'}`);
-    log(`[watch] note: new fixes are only discovered when source files change.`);
-    log(`[watch]       If you don't edit code overnight, no new PRs will appear after the initial run.`);
-
-    // Build coordinator. We need pickClient() lazily so this works even when
-    // the user hasn't set ANTHROPIC_API_KEY (falls back to Claude Code subscription).
-    const { pickClient } = await import('@contractqa/orchestrator/llm');
-    const llmClient = await pickClient();
-
-    const { ShadowFixCoordinator } = await import('../autopilot/shadow-fix-coordinator.js');
-    const { runContractPath } = await import('./autopilot.js');
-
-    const dashboardUrlForCoord = (watchOpts.dashboardUrl ?? process.env.DASHBOARD_URL ?? '').replace(/\/$/, '');
-
-    coordinator = new ShadowFixCoordinator(
-      {
-        worktreeRoot: await ensureWorktreeRoot(baseOpts.cwd),
-        repoRoot: baseOpts.cwd,
-        baseBranch: preflight.baseBranch!,
-        contractsDir: join(baseOpts.cwd, 'qa/contracts'),
-        llmClient,
-        regressionScope: watchOpts.regressionScope ?? 'touched-files',
-        dashboardUrl: dashboardUrlForCoord || undefined,
+    coordinator = await createNightShiftCoordinator({
+      cwd: baseOpts.cwd,
+      regressionScope: watchOpts.regressionScope ?? 'touched-files',
+      dashboardUrl: watchOpts.dashboardUrl ?? process.env.DASHBOARD_URL,
+      onPreflightOk: (preflight) => {
+        log(`[watch] auto-pr ON · base branch: ${preflight.baseBranch} · regression scope: ${watchOpts.regressionScope ?? 'touched-files'}`);
+        log(`[watch] note: new fixes are only discovered when source files change.`);
+        log(`[watch]       If you don't edit code overnight, no new PRs will appear after the initial run.`);
       },
-      {
-        writePromptFile: async (bundlePath, dest) => {
-          return writeAutopilotFixPromptFromBundle(bundlePath, dest);
-        },
-        runContract: async (contractPath) => {
-          // TODO(night-shift v1.1): plumb autopilot's abortController.signal through
-          // ShadowFixCoordinator constructor instead of using a per-call timeout.
-          // Until then, use a 60s hard limit so a stuck contract can't hang the
-          // regression check past any reasonable time-budget.
-          const signal = AbortSignal.timeout(60_000);
-          const r = await runContractPath(contractPath, baseOpts.cwd, signal);
-          if (r.passed === true) return { contractPath, status: 'pass' };
-          if (r.passed === false) return { contractPath, status: 'fail' };
-          return { contractPath, status: 'skipped' };
-        },
+      onPreflightFail: (reason) => {
+        log(`[watch] ${reason}`);
       },
-    );
+    });
   }
 
   const dashboardUrl = (watchOpts.dashboardUrl ?? process.env.DASHBOARD_URL ?? '').replace(/\/$/, '');
@@ -410,6 +376,72 @@ async function ensureWorktreeRoot(cwd: string): Promise<string> {
   const root = join(cwd, '.contractqa-worktrees');
   await mkdir(root, { recursive: true });
   return root;
+}
+
+/**
+ * Build a fully-wired ShadowFixCoordinator for night-shift mode.
+ *
+ * Runs preflight (gh + git + branch + remote) first; on failure throws
+ * `AutoPrPreflightError` after invoking `onPreflightFail`. On success
+ * invokes `onPreflightOk` then constructs the coordinator with the
+ * autopilot-specific writePromptFile + runContract wrappers.
+ *
+ * Exported for re-use outside `watchAndRerun` (e.g., the Dashboard's
+ * launcher stream route, which spawns runAutopilot in-process and needs
+ * its own coordinator instance).
+ */
+export async function createNightShiftCoordinator(opts: {
+  cwd: string;
+  regressionScope?: 'one' | 'touched-files' | 'all';
+  dashboardUrl?: string;
+  /** Called once after preflight succeeds, before coordinator construction. */
+  onPreflightOk?: (preflight: AutoPrPreflightResult) => void;
+  /** Called once with the failure reason before AutoPrPreflightError is thrown. */
+  onPreflightFail?: (reason: string) => void;
+}): Promise<import('../autopilot/shadow-fix-coordinator.js').ShadowFixCoordinator> {
+  const preflight = await runAutoPrPreflight({ cwd: opts.cwd });
+  if (!preflight.ok) {
+    const reason = preflight.reason ?? 'preflight failed';
+    opts.onPreflightFail?.(reason);
+    throw new AutoPrPreflightError(reason);
+  }
+  opts.onPreflightOk?.(preflight);
+
+  // Lazy imports so this works regardless of which LLM credentials the
+  // caller has (ANTHROPIC_API_KEY, OPENAI_API_KEY, or Claude Code subscription).
+  const { pickClient } = await import('@contractqa/orchestrator/llm');
+  const llmClient = await pickClient();
+
+  const { ShadowFixCoordinator } = await import('../autopilot/shadow-fix-coordinator.js');
+  const { runContractPath } = await import('./autopilot.js');
+
+  const dashboardUrl = (opts.dashboardUrl ?? '').replace(/\/$/, '') || undefined;
+
+  return new ShadowFixCoordinator(
+    {
+      worktreeRoot: await ensureWorktreeRoot(opts.cwd),
+      repoRoot: opts.cwd,
+      baseBranch: preflight.baseBranch!,
+      contractsDir: join(opts.cwd, 'qa/contracts'),
+      llmClient,
+      regressionScope: opts.regressionScope ?? 'touched-files',
+      dashboardUrl,
+    },
+    {
+      writePromptFile: async (bundlePath, dest) => writeAutopilotFixPromptFromBundle(bundlePath, dest),
+      runContract: async (contractPath) => {
+        // TODO(night-shift v1.1): plumb autopilot's abortController.signal through
+        // ShadowFixCoordinator instead of using a per-call timeout. Until then, a
+        // 60s hard limit prevents a stuck contract from hanging the regression
+        // check past any reasonable time-budget.
+        const signal = AbortSignal.timeout(60_000);
+        const r = await runContractPath(contractPath, opts.cwd, signal);
+        if (r.passed === true) return { contractPath, status: 'pass' };
+        if (r.passed === false) return { contractPath, status: 'fail' };
+        return { contractPath, status: 'skipped' };
+      },
+    },
+  );
 }
 
 async function writeAutopilotFixPromptFromBundle(bundlePath: string, dest: string): Promise<string> {

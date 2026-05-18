@@ -140,10 +140,12 @@ export default function LauncherPage() {
     };
   }, []);
 
-  const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
+  const startRun = useCallback(
+    (mode: 'regular' | 'night-shift') => {
       if (!detection?.ok) return;
+
+      // Night-shift implies watch (continuous re-run on file change).
+      const isContinuous = mode === 'night-shift' || watchMode;
 
       // Reset state from any prior run.
       sourceRef.current?.close();
@@ -160,7 +162,13 @@ export default function LauncherPage() {
       // swallows errors so DB outages can't break the run.
       void recordRecentProject(detection.resolvedPath, detection.detected);
 
-      const url = `/launcher/stream?cwd=${encodeURIComponent(detection.resolvedPath)}&fix=true${watchMode ? '&watch=true' : ''}`;
+      const params = new URLSearchParams({
+        cwd: detection.resolvedPath,
+        fix: 'true',
+      });
+      if (isContinuous) params.set('watch', 'true');
+      if (mode === 'night-shift') params.set('autoPr', 'true');
+      const url = `/launcher/stream?${params.toString()}`;
       const es = new EventSource(url);
       sourceRef.current = es;
 
@@ -218,9 +226,9 @@ export default function LauncherPage() {
         const data = JSON.parse((ev as MessageEvent).data) as Extract<LauncherEvent, { type: 'run-end' }>;
         setRunOutcome(data.outcome);
         setRunning(false);
-        // In watch mode, the stream stays open and another run-start may fire.
-        // Only close the EventSource on a non-watch run.
-        if (!watchMode) {
+        // In continuous modes (watch or night-shift), the stream stays open
+        // and another run-start may fire. Only close for one-shot runs.
+        if (!isContinuous) {
           es.close();
           sourceRef.current = null;
         }
@@ -241,6 +249,18 @@ export default function LauncherPage() {
     },
     [detection, watchMode],
   );
+
+  const handleSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      startRun('regular');
+    },
+    [startRun],
+  );
+
+  const handleNightShift = useCallback(() => {
+    startRun('night-shift');
+  }, [startRun]);
 
   const toggleTheme = () => {
     const root = document.documentElement;
@@ -335,6 +355,16 @@ export default function LauncherPage() {
                 >
                   <span aria-hidden>▶</span>{' '}
                   {running ? 'Running…' : watchMode ? 'Watch & re-run' : 'Run autopilot'}
+                </button>
+                <button
+                  type="button"
+                  className={`${s.btn} ${s.btnNightShift}`}
+                  disabled={!detection?.ok || running}
+                  onClick={handleNightShift}
+                  title="Night-shift: watch + auto-PR. Requires gh CLI + git remote. Each fix opens its own PR."
+                >
+                  <span aria-hidden>🌙</span>{' '}
+                  夜班
                 </button>
                 <label className={s.toggle} title="Re-run autopilot every time a source file changes">
                   <input

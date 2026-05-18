@@ -23,8 +23,12 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { runAutopilot } from 'contractqa';
-import type { AutopilotProgressEvent, AutopilotPhaseCounters } from 'contractqa';
+import { runAutopilot, createNightShiftCoordinator, AutoPrPreflightError } from 'contractqa';
+import type {
+  AutopilotProgressEvent,
+  AutopilotPhaseCounters,
+  ShadowFixCoordinator,
+} from 'contractqa';
 import { pickClient, LLMConfigError, type LLMClient } from '@contractqa/orchestrator/llm';
 import { type LauncherEvent, encodeEvent } from '../events';
 import { db } from '../../../lib/db';
@@ -61,6 +65,7 @@ export async function GET(req: Request): Promise<Response> {
   const rawCwd = url.searchParams.get('cwd') ?? '';
   const fixEnabled = url.searchParams.get('fix') !== 'false';
   const watchEnabled = url.searchParams.get('watch') === 'true';
+  const autoPrEnabled = url.searchParams.get('autoPr') === 'true';
 
   if (!rawCwd.trim()) {
     return errorResponse('Missing cwd query parameter.');
@@ -151,6 +156,57 @@ export async function GET(req: Request): Promise<Response> {
         elapsedMs: 0,
       });
 
+      // Night-shift coordinator (auto-pr mode). Preflight runs gh/git/branch/remote
+      // checks; failure emits a clean error log + run-end and closes the stream.
+      let shadowCoordinator: ShadowFixCoordinator | null = null;
+      if (autoPrEnabled) {
+        try {
+          shadowCoordinator = await createNightShiftCoordinator({
+            cwd,
+            regressionScope: 'touched-files',
+            dashboardUrl: process.env.NEXT_PUBLIC_DASHBOARD_URL,
+            onPreflightOk: (preflight) => {
+              emit({
+                type: 'log',
+                level: 'info',
+                message: `night-shift ON · base branch: ${preflight.baseBranch} · regression scope: touched-files`,
+                elapsedMs: 0,
+              });
+              emit({
+                type: 'log',
+                level: 'info',
+                message: `note: new fixes only appear when source files change`,
+                elapsedMs: 0,
+              });
+            },
+            onPreflightFail: (reason) => {
+              emit({ type: 'log', level: 'error', message: `night-shift preflight: ${reason}`, elapsedMs: 0 });
+            },
+          });
+        } catch (err) {
+          const isPreflight = err instanceof AutoPrPreflightError;
+          const runId = newSyntheticId();
+          emit({ type: 'run-start', runId, cwd, fixEnabled, startedAt: Date.now() });
+          if (!isPreflight) {
+            emit({
+              type: 'log',
+              level: 'error',
+              message: err instanceof Error ? err.message : String(err),
+              elapsedMs: 0,
+            });
+          }
+          emit({
+            type: 'run-end',
+            runId,
+            outcome: 'error',
+            durationMs: 0,
+            error: isPreflight ? 'AutoPrPreflightError' : (err instanceof Error ? err.message : String(err)),
+          });
+          close();
+          return;
+        }
+      }
+
       // Single-iteration runner. Returns when the run finishes (success or
       // error); never throws. In watch mode, called repeatedly.
       const runOnce = async (trigger: string): Promise<void> => {
@@ -178,6 +234,8 @@ export async function GET(req: Request): Promise<Response> {
             fix: fixEnabled,
             yes: true,
             llmClient,
+            fixStrategy: shadowCoordinator ? 'shadow' : 'inPlace',
+            shadowCoordinator: shadowCoordinator ?? undefined,
             onProgress: (event: AutopilotProgressEvent) => {
               if (event.type === 'phase' && event.counters) {
                 phaseTotals[event.phase] = event.counters;
@@ -197,7 +255,7 @@ export async function GET(req: Request): Promise<Response> {
             await completeRunRecord(runId, mapOutcomeToStatus(outcome, false), aggregateTotals(phaseTotals));
             // Register any issue evidence the autopilot wrote this iteration.
             // Safe to call even when nothing was written (returns 0).
-            const registered = await registerIssuesFromReport(runId, report.issuesWritten ?? []);
+            const registered = await registerIssuesFromReport(runId, report.issuesWritten ?? [], report.fixOutcomes);
             if (registered > 0) {
               emit({
                 type: 'log',
@@ -402,20 +460,42 @@ async function completeRunRecord(
  * on disk is still the source of truth). Returns the number of rows actually
  * inserted so the SSE log can mention it.
  */
-async function registerIssuesFromReport(runId: string, issuePaths: string[]): Promise<number> {
+async function registerIssuesFromReport(
+  runId: string,
+  issuePaths: string[],
+  fixOutcomes?: Array<{ issueJsonPath: string; outcome: string; prUrl?: string; branch?: string }>,
+): Promise<number> {
   if (issuePaths.length === 0) return 0;
+  const fixMap = new Map<string, { outcome: string; prUrl?: string; branch?: string }>();
+  for (const fo of fixOutcomes ?? []) {
+    fixMap.set(fo.issueJsonPath, { outcome: fo.outcome, prUrl: fo.prUrl, branch: fo.branch });
+  }
   let inserted = 0;
   for (const issueJsonPath of issuePaths) {
     try {
+      const fix = fixMap.get(issueJsonPath);
       // De-dupe by path: autopilot's orphan-scan re-emits the same paths on
       // every run, so without this check the issues table would grow unboundedly
-      // for each watch iteration.
+      // for each watch iteration. In night-shift mode, we also UPDATE existing
+      // rows with fresh fix metadata (an issue's outcome can flip across iterations).
       const existing = await db
         .select({ id: issues.id })
         .from(issues)
         .where(eq(issues.issueJsonPath, issueJsonPath))
         .limit(1);
-      if (existing.length > 0) continue;
+      if (existing.length > 0) {
+        if (fix) {
+          await db
+            .update(issues)
+            .set({
+              fixOutcome: fix.outcome ?? null,
+              fixPrUrl: fix.prUrl ?? null,
+              fixBranch: fix.branch ?? null,
+            })
+            .where(eq(issues.id, existing[0]!.id));
+        }
+        continue;
+      }
 
       const raw = await readFile(issueJsonPath, 'utf8');
       const parsed = JSON.parse(raw) as {
@@ -431,6 +511,9 @@ async function registerIssuesFromReport(runId: string, issuePaths: string[]): Pr
         confidence: parsed.confidence != null ? String(parsed.confidence) : null,
         status: parsed.status ?? 'open',
         issueJsonPath,
+        fixOutcome: fix?.outcome ?? null,
+        fixPrUrl: fix?.prUrl ?? null,
+        fixBranch: fix?.branch ?? null,
       });
       inserted++;
     } catch {

@@ -240,6 +240,19 @@
   color: var(--text);
   border-color: var(--border-2);
 }
+/* Night-shift: distinct from --accent primary (which is sodium yellow) to
+   avoid two yellow CTAs side-by-side. Uses the cool --info token to signal
+   the "night" mode without claiming an accent slot. */
+.btnNightShift {
+  background: var(--surface-2);
+  border-color: var(--info);
+  color: var(--text);
+  font-weight: 500;
+}
+.btnNightShift:hover {
+  background: var(--surface);
+  border-color: var(--text);
+}
 .btnMono {
   font-family: var(--font-mono);
   font-size: 12px;

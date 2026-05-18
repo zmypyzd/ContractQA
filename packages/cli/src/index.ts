@@ -7,3 +7,14 @@ export type {
   AutopilotProgressEvent,
   AutopilotPhaseCounters,
 } from './commands/autopilot.js';
+
+// Night-shift auto-PR — exported for the Dashboard launcher's stream route
+// (and any future programmatic caller that wants the same coordinator setup
+// as `contractqa autopilot --watch --auto-pr`).
+export {
+  runAutoPrPreflight,
+  AutoPrPreflightError,
+  createNightShiftCoordinator,
+} from './commands/autopilot-watch.js';
+export type { AutoPrPreflightResult } from './commands/autopilot-watch.js';
+export type { ShadowFixCoordinator } from './autopilot/shadow-fix-coordinator.js';
