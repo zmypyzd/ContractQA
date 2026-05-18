@@ -10,6 +10,7 @@ import { initProject } from '../src/commands/init.js';
 import { scanProject } from '../src/commands/scan.js';
 import { doctor, renderDoctorReport, type FixName } from '../src/commands/doctor.js';
 import { runAutopilot } from '../src/commands/autopilot.js';
+import { runDashboard, DASHBOARD_DEFAULTS } from '../src/commands/dashboard.js';
 const program = new Command('contractqa');
 
 program
@@ -137,6 +138,26 @@ program
       onLog: (line) => console.log(line),
       dashboardUrl: opts.dashboardUrl,
     });
+  });
+
+program
+  .command('dashboard')
+  .description('Launch the local dashboard: docker compose up + Postgres migrations + next dev')
+  .option('--port <p>', 'port for next dev', String(DASHBOARD_DEFAULTS.port))
+  .option('--no-docker', 'skip docker compose (bring your own Postgres)')
+  .option('--no-migrate', 'skip applying drizzle migrations')
+  .option('--db-url <url>', 'Postgres connection string', DASHBOARD_DEFAULTS.dbUrl)
+  .option('--wait <ms>', 'how long to wait for Postgres to accept connections', String(DASHBOARD_DEFAULTS.waitForPostgresMs))
+  .action(async (opts: { port: string; docker: boolean; migrate: boolean; dbUrl: string; wait: string }) => {
+    const code = await runDashboard({
+      cwd: process.cwd(),
+      port: Number(opts.port),
+      startDocker: opts.docker,
+      applyMigrations: opts.migrate,
+      dbUrl: opts.dbUrl,
+      waitForPostgresMs: Number(opts.wait),
+    });
+    process.exit(code);
   });
 
 program.parseAsync().catch((e: unknown) => {

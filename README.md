@@ -168,9 +168,11 @@ node packages/cli/dist/bin/contractqa.js invariants:gen \
 #    the first run downloads Chromium via the e2e package's pretest hook).
 pnpm --filter @contractqa/e2e test
 
-# 6. (Optional) Boot dashboard + Postgres + MinIO
-docker compose -f docker/docker-compose.yml up -d
-pnpm --filter @contractqa/dashboard dev   # http://localhost:3000
+# 6. (Optional) Boot dashboard + Postgres + MinIO — one shot
+pnpm exec contractqa dashboard            # http://localhost:3000
+# Or the long form, if you prefer manual control:
+#   docker compose -f docker/docker-compose.yml up -d
+#   pnpm --filter @contractqa/dashboard dev
 
 # 7. (Optional) Boot fixture app to drive a Playwright-backed run
 pnpm --filter @contractqa/fixture-app dev # http://localhost:4000

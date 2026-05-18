@@ -23,6 +23,7 @@ See the repo [README](https://github.com/zmy/contractqa) for the full architectu
 - `contractqa invariants-gen` — auto-generate `INVARIANTS.md` from contract YAML.
 - `contractqa run` — run contracts via Playwright. **Requires `@playwright/test`** — fails fast with an install hint if missing.
 - `contractqa autopilot` — zero-YAML onboarding: generate, run, and auto-fix contracts for a project. See [AUTOPILOT.md](../../docs/AUTOPILOT.md). (v1.1+)
+- `contractqa dashboard` — one-shot launch of the local dashboard (docker compose up + Postgres migrations + `next dev`). Monorepo-only. (v1.1+)
 
 For programmatic use, the HTTP-only path:
 
