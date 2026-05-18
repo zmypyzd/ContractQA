@@ -670,3 +670,141 @@ export async function mergeContracts(input: MergeContractsInput): Promise<MergeC
 
   return { written, skipped, hitCap: false };
 }
+
+// ─── Orchestrator: discoverByInteraction ─────────────────────────────────────
+
+import { discoverByModule } from './llm-discovery.js';
+
+const DEFAULT_CONCURRENCY = 4;
+
+async function fallbackToModuleDiscovery(
+  opts: DiscoverByInteractionOptions,
+  reason: string,
+): Promise<DiscoverByInteractionResult> {
+  opts.onEvent?.({
+    type: 'log',
+    level: 'error',
+    message: `[deep] ${reason}; falling back to module discovery`,
+  });
+  let written = 0;
+  const { assembleTargetContext } = await import('./bootstrap.js');
+  const ctx = await assembleTargetContext(opts.cwd);
+  await discoverByModule(
+    ctx,
+    opts.llmClient,
+    async (_module, proposals) => {
+      // Same merge path as the deep flow.
+      const merged = await mergeContracts({
+        cwd: opts.cwd,
+        proposals: proposals.map((p) => ({
+          interaction: {
+            id: 'fallback', type: 'button' as const, file: '', name: 'fallback',
+            module: _module, rationale: 'discoverByModule fallback',
+          },
+          proposal: p,
+        })),
+        maxContracts: opts.maxContracts,
+      });
+      written += merged.written.length;
+    },
+    opts.signal,
+  );
+  return {
+    interactionsFound: 0,
+    contractsWritten: written,
+    fallbackUsed: true,
+    fallbackReason: reason,
+  };
+}
+
+export async function discoverByInteraction(
+  opts: DiscoverByInteractionOptions,
+): Promise<DiscoverByInteractionResult> {
+  const concurrency = opts.concurrency ?? DEFAULT_CONCURRENCY;
+  const maxContracts = opts.maxContracts ?? DEFAULT_MAX_CONTRACTS;
+  const emit = (e: DiscoveryEvent) => opts.onEvent?.(e);
+
+  // Stage 1
+  emit({ type: 'stage', stage: 'enumerate', status: 'start' });
+  let enumResult: EnumerateSurfaceResult;
+  try {
+    enumResult = await enumerateSurface({
+      cwd: opts.cwd,
+      llmClient: opts.llmClient,
+      signal: opts.signal,
+      onQuarantine: (_raw, reason) => {
+        emit({ type: 'log', level: 'warn', message: `[deep] enumerateSurface quarantine: ${reason}` });
+      },
+    });
+  } catch (err) {
+    return fallbackToModuleDiscovery(opts, `surface enumeration crashed: ${(err as Error).message}`);
+  }
+  emit({ type: 'stage', stage: 'enumerate', status: 'done' });
+
+  if (enumResult.interactions === null) {
+    return fallbackToModuleDiscovery(opts, 'surface enumeration failed (invalid LLM output)');
+  }
+  if (enumResult.interactions.length === 0) {
+    return fallbackToModuleDiscovery(opts, 'surface enumeration returned 0 interactions');
+  }
+  if (enumResult.truncated) {
+    emit({
+      type: 'log',
+      level: 'warn',
+      message: `[deep] file tree exceeded 50k cap, truncated; consider chunking by top-level dir`,
+    });
+  }
+
+  // Stage 2
+  emit({ type: 'stage', stage: 'generate', status: 'start' });
+  const interactions = enumResult.interactions;
+  let completed = 0;
+  const results = await runPool(interactions, concurrency, async (interaction) => {
+    if (opts.signal.aborted) return null;
+    const r = await generateContractFor({
+      interaction,
+      cwd: opts.cwd,
+      llmClient: opts.llmClient,
+      signal: opts.signal,
+    });
+    completed++;
+    emit({ type: 'progress', phase: 'generate', done: completed, total: interactions.length });
+    if (r.error) {
+      emit({ type: 'log', level: 'warn', message: `[deep] interaction ${interaction.id}: ${r.error}` });
+    }
+    return r;
+  });
+  emit({ type: 'stage', stage: 'generate', status: 'done' });
+
+  // Build flat proposals list paired with their interaction.
+  const flatProposals: Array<{ interaction: Interaction; proposal: ContractProposal }> = [];
+  for (let i = 0; i < interactions.length; i++) {
+    const r = results[i];
+    if (!r) continue;
+    for (const p of r.proposals) {
+      flatProposals.push({ interaction: interactions[i]!, proposal: p });
+    }
+  }
+
+  // Stage 3
+  emit({ type: 'stage', stage: 'merge', status: 'start' });
+  const merged = await mergeContracts({
+    cwd: opts.cwd,
+    proposals: flatProposals,
+    maxContracts,
+    onEvent: (e) => {
+      if (e.type === 'write') {
+        emit({ type: 'log', level: 'info', message: `[deep] wrote ${e.targetPath}` });
+      } else if (e.type === 'cap-reached') {
+        emit({ type: 'log', level: 'warn', message: `[deep] hit max-contracts cap (${e.cap}), stopping early` });
+      }
+    },
+  });
+  emit({ type: 'stage', stage: 'merge', status: 'done' });
+
+  return {
+    interactionsFound: interactions.length,
+    contractsWritten: merged.written.length,
+    fallbackUsed: false,
+  };
+}

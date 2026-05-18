@@ -12,8 +12,10 @@ import {
   mergeContracts,
   contentHash,
   parseContract,
+  discoverByInteraction,
   type Interaction,
   type MergeEvent,
+  type DiscoveryEvent,
 } from '../src/autopilot/interaction-discovery.js';
 import type { ContractProposal } from '../src/autopilot/llm-discovery.js';
 
@@ -519,5 +521,117 @@ describe('mergeContracts', () => {
       await readFile(path.join(cwd, 'qa/contracts/core/INV-NO-AREA.yml'), 'utf8').catch(() => null),
     ).not.toBeNull();
     // interaction.module is 'core' → falls back to that
+  });
+});
+
+describe('discoverByInteraction', () => {
+  it('happy path: enumerate → generate → merge → returns counts', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'orch-'));
+    await writeFile(path.join(cwd, 'package.json'), '{}');
+    await mkdir(path.join(cwd, 'app'), { recursive: true });
+    await writeFile(path.join(cwd, 'app/page.tsx'), '<button>X</button>');
+
+    let callCount = 0;
+    const llm: LLMClient = {
+      providerName: 'anthropic-sdk',
+      modelHint: 'test',
+      generate: vi.fn(async () => {
+        callCount++;
+        if (callCount === 1) {
+          // Stage 1
+          return {
+            content: JSON.stringify([
+              { id: 'btn-app-x', type: 'button', file: 'app/page.tsx', name: 'X', module: 'app', rationale: 'r' },
+            ]),
+            usage: { inputTokens: 0, outputTokens: 0 },
+          };
+        }
+        // Stage 2
+        return {
+          content: JSON.stringify([
+            {
+              yaml: 'id: INV-ORCH-1\ntitle: t\nactions: []\nexpected: {}\n',
+              confidence: 'high',
+              module: 'app',
+              evidence: { sourceFiles: [], rationale: 'r' },
+            },
+          ]),
+          usage: { inputTokens: 0, outputTokens: 0 },
+        };
+      }),
+    };
+
+    const result = await discoverByInteraction({
+      cwd,
+      llmClient: llm,
+      signal: new AbortController().signal,
+    });
+
+    expect(result.interactionsFound).toBe(1);
+    expect(result.contractsWritten).toBe(1);
+    expect(result.fallbackUsed).toBe(false);
+  });
+
+  it('falls back to discoverByModule when Stage 1 returns invalid JSON', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'orch-'));
+    await writeFile(path.join(cwd, 'package.json'), '{}');
+
+    const llm: LLMClient = {
+      providerName: 'anthropic-sdk',
+      modelHint: 'test',
+      generate: vi.fn(async () => ({ content: 'not json', usage: { inputTokens: 0, outputTokens: 0 } })),
+    };
+
+    const events: DiscoveryEvent[] = [];
+    const result = await discoverByInteraction({
+      cwd,
+      llmClient: llm,
+      signal: new AbortController().signal,
+      onEvent: (e) => events.push(e),
+    });
+
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.fallbackReason).toMatch(/surface enumeration/i);
+    expect(events.find((e) => e.type === 'log' && e.level === 'error')).toBeDefined();
+  });
+
+  it('continues when some interactions fail in Stage 2', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'orch-'));
+    await writeFile(path.join(cwd, 'package.json'), '{}');
+    await mkdir(path.join(cwd, 'app'), { recursive: true });
+    await writeFile(path.join(cwd, 'app/page.tsx'), '<button>X</button>');
+
+    let callCount = 0;
+    const llm: LLMClient = {
+      providerName: 'anthropic-sdk',
+      modelHint: 'test',
+      generate: vi.fn(async () => {
+        callCount++;
+        if (callCount === 1) {
+          return {
+            content: JSON.stringify([
+              { id: 'btn-a', type: 'button', file: 'app/page.tsx', name: 'X', module: 'app', rationale: 'r' },
+              { id: 'btn-b', type: 'button', file: 'app/page.tsx', name: 'X', module: 'app', rationale: 'r' },
+            ]),
+            usage: { inputTokens: 0, outputTokens: 0 },
+          };
+        }
+        if (callCount === 2) return { content: 'broken', usage: { inputTokens: 0, outputTokens: 0 } };
+        return {
+          content: JSON.stringify([
+            { yaml: 'id: INV-OK\ntitle: t\nactions: []\nexpected: {}\n', confidence: 'high', module: 'app',
+              evidence: { sourceFiles: [], rationale: 'r' } },
+          ]),
+          usage: { inputTokens: 0, outputTokens: 0 },
+        };
+      }),
+    };
+
+    const result = await discoverByInteraction({
+      cwd, llmClient: llm, signal: new AbortController().signal, concurrency: 1,
+    });
+
+    expect(result.interactionsFound).toBe(2);
+    expect(result.contractsWritten).toBe(1);
   });
 });
