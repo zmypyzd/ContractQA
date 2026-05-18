@@ -13,6 +13,7 @@ import {
   contentHash,
   parseContract,
   discoverByInteraction,
+  extractJsonFromLlmResponse,
   type Interaction,
   type MergeEvent,
   type DiscoveryEvent,
@@ -658,5 +659,49 @@ describe('discoverByInteraction', () => {
     const fallbackLog = events.find((e) => e.type === 'log' && e.message.includes('0 interactions'));
     expect(fallbackLog).toBeDefined();
     expect(fallbackLog!.type === 'log' && fallbackLog!.level).toBe('warn');
+  });
+});
+
+describe('extractJsonFromLlmResponse', () => {
+  it('returns input unchanged when no wrapping', () => {
+    const input = '[{"x":1}]';
+    expect(extractJsonFromLlmResponse(input)).toBe(input);
+  });
+
+  it('strips ```json ... ``` fence', () => {
+    const input = '```json\n[{"x":1}]\n```';
+    expect(extractJsonFromLlmResponse(input)).toBe('[{"x":1}]');
+  });
+
+  it('strips ``` ... ``` fence (no language tag)', () => {
+    const input = '```\n[{"x":1}]\n```';
+    expect(extractJsonFromLlmResponse(input)).toBe('[{"x":1}]');
+  });
+
+  it('strips leading prose before JSON array', () => {
+    const input = 'Here is the JSON array based on the structure:\n\n[{"x":1}]';
+    expect(extractJsonFromLlmResponse(input)).toBe('[{"x":1}]');
+  });
+
+  it('handles realistic Claude Code wrapping: prose + json fence', () => {
+    const input = 'Based on the file tree provided, here is the array:\n\n```json\n[{"id":"btn-1","type":"button"}]\n```';
+    expect(extractJsonFromLlmResponse(input)).toBe('[{"id":"btn-1","type":"button"}]');
+  });
+});
+
+describe('enumerateSurface JSON extraction', () => {
+  it('parses successfully when LLM wraps in markdown fence', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'enum-fence-'));
+    await writeFile(path.join(cwd, 'package.json'), '{"name":"x"}');
+
+    const wrapped = '```json\n[{"id":"btn-test","type":"button","file":"x.tsx","name":"Test","module":"app","rationale":"r"}]\n```';
+    const llm: LLMClient = {
+      providerName: 'anthropic-sdk', modelHint: 'test',
+      generate: vi.fn(async () => ({ content: wrapped, usage: { inputTokens: 0, outputTokens: 0 } })),
+    };
+
+    const result = await enumerateSurface({ cwd, llmClient: llm });
+    expect(result.interactions).toHaveLength(1);
+    expect(result.interactions![0]!.id).toBe('btn-test');
   });
 });

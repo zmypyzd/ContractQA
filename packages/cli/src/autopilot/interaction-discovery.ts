@@ -108,6 +108,8 @@ const IGNORED_DIRS = new Set([
 const ENTRY_FILE_CANDIDATES = [
   'next.config.js', 'next.config.ts', 'next.config.mjs',
   'app/layout.tsx', 'app/layout.jsx',
+  'app/page.tsx', 'app/page.jsx',          // home page (often present even without layout)
+  'middleware.ts', 'middleware.tsx',        // Next.js auth/redirect middleware
   'src/router.tsx', 'src/router.ts',
   'src/main.tsx', 'src/main.ts',
   'vite.config.js', 'vite.config.ts',
@@ -117,6 +119,40 @@ const ENTRY_FILE_CANDIDATES = [
 // Rough token estimate: ~4 chars per token (English/code average).
 function estimateTokens(str: string): number {
   return Math.ceil(str.length / 4);
+}
+
+/**
+ * Strip common LLM wrapping (markdown fences, leading prose) before JSON.parse.
+ * Returns the input unchanged if no obvious wrapping is detected — the caller
+ * still gets the raw string for quarantine on parse failure.
+ */
+export function extractJsonFromLlmResponse(content: string): string {
+  let s = content.trim();
+
+  // Strip ```json ... ``` or ``` ... ``` fences (most common case).
+  const fenceMatch = s.match(/^```(?:json|JSON)?\s*\n?([\s\S]+?)\n?```\s*$/);
+  if (fenceMatch && fenceMatch[1]) {
+    s = fenceMatch[1].trim();
+  }
+
+  // If there's prose before the JSON, find the first '[' or '{' and slice from there.
+  // We prefer '[' first since both Stage 1 (Interaction[]) and Stage 2 (ContractProposal[])
+  // expect top-level arrays.
+  const firstBracket = s.indexOf('[');
+  const firstBrace = s.indexOf('{');
+  const firstJson = firstBracket >= 0 && (firstBrace < 0 || firstBracket < firstBrace)
+    ? firstBracket
+    : firstBrace;
+  if (firstJson > 0) s = s.slice(firstJson);
+
+  // Similarly, strip trailing prose after the matching closing bracket. Heuristic:
+  // find the LAST ']' or '}' in the string.
+  const lastBracket = s.lastIndexOf(']');
+  const lastBrace = s.lastIndexOf('}');
+  const lastJson = Math.max(lastBracket, lastBrace);
+  if (lastJson >= 0 && lastJson < s.length - 1) s = s.slice(0, lastJson + 1);
+
+  return s.trim();
 }
 
 async function walkProject(cwd: string): Promise<string[]> {
@@ -263,9 +299,10 @@ export async function enumerateSurface(opts: EnumerateSurfaceOptions): Promise<E
     };
   }
 
+  const cleaned = extractJsonFromLlmResponse(content);
   let json: unknown;
   try {
-    json = JSON.parse(content);
+    json = JSON.parse(cleaned);
   } catch {
     opts.onQuarantine?.(content, 'LLM response is not valid JSON');
     return {
@@ -435,9 +472,10 @@ export async function generateContractFor(opts: GenerateContractForOptions): Pro
     return { proposals: [], error: `LLM call failed: ${(err as Error).message}` };
   }
 
+  const cleaned = extractJsonFromLlmResponse(content);
   let json: unknown;
   try {
-    json = JSON.parse(content);
+    json = JSON.parse(cleaned);
   } catch {
     return { proposals: [], rawResponse: content, error: 'LLM response is not valid JSON' };
   }
