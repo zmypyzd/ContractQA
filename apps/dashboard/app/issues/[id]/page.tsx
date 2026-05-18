@@ -226,6 +226,36 @@ export default async function IssuePage({ params }: { params: Promise<{ id: stri
           </section>
         )}
 
+        {row.fixOutcome && (
+          <section className={s.fixCard} data-outcome={row.fixOutcome}>
+            <h2 className={s.sectionHead}>Auto-fix</h2>
+            <dl>
+              <dt>Outcome</dt>
+              <dd>
+                <span className={`${s.fixOutcomeBadge} ${fixOutcomeBadgeClass(row.fixOutcome, s)}`}>
+                  {row.fixOutcome}
+                </span>
+              </dd>
+              {row.fixPrUrl && (
+                <>
+                  <dt>Pull Request</dt>
+                  <dd>
+                    <a href={row.fixPrUrl} target="_blank" rel="noreferrer">
+                      {row.fixPrUrl}
+                    </a>
+                  </dd>
+                </>
+              )}
+              {row.fixBranch && (
+                <>
+                  <dt>Branch</dt>
+                  <dd><code>{row.fixBranch}</code></dd>
+                </>
+              )}
+            </dl>
+          </section>
+        )}
+
         <p className={s.footnote}>ContractQA · Diagnostic Modern · /issues/{id.slice(0, 8)}…</p>
       </main>
     </>
@@ -252,6 +282,14 @@ function Toolbar() {
       </div>
     </header>
   );
+}
+
+function fixOutcomeBadgeClass(outcome: string, s: Record<string, string>): string {
+  const o = outcome.toLowerCase();
+  if (o === 'success') return s.fixOutcomeSuccess;
+  if (o === 'regression') return s.fixOutcomeRegression;
+  if (o === 'skipped_pr_exists') return s.fixOutcomeSkipped;
+  return s.fixOutcomeMuted;
 }
 
 function stringifyShort(value: unknown): string {

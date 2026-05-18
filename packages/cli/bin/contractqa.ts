@@ -11,6 +11,7 @@ import { scanProject } from '../src/commands/scan.js';
 import { doctor, renderDoctorReport, type FixName } from '../src/commands/doctor.js';
 import { runAutopilot } from '../src/commands/autopilot.js';
 import { runDashboard, DASHBOARD_DEFAULTS } from '../src/commands/dashboard.js';
+import { AutoPrPreflightError } from '../src/commands/autopilot-watch.js';
 const program = new Command('contractqa');
 
 program
@@ -111,10 +112,11 @@ program
   .option('--yes', 'Accept LLM defaults for uncertain proposals; no interactive prompts')
   .option('--regenerate', 'Force re-run of LLM discovery, ignoring existing qa/contracts/')
   .option('--regression-scope <scope>', 'one|touched-files|all (default touched-files)', 'touched-files')
+  .option('--auto-pr', 'Night-shift mode: route Phase C through git worktree + gh pr create')
   .option('--watch', 'Watch the project directory and re-run autopilot on every file change')
   .option('--watch-debounce <ms>', 'Debounce window for --watch (default 2000ms)', '2000')
   .option('--dashboard-url <url>', 'Report each --watch iteration to a running ContractQA dashboard (or set DASHBOARD_URL env)')
-  .action(async (opts: { timeBudget: string; fix: boolean; yes?: boolean; regenerate?: boolean; regressionScope?: string; watch?: boolean; watchDebounce?: string; dashboardUrl?: string }) => {
+  .action(async (opts: { timeBudget: string; fix: boolean; yes?: boolean; regenerate?: boolean; regressionScope?: string; autoPr?: boolean; watch?: boolean; watchDebounce?: string; dashboardUrl?: string }) => {
     const baseOpts = {
       cwd: process.cwd(),
       timeBudgetMs: Number(opts.timeBudget),
@@ -123,6 +125,11 @@ program
       regenerate: opts.regenerate,
       regressionScope: opts.regressionScope as ('one' | 'touched-files' | 'all' | undefined),
     };
+
+    if (opts.autoPr && !opts.watch) {
+      console.error('--auto-pr requires --watch (use: contractqa autopilot --watch --auto-pr)');
+      process.exit(2);
+    }
 
     if (!opts.watch) {
       const report = await runAutopilot(baseOpts);
@@ -133,11 +140,21 @@ program
 
     // --watch mode: run once, then re-run on debounced filesystem change events.
     const { watchAndRerun } = await import('../src/commands/autopilot-watch.js');
-    await watchAndRerun(baseOpts, {
-      debounceMs: Number(opts.watchDebounce ?? '2000'),
-      onLog: (line) => console.log(line),
-      dashboardUrl: opts.dashboardUrl,
-    });
+    try {
+      await watchAndRerun(baseOpts, {
+        debounceMs: Number(opts.watchDebounce ?? '2000'),
+        onLog: (line) => console.log(line),
+        dashboardUrl: opts.dashboardUrl,
+        autoPr: opts.autoPr,
+        regressionScope: baseOpts.regressionScope,
+      });
+    } catch (err) {
+      if (err instanceof AutoPrPreflightError) {
+        console.error(`✖ ${err.reason}`);
+        process.exit(3);
+      }
+      throw err;
+    }
   });
 
 program

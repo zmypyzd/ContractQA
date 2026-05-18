@@ -73,12 +73,20 @@ export interface AutopilotOptions {
    * the callback are swallowed so progress reporting never breaks a run.
    */
   onProgress?: (event: AutopilotProgressEvent) => void;
+  /**
+   * Phase C fix strategy. 'inPlace' (default) accumulates patches in cwd.
+   * 'shadow' routes each failure through a ShadowFixCoordinator that opens
+   * a worktree per fix and creates a GitHub PR. Requires shadowCoordinator.
+   */
+  fixStrategy?: 'inPlace' | 'shadow';
+  shadowCoordinator?: import('../autopilot/shadow-fix-coordinator.js').ShadowFixCoordinator;
 }
 
 interface QueuedFailure {
   priority: 0 | 1; // 0 = smoke (Phase A), 1 = module (Phase B)
   failure: SmokeFailure;
   contractPath: string;
+  evidencePath?: string; // absolute path to issue.json, populated by writeIssueEvidence
 }
 
 /** I3: Cost-tracking LLM client decorator. */
@@ -159,7 +167,7 @@ async function writeQuarantine(cwd: string, module: string, raw: string): Promis
  * The base URL is read from CONTRACTQA_BASE_URL env var, or defaults to
  * http://localhost:3000 which is the Next.js/Vite dev-server default.
  */
-async function runContractPath(
+export async function runContractPath(
   contractPath: string,
   _cwd: string,
   signal: AbortSignal,
@@ -267,6 +275,8 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
   // llmClient, bypassing the shadow-pipeline GitHub wrapper (no PR/worktree needed).
   let phaseC: { attempted: number; fixed: number; givenUp: number; skipped: number; diffs: string[] } = { attempted: 0, fixed: 0, givenUp: 0, skipped: 0, diffs: [] };
   let costTracker: CostTracker = { inputTokens: 0, outputTokens: 0, provider: '' };
+  // Accumulator for shadow-fix outcomes (populated only when fixStrategy === 'shadow').
+  const fixOutcomes: import('../autopilot/shadow-fix-coordinator.js').CoordinatorFixOutcome[] = [];
   // Issue evidence paths written this run — surfaced on the report so the
   // dashboard / downstream consumers can register one issues row per file.
   const issuesWritten: string[] = [];
@@ -293,6 +303,7 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
       durationMs: Date.now() - startedAt,
       llmCost,
       issuesWritten,
+      fixOutcomes: opts.fixStrategy === 'shadow' ? fixOutcomes : undefined,
     };
     cachedReport = report;
     await mkdir(join(opts.cwd, 'qa'), { recursive: true });
@@ -398,7 +409,6 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
         phaseA.failed++;
         const f: SmokeFailure = { id: p.split('/').pop()!, reason: r.reason ?? 'unknown' };
         phaseA.failures.push(f);
-        queue.push({ priority: 0, failure: f, contractPath: p });
         const issuePath = await writeIssueEvidence(opts.cwd, {
           contractPath: p,
           phase: 'A',
@@ -406,6 +416,7 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
           reason: f.reason,
         });
         if (issuePath) issuesWritten.push(issuePath);
+        queue.push({ priority: 0, failure: f, contractPath: p, evidencePath: issuePath ?? undefined });
       }
       emit({
         type: 'phase',
@@ -431,10 +442,17 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
       emit({ type: 'phase', phase: 'C', status: 'skipped', elapsedMs: elapsed() });
     }
     const phaseCDone = fixEnabled ? (async () => {
+      // Validate config once, up front.
+      if (opts.fixStrategy === 'shadow' && !opts.shadowCoordinator) {
+        throw new Error('fixStrategy=shadow requires shadowCoordinator');
+      }
+
       emit({ type: 'phase', phase: 'C', status: 'active', elapsedMs: elapsed() });
-      // Temp dir for fix prompt files written during Phase C.
+      // Temp dir for fix prompt files written during Phase C (in-place mode only).
       const tmpDir = join(opts.cwd, 'qa/.autopilot-fix-tmp');
-      await mkdir(tmpDir, { recursive: true });
+      if (opts.fixStrategy !== 'shadow') {
+        await mkdir(tmpDir, { recursive: true });
+      }
 
       while (true) {
         if (abortController.signal.aborted) break;
@@ -449,8 +467,6 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
           continue;
         }
 
-        // Phase C: Option A — call runFixLoop directly with a custom fix callback.
-        // runClaudeFix uses the autopilot's llmClient; no PR, no worktree, in-place fix.
         phaseC.attempted++;
         emit({
           type: 'phase',
@@ -459,43 +475,88 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
           elapsedMs: elapsed(),
           counters: { attempted: phaseC.attempted, fixed: phaseC.fixed, givenUp: phaseC.givenUp },
         });
-        try {
-          const promptPath = await writeAutopilotFixPrompt(next.contractPath, next.failure, tmpDir);
-          const loop = await runFixLoop({
-            maxAttempts: 3,
-            fix: async (_attempt) =>
-              runClaudeFix({
-                promptPath,
-                cwd: opts.cwd,
-                allowedTools: ['Read', 'Edit', 'Bash', 'Grep', 'Glob'],
-                llmClient,
-                signal: abortController.signal,
-              }),
-          });
 
-          if (loop.outcome === 'SUCCESS') {
-            const lastResult = loop.history.at(-1);
-            const patchDiff = lastResult?.patch_diff;
-            if (patchDiff) {
-              // Accumulate the diff — unified application happens after Phase B+C complete.
-              accumulatedDiffs.push(patchDiff);
-            }
-            phaseC.fixed++;
-          } else {
-            // EXHAUSTED, CONTRACT_REVISION_NEEDED, PARSE_ERROR — give up on this item.
+        if (opts.fixStrategy === 'shadow') {
+          // Phase C: shadow strategy — delegate each failure to shadowCoordinator.
+          // Creates a worktree per fix and opens a GitHub PR. No in-place edits.
+          // Defensive: writeIssueEvidence may return null on write failure. Skip rather than
+          // forward an empty path to the coordinator (which would then try to readFile('')).
+          if (!next.evidencePath) {
             phaseC.givenUp++;
-            const giveUpMsg = `autopilot: fix gave up on ${next.failure.id} (outcome: ${loop.outcome})`;
-            emit({ type: 'log', level: 'warn', message: giveUpMsg, elapsedMs: elapsed() });
-            // eslint-disable-next-line no-console
-            console.warn(giveUpMsg);
+            emit({
+              type: 'log',
+              level: 'warn',
+              message: `autopilot: shadow-fix skipped ${next.failure.id} — no evidence path (writeIssueEvidence returned null)`,
+              elapsedMs: elapsed(),
+            });
+            continue;
           }
-        } catch (err) {
-          phaseC.givenUp++;
-          const errMsg = `autopilot: fix error for ${next.failure.id}: ${(err as Error).message}`;
-          emit({ type: 'log', level: 'error', message: errMsg, elapsedMs: elapsed() });
-          // eslint-disable-next-line no-console
-          console.warn(errMsg);
+          try {
+            const outcome = await opts.shadowCoordinator!.fix({
+              issueId: next.failure.id,
+              issueJsonPath: next.evidencePath,
+              failingContractPath: next.contractPath,
+              bundlePath: join(next.evidencePath, '..'),
+            });
+            fixOutcomes.push(outcome);
+            if (outcome.outcome === 'SUCCESS' || outcome.outcome === 'SKIPPED_PR_EXISTS') {
+              phaseC.fixed++;
+            } else {
+              phaseC.givenUp++;
+              const giveUpMsg = `autopilot: shadow-fix gave up on ${next.failure.id} (outcome: ${outcome.outcome})`;
+              emit({ type: 'log', level: 'warn', message: giveUpMsg, elapsedMs: elapsed() });
+              // eslint-disable-next-line no-console
+              console.warn(giveUpMsg);
+            }
+          } catch (err) {
+            phaseC.givenUp++;
+            const errMsg = `autopilot: shadow-fix error for ${next.failure.id}: ${(err as Error).message}`;
+            emit({ type: 'log', level: 'error', message: errMsg, elapsedMs: elapsed() });
+            // eslint-disable-next-line no-console
+            console.warn(errMsg);
+          }
+        } else {
+          // Phase C: Option A — call runFixLoop directly with a custom fix callback.
+          // runClaudeFix uses the autopilot's llmClient; no PR, no worktree, in-place fix.
+          try {
+            const promptPath = await writeAutopilotFixPrompt(next.contractPath, next.failure, tmpDir);
+            const loop = await runFixLoop({
+              maxAttempts: 3,
+              fix: async (_attempt) =>
+                runClaudeFix({
+                  promptPath,
+                  cwd: opts.cwd,
+                  allowedTools: ['Read', 'Edit', 'Bash', 'Grep', 'Glob'],
+                  llmClient,
+                  signal: abortController.signal,
+                }),
+            });
+
+            if (loop.outcome === 'SUCCESS') {
+              const lastResult = loop.history.at(-1);
+              const patchDiff = lastResult?.patch_diff;
+              if (patchDiff) {
+                // Accumulate the diff — unified application happens after Phase B+C complete.
+                accumulatedDiffs.push(patchDiff);
+              }
+              phaseC.fixed++;
+            } else {
+              // EXHAUSTED, CONTRACT_REVISION_NEEDED, PARSE_ERROR — give up on this item.
+              phaseC.givenUp++;
+              const giveUpMsg = `autopilot: fix gave up on ${next.failure.id} (outcome: ${loop.outcome})`;
+              emit({ type: 'log', level: 'warn', message: giveUpMsg, elapsedMs: elapsed() });
+              // eslint-disable-next-line no-console
+              console.warn(giveUpMsg);
+            }
+          } catch (err) {
+            phaseC.givenUp++;
+            const errMsg = `autopilot: fix error for ${next.failure.id}: ${(err as Error).message}`;
+            emit({ type: 'log', level: 'error', message: errMsg, elapsedMs: elapsed() });
+            // eslint-disable-next-line no-console
+            console.warn(errMsg);
+          }
         }
+
         emit({
           type: 'phase',
           phase: 'C',
@@ -505,8 +566,10 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
         });
       }
 
-      // Clean up temp dir.
-      await rm(tmpDir, { recursive: true, force: true });
+      // Clean up temp dir (in-place mode only).
+      if (opts.fixStrategy !== 'shadow') {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
       emit({
         type: 'phase',
         phase: 'C',
@@ -549,7 +612,6 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
               phaseB.failed++;
               const failureId = p.split('/').pop()!;
               const failureReason = r.reason ?? 'unknown';
-              queue.push({ priority: 1, failure: { id: failureId, reason: failureReason }, contractPath: p });
               const issuePath = await writeIssueEvidence(opts.cwd, {
                 contractPath: p,
                 phase: 'B',
@@ -557,6 +619,7 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
                 reason: failureReason,
               });
               if (issuePath) issuesWritten.push(issuePath);
+              queue.push({ priority: 1, failure: { id: failureId, reason: failureReason }, contractPath: p, evidencePath: issuePath ?? undefined });
             }
           }
           emit({

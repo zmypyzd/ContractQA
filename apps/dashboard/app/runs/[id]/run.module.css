@@ -164,6 +164,22 @@
   letter-spacing: 0.04em;
 }
 
+.chipPrs {
+  display: inline-flex;
+  align-items: center;
+  margin-left: var(--s-3);
+  padding: 2px 8px;
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--surface-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  vertical-align: middle;
+}
+
 .issueList {
   list-style: none;
   margin: 0;
