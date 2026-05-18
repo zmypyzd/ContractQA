@@ -634,4 +634,29 @@ describe('discoverByInteraction', () => {
     expect(result.interactionsFound).toBe(2);
     expect(result.contractsWritten).toBe(1);
   });
+
+  it('emits warn (not error) when fallback triggered by 0 interactions', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'orch-'));
+    await writeFile(path.join(cwd, 'package.json'), '{}');
+
+    const llm: LLMClient = {
+      providerName: 'anthropic-sdk',
+      modelHint: 'test',
+      generate: vi.fn(async () => ({ content: '[]', usage: { inputTokens: 0, outputTokens: 0 } })),
+    };
+
+    const events: DiscoveryEvent[] = [];
+    const result = await discoverByInteraction({
+      cwd,
+      llmClient: llm,
+      signal: new AbortController().signal,
+      onEvent: (e) => events.push(e),
+    });
+
+    expect(result.fallbackUsed).toBe(true);
+    // 0-interactions case is warn, not error (spec §8 row 3)
+    const fallbackLog = events.find((e) => e.type === 'log' && e.message.includes('0 interactions'));
+    expect(fallbackLog).toBeDefined();
+    expect(fallbackLog!.type === 'log' && fallbackLog!.level).toBe('warn');
+  });
 });

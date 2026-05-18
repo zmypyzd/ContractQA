@@ -683,7 +683,7 @@ async function fallbackToModuleDiscovery(
 ): Promise<DiscoverByInteractionResult> {
   opts.onEvent?.({
     type: 'log',
-    level: 'error',
+    level: reason.startsWith('surface enumeration returned 0') ? 'warn' : 'error',
     message: `[deep] ${reason}; falling back to module discovery`,
   });
   let written = 0;
@@ -751,7 +751,7 @@ export async function discoverByInteraction(
     emit({
       type: 'log',
       level: 'warn',
-      message: `[deep] file tree exceeded 50k cap, truncated; consider chunking by top-level dir`,
+      message: `[deep] file tree exceeded 50k cap, truncated (was ${enumResult.diagnostics.fileCount} files total); consider chunking by top-level dir`,
     });
   }
 
