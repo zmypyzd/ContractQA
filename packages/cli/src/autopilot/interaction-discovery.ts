@@ -548,18 +548,27 @@ export async function buildExistingIndex(cwd: string): Promise<ExistingIndex> {
   const byId = new Map<string, ExistingContractMeta>();
   const byHash = new Map<string, ExistingContractMeta>();
   const files = await walkYamlFiles(path.join(cwd, 'qa', 'contracts'));
-  for (const filePath of files) {
-    try {
-      const content = await readFile(filePath, 'utf8');
-      const parsed = parseContract(content);
-      const hash = contentHash(parsed);
-      const meta: ExistingContractMeta = { id: parsed.id, filePath, contentHash: hash };
-      byId.set(parsed.id, meta);
-      byHash.set(hash, meta);
-    } catch {
-      // skip malformed silently — they won't dedup but also won't block
-    }
+
+  const parsed = await Promise.all(
+    files.map(async (filePath) => {
+      try {
+        const content = await readFile(filePath, 'utf8');
+        const obj = parseContract(content);
+        const hash = contentHash(obj);
+        return { ok: true as const, filePath, id: obj.id, hash };
+      } catch {
+        return { ok: false as const };
+      }
+    }),
+  );
+
+  for (const r of parsed) {
+    if (!r.ok) continue;
+    const meta: ExistingContractMeta = { id: r.id, filePath: r.filePath, contentHash: r.hash };
+    byId.set(r.id, meta);
+    byHash.set(r.hash, meta);
   }
+
   return { byId, byHash };
 }
 
@@ -591,7 +600,8 @@ export async function mergeContracts(input: MergeContractsInput): Promise<MergeC
     try {
       parsed = parseContract(proposal.yaml);
     } catch (err) {
-      skipped.push({ id: '(unparseable)', reason: `parse failed: ${(err as Error).message}` });
+      const yamlSnippet = proposal.yaml.slice(0, 80).replace(/\n/g, ' ');
+      skipped.push({ id: `(unparseable: ${yamlSnippet}...)`, reason: `parse failed: ${(err as Error).message}` });
       continue;
     }
 
@@ -632,7 +642,19 @@ export async function mergeContracts(input: MergeContractsInput): Promise<MergeC
         `# interaction: ${interaction.id} (${interaction.type})`,
         `# rationale: ${interaction.rationale}`,
       ].join('\n');
-      await writeFile(targetPath, `${frontmatter}\n${proposal.yaml}`);
+      try {
+        await writeFile(targetPath, `${frontmatter}\n${proposal.yaml}`, { flag: 'wx' });
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === 'EEXIST') {
+          // Race: another writer landed the file between Layer 3 probe and our write.
+          // Treat as Layer 3 skip.
+          const reason = `file exists at ${targetPath} (race detected)`;
+          skipped.push({ id: parsed.id, reason });
+          emit({ type: 'skip-file-exists', id: parsed.id, targetPath });
+          continue;
+        }
+        throw err;  // re-throw non-EEXIST to be caught by outer try/catch
+      }
       written.push(targetPath);
       emit({ type: 'write', id: parsed.id, targetPath });
     } catch (err) {
