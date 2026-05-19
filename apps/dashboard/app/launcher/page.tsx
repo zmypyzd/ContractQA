@@ -464,7 +464,13 @@ export default function LauncherPage() {
             </div>
             <div className={s.phases}>
               {PHASES.map((p) => (
-                <PhaseCard key={p.id} id={p.id} name={p.name} snapshot={phases[p.id]} />
+                <PhaseCard
+                  key={p.id}
+                  id={p.id}
+                  name={p.name}
+                  snapshot={phases[p.id]}
+                  elapsedNow={elapsedNow}
+                />
               ))}
             </div>
             {logs.length > 0 && (
@@ -495,7 +501,17 @@ export default function LauncherPage() {
   );
 }
 
-function PhaseCard({ id, name, snapshot }: { id: PhaseId; name: string; snapshot: PhaseSnapshot }) {
+function PhaseCard({
+  id,
+  name,
+  snapshot,
+  elapsedNow,
+}: {
+  id: PhaseId;
+  name: string;
+  snapshot: PhaseSnapshot;
+  elapsedNow: number;
+}) {
   const stateClass =
     snapshot.status === 'done'
       ? s.phaseDone
@@ -505,12 +521,17 @@ function PhaseCard({ id, name, snapshot }: { id: PhaseId; name: string; snapshot
           ? s.phaseSkipped
           : s.phaseIdle;
 
+  // While active, tick live so a slow phase doesn't appear frozen between SSE
+  // events. On done, freeze at the completion-event time. On idle/skipped show
+  // a placeholder.
   const timeText =
     snapshot.status === 'idle'
       ? '—'
       : snapshot.status === 'skipped'
         ? 'skipped'
-        : formatElapsed(snapshot.elapsedLatest);
+        : snapshot.status === 'active'
+          ? formatElapsed(elapsedNow)
+          : formatElapsed(snapshot.elapsedLatest);
 
   return (
     <div className={`${s.phase} ${stateClass}`}>
