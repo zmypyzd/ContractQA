@@ -597,6 +597,13 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
     })() : Promise.resolve();
 
     const phaseBRun = (async () => {
+      // Holds deep-discovery diagnostics across the deep branch so the trailing
+      // `done` emit can include them. Null on the modules path.
+      let deepDiagnostics: {
+        interactionsFound: number;
+        fallbackUsed: boolean;
+        fallbackReason?: string;
+      } | null = null;
       emit({ type: 'phase', phase: 'B', status: 'active', elapsedMs: elapsed() });
       emit({
         type: 'log',
@@ -645,22 +652,18 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
         if (result.fallbackUsed) {
           emit({ type: 'log', level: 'warn', message: `[autopilot] deep fell back: ${result.fallbackReason}`, elapsedMs: elapsed() });
         }
-        // Surface deep-discovery diagnostics so the Dashboard can render
-        // "Found N interactions, wrote M contracts" alongside the Phase B chip.
-        // Without this, the dashboard only sees `generated: M` and has no idea
-        // that Stage 1 enumerated N interactions (where N >> M after dedup).
-        emit({
-          type: 'phase',
-          phase: 'B',
-          status: 'done',
-          elapsedMs: elapsed(),
-          counters: {
-            generated: phaseB.generated,
-            interactionsFound: result.interactionsFound,
-            fallbackUsed: result.fallbackUsed,
-            fallbackReason: result.fallbackReason,
-          },
-        });
+        // Stash the deep diagnostics so the unconditional `phase B done`
+        // emit below can include them. We can't emit the done event here
+        // (the modules path needs its own done emit further down), and we
+        // can't emit a second done after the trailing one either — the SSE
+        // route's `phaseTotals[event.phase] = event.counters` is overwrite-
+        // style, so a later done event without the diagnostics would clobber
+        // an earlier one that had them.
+        deepDiagnostics = {
+          interactionsFound: result.interactionsFound,
+          fallbackUsed: result.fallbackUsed,
+          fallbackReason: result.fallbackReason,
+        };
       } else {
         // existing modules path — unchanged below
         await discoverByModule(
@@ -728,6 +731,7 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
           deferred: phaseB.deferred,
           userConfirmed: phaseB.userConfirmed,
           userRejected: phaseB.userRejected,
+          ...(deepDiagnostics ?? {}),
         },
       });
     })();
