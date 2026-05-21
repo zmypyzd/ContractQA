@@ -32,7 +32,15 @@ export interface EnumerateSurfaceOptions {
 export interface EnumerateSurfaceResult {
   interactions: Interaction[] | null;
   truncated: boolean;
-  diagnostics: { fileCount: number; tokensEstimate: number };
+  diagnostics: {
+    fileCount: number;
+    tokensEstimate: number;
+    // Interactions whose `file` field did not resolve to a real path inside
+    // cwd (LLM hallucination or attempted `..` escape). Dropped before being
+    // returned; surfaced here so callers can summarize them in one log line
+    // instead of a per-item ENOENT warn in Stage 2.
+    hallucinatedInteractions: string[];
+  };
 }
 
 export interface GenerateContractForOptions {
@@ -295,7 +303,7 @@ export async function enumerateSurface(opts: EnumerateSurfaceOptions): Promise<E
     return {
       interactions: null,
       truncated: truncatedCount > 0,
-      diagnostics: { fileCount: allFiles.length, tokensEstimate: estimateTokens(user) },
+      diagnostics: { fileCount: allFiles.length, tokensEstimate: estimateTokens(user), hallucinatedInteractions: [] },
     };
   }
 
@@ -308,7 +316,7 @@ export async function enumerateSurface(opts: EnumerateSurfaceOptions): Promise<E
     return {
       interactions: null,
       truncated: truncatedCount > 0,
-      diagnostics: { fileCount: allFiles.length, tokensEstimate: estimateTokens(user) },
+      diagnostics: { fileCount: allFiles.length, tokensEstimate: estimateTokens(user), hallucinatedInteractions: [] },
     };
   }
 
@@ -318,14 +326,36 @@ export async function enumerateSurface(opts: EnumerateSurfaceOptions): Promise<E
     return {
       interactions: null,
       truncated: truncatedCount > 0,
-      diagnostics: { fileCount: allFiles.length, tokensEstimate: estimateTokens(user) },
+      diagnostics: { fileCount: allFiles.length, tokensEstimate: estimateTokens(user), hallucinatedInteractions: [] },
     };
   }
 
+  // Drop interactions whose `file` is a hallucination — either a path the LLM
+  // invented (not in the project tree) or a `..` escape attempt. We check the
+  // un-truncated `allFiles` so paths that were truncated from the prompt but
+  // are actually present still pass.
+  const fileSet = new Set(allFiles);
+  const hallucinated: string[] = [];
+  const survived: Interaction[] = [];
+  for (const it of parsed.data) {
+    // A path with `..` anywhere — including embedded segments like
+    // `app/../../escape.tsx` — cannot represent a file inside cwd. Reject.
+    const hasEscape = it.file.split('/').includes('..');
+    if (hasEscape || !fileSet.has(it.file)) {
+      hallucinated.push(it.id);
+    } else {
+      survived.push(it);
+    }
+  }
+
   return {
-    interactions: parsed.data,
+    interactions: survived,
     truncated: truncatedCount > 0,
-    diagnostics: { fileCount: allFiles.length, tokensEstimate: estimateTokens(user) },
+    diagnostics: {
+      fileCount: allFiles.length,
+      tokensEstimate: estimateTokens(user),
+      hallucinatedInteractions: hallucinated,
+    },
   };
 }
 
@@ -351,7 +381,7 @@ function extractWindow(fileContent: string, matchTokens: string[]): string {
   return lines.slice(start, end).join('\n');
 }
 
-function buildGenerateSystemPrompt(): string {
+export function buildGenerateSystemPrompt(): string {
   // Reuse the existing schema description from llm-discovery.ts. We replicate
   // it here (rather than importing) because llm-discovery's prompt is
   // constructed from a TargetContext and includes 'modules' framing.
@@ -366,8 +396,20 @@ function buildGenerateSystemPrompt(): string {
     '    yaml: string,              // YAML for one contract',
     '    confidence: "high" | "medium" | "low",',
     '    module: string,',
-    '    uncertainQuestions?: [{ text, type, defaultAnswer, appliesTo, choices? }],',
+    '    uncertainQuestions?: UncertainQuestion[],',
     '    evidence: { sourceFiles: string[], rationale: string }',
+    '  }',
+    '',
+    'UncertainQuestion:',
+    '  {',
+    '    text: string,                                // the question, as plain prose',
+    '    type: "yes-no" | "multiple-choice",          // strictly these two literals; do NOT emit "boolean"/"text"/"confirm"/"choice"',
+    '    defaultAnswer: string,                       // always a string, even for yes-no (use "yes"/"no", NOT true/false)',
+    '    choices?: string[],                          // required for multiple-choice, omit for yes-no',
+    '    appliesTo: "whole-contract" | { jsonPath: string }',
+    '                                                 // either the literal string "whole-contract", or an object',
+    '                                                 // like { "jsonPath": "expected.visible" }. Do NOT emit a bare',
+    '                                                 // string like "expected.visible" or "preconditions.auth_state".',
     '  }',
     '',
     'Each YAML contract:',
@@ -403,17 +445,34 @@ function buildGenerateUserPrompt(interaction: Interaction, window: string): stri
   ].join('\n');
 }
 
+const UncertainQuestionSchema = z.object({
+  text: z.string(),
+  type: z.enum(['yes-no', 'multiple-choice']),
+  choices: z.array(z.string()).optional(),
+  defaultAnswer: z.string(),
+  appliesTo: z.union([z.literal('whole-contract'), z.object({ jsonPath: z.string() })]),
+});
+
+// Tolerant container: each entry is validated independently. Bad items are
+// dropped silently — historically a single malformed question (e.g.
+// `type: "boolean"`, `defaultAnswer: true`, `appliesTo: "expected.visible"`)
+// poisoned the whole proposal, so the autopilot run produced zero contracts
+// for that interaction. Dropping just the bad item lets the rest survive.
+const UncertainQuestionsArraySchema = z
+  .preprocess(
+    (arr) =>
+      Array.isArray(arr)
+        ? arr.filter((item) => UncertainQuestionSchema.safeParse(item).success)
+        : arr,
+    z.array(UncertainQuestionSchema),
+  )
+  .optional();
+
 const ProposalSchema = z.object({
   yaml: z.string(),
   confidence: z.enum(['high', 'medium', 'low']),
   module: z.string(),
-  uncertainQuestions: z.array(z.object({
-    text: z.string(),
-    type: z.enum(['yes-no', 'multiple-choice']),
-    choices: z.array(z.string()).optional(),
-    defaultAnswer: z.string(),
-    appliesTo: z.union([z.literal('whole-contract'), z.object({ jsonPath: z.string() })]),
-  })).optional(),
+  uncertainQuestions: UncertainQuestionsArraySchema,
   evidence: z.object({ sourceFiles: z.array(z.string()), rationale: z.string() }),
 });
 const ProposalsSchema = z.array(ProposalSchema);
@@ -790,6 +849,16 @@ export async function discoverByInteraction(
       type: 'log',
       level: 'warn',
       message: `[deep] file tree exceeded 50k cap, truncated (was ${enumResult.diagnostics.fileCount} files total); consider chunking by top-level dir`,
+    });
+  }
+  if (enumResult.diagnostics.hallucinatedInteractions.length > 0) {
+    const ids = enumResult.diagnostics.hallucinatedInteractions;
+    const sample = ids.slice(0, 5).join(', ');
+    const more = ids.length > 5 ? ` (+${ids.length - 5} more)` : '';
+    emit({
+      type: 'log',
+      level: 'warn',
+      message: `[deep] dropped ${ids.length} interaction(s) with hallucinated file paths (LLM-invented or cwd-escape): ${sample}${more}`,
     });
   }
 

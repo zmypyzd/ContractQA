@@ -5,6 +5,7 @@ import path from 'node:path';
 import {
   InteractionSchema,
   InteractionsSchema,
+  buildGenerateSystemPrompt,
   enumerateSurface,
   generateContractFor,
   runPool,
@@ -149,6 +150,65 @@ describe('enumerateSurface', () => {
 
     expect(result.truncated).toBe(true);
   });
+
+  // Repro: real autopilot run against the `poker` target produced
+  //   route-werewolf-room → file `apps/web/src/pages/WerewolfRoomPage.tsx`
+  // which never existed in the repo (the LLM invented a "werewolf room" out of
+  // the lobby/matches/agents context). Stage 2 emitted a noisy ENOENT per
+  // hallucination. These tests assert that hallucinated paths are dropped at
+  // Stage 1 and surfaced cleanly in diagnostics.
+  it('drops interactions whose file is not in the project tree', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'enum-surface-hallucinated-'));
+    await writeFile(path.join(cwd, 'package.json'), '{}');
+    await mkdir(path.join(cwd, 'app'), { recursive: true });
+    await writeFile(path.join(cwd, 'app', 'real.tsx'), 'export {}');
+
+    const llm = stubLlm(JSON.stringify([
+      { id: 'btn-real', type: 'button', file: 'app/real.tsx', name: 'R', module: 'app', rationale: 'r' },
+      { id: 'route-werewolf-room', type: 'route', file: 'apps/web/src/pages/WerewolfRoomPage.tsx', name: 'W', module: 'web', rationale: 'hallucinated' },
+      { id: 'btn-fake', type: 'button', file: 'src/components/MadeUp.tsx', name: 'F', module: 'src', rationale: 'hallucinated' },
+    ]));
+
+    const result = await enumerateSurface({ cwd, llmClient: llm });
+
+    expect(result.interactions).not.toBeNull();
+    expect(result.interactions!.map((i) => i.id)).toEqual(['btn-real']);
+    expect(result.diagnostics.hallucinatedInteractions).toEqual(['route-werewolf-room', 'btn-fake']);
+  });
+
+  it('returns [] (not null) when every interaction is hallucinated, without triggering quarantine', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'enum-surface-all-hallucinated-'));
+    await writeFile(path.join(cwd, 'package.json'), '{}');
+
+    const onQuarantine = vi.fn();
+    const llm = stubLlm(JSON.stringify([
+      { id: 'route-werewolf-room', type: 'route', file: 'apps/web/src/pages/WerewolfRoomPage.tsx', name: 'W', module: 'web', rationale: 'hallucinated' },
+    ]));
+
+    const result = await enumerateSurface({ cwd, llmClient: llm, onQuarantine });
+
+    expect(result.interactions).toEqual([]);
+    expect(onQuarantine).not.toHaveBeenCalled();
+    expect(result.diagnostics.hallucinatedInteractions).toEqual(['route-werewolf-room']);
+  });
+
+  it('drops interactions whose file path contains `..` (cwd-escape attempt)', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'enum-surface-escape-'));
+    await writeFile(path.join(cwd, 'package.json'), '{}');
+    await mkdir(path.join(cwd, 'app'), { recursive: true });
+    await writeFile(path.join(cwd, 'app', 'page.tsx'), 'export {}');
+
+    const llm = stubLlm(JSON.stringify([
+      { id: 'btn-ok', type: 'button', file: 'app/page.tsx', name: 'O', module: 'app', rationale: 'r' },
+      { id: 'btn-escape', type: 'button', file: '../../other-project/src/secret.tsx', name: 'X', module: 'other', rationale: 'r' },
+      { id: 'btn-sneaky', type: 'button', file: 'app/../../escape.tsx', name: 'S', module: 'app', rationale: 'r' },
+    ]));
+
+    const result = await enumerateSurface({ cwd, llmClient: llm });
+
+    expect(result.interactions!.map((i) => i.id)).toEqual(['btn-ok']);
+    expect(result.diagnostics.hallucinatedInteractions).toEqual(['btn-escape', 'btn-sneaky']);
+  });
 });
 
 describe('enumerateSurface entry-file size cap', () => {
@@ -260,6 +320,109 @@ describe('generateContractFor', () => {
     expect(receivedUserContent).toContain('line 140');
     expect(receivedUserContent).not.toContain('line 0');
     expect(receivedUserContent).not.toContain('line 199');
+  });
+
+  it('drops malformed uncertainQuestions items but keeps the surrounding proposal', async () => {
+    // Repro: real autopilot logs showed `type: "boolean"`, `defaultAnswer: true`,
+    // `appliesTo: "expected.visible"` from the LLM. The full proposal was being
+    // discarded because of a single bad uncertainQuestions entry — this asserts
+    // the proposal survives while the bad question is dropped.
+    const cwd = await mkdtemp(path.join(tmpdir(), 'gen-tolerant-q-'));
+    await mkdir(path.join(cwd, 'app/login'), { recursive: true });
+    await writeFile(path.join(cwd, 'app/login/page.tsx'), '<button>Submit</button>');
+    const llm = stubLlm(JSON.stringify([
+      {
+        yaml: 'id: INV-1\ntitle: t\narea: auth\nseverity: P0',
+        confidence: 'medium',
+        module: 'auth',
+        uncertainQuestions: [
+          // LLM shape mismatch — should be dropped, not abort the whole proposal.
+          { text: 'Visible?', type: 'boolean', defaultAnswer: true, appliesTo: 'expected.visible' },
+        ],
+        evidence: { sourceFiles: ['app/login/page.tsx'], rationale: 'r' },
+      },
+    ]));
+
+    const result = await generateContractFor({ interaction: sampleInteraction, cwd, llmClient: llm });
+
+    expect(result.error).toBeUndefined();
+    expect(result.proposals).toHaveLength(1);
+    expect(result.proposals[0]!.yaml).toContain('INV-1');
+    // The malformed question is dropped — no uncertainQuestions survives the
+    // proposal-validation pass.
+    expect(result.proposals[0]!.uncertainQuestions ?? []).toEqual([]);
+  });
+
+  it('preserves well-formed uncertainQuestions intact', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'gen-tolerant-ok-'));
+    await mkdir(path.join(cwd, 'app/login'), { recursive: true });
+    await writeFile(path.join(cwd, 'app/login/page.tsx'), '<button>Submit</button>');
+    const goodQuestion = {
+      text: 'Is the redirect required?',
+      type: 'yes-no',
+      defaultAnswer: 'yes',
+      appliesTo: 'whole-contract',
+    };
+    const llm = stubLlm(JSON.stringify([
+      {
+        yaml: 'id: INV-2\ntitle: t\narea: auth\nseverity: P0',
+        confidence: 'medium',
+        module: 'auth',
+        uncertainQuestions: [goodQuestion],
+        evidence: { sourceFiles: ['app/login/page.tsx'], rationale: 'r' },
+      },
+    ]));
+
+    const result = await generateContractFor({ interaction: sampleInteraction, cwd, llmClient: llm });
+
+    expect(result.error).toBeUndefined();
+    expect(result.proposals[0]!.uncertainQuestions).toEqual([goodQuestion]);
+  });
+
+  it('drops only malformed questions in a mixed list, keeps the good ones', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'gen-tolerant-mixed-'));
+    await mkdir(path.join(cwd, 'app/login'), { recursive: true });
+    await writeFile(path.join(cwd, 'app/login/page.tsx'), '<button>Submit</button>');
+    const llm = stubLlm(JSON.stringify([
+      {
+        yaml: 'id: INV-3\ntitle: t\narea: auth\nseverity: P0',
+        confidence: 'medium',
+        module: 'auth',
+        uncertainQuestions: [
+          // bad — wrong type + boolean defaultAnswer
+          { text: 'Q1', type: 'boolean', defaultAnswer: true, appliesTo: 'expected.visible' },
+          // good
+          { text: 'Q2', type: 'yes-no', defaultAnswer: 'yes', appliesTo: 'whole-contract' },
+        ],
+        evidence: { sourceFiles: ['app/login/page.tsx'], rationale: 'r' },
+      },
+    ]));
+
+    const result = await generateContractFor({ interaction: sampleInteraction, cwd, llmClient: llm });
+
+    expect(result.proposals[0]!.uncertainQuestions).toHaveLength(1);
+    expect(result.proposals[0]!.uncertainQuestions![0]!.text).toBe('Q2');
+  });
+});
+
+describe('buildGenerateSystemPrompt', () => {
+  // The prompt is the LLM's only source of truth for the schema. If it doesn't
+  // explicitly list the allowed enum/union values, the LLM guesses (and produces
+  // "boolean" / "choice" / bare jsonPath strings, which fail validation).
+  const prompt = buildGenerateSystemPrompt();
+
+  it('enumerates the uncertainQuestions.type enum literally', () => {
+    expect(prompt).toContain('"yes-no"');
+    expect(prompt).toContain('"multiple-choice"');
+  });
+
+  it('documents the appliesTo union shape', () => {
+    expect(prompt).toContain('"whole-contract"');
+    expect(prompt).toMatch(/\{\s*jsonPath\s*:\s*string\s*\}/);
+  });
+
+  it('says defaultAnswer is a string (LLMs default to boolean otherwise)', () => {
+    expect(prompt).toMatch(/defaultAnswer.*string/i);
   });
 });
 
@@ -693,6 +856,10 @@ describe('enumerateSurface JSON extraction', () => {
   it('parses successfully when LLM wraps in markdown fence', async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), 'enum-fence-'));
     await writeFile(path.join(cwd, 'package.json'), '{"name":"x"}');
+    // The interaction below references x.tsx — create it so the hallucination
+    // filter doesn't drop it. (This test's intent is markdown-fence extraction,
+    // not file existence.)
+    await writeFile(path.join(cwd, 'x.tsx'), 'export {}');
 
     const wrapped = '```json\n[{"id":"btn-test","type":"button","file":"x.tsx","name":"Test","module":"app","rationale":"r"}]\n```';
     const llm: LLMClient = {
