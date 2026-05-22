@@ -42,4 +42,36 @@ describe('ContractSchema', () => {
     };
     expect(() => ContractSchema.parse(bad)).toThrow(/unsafe regex/i);
   });
+
+  describe('id format (relaxed: any safe identifier)', () => {
+    // The original schema required `^INV-[A-Z0-9-]+$`. That assumed contracts
+    // were hand-written ticket-style. Autopilot's deep-discovery emits
+    // descriptive kebab-case ids (e.g. agent-picker-cancel-closes-popover)
+    // at hundreds per run. The relaxed regex accepts both styles plus any
+    // sane identifier; naming convention is now a docs/lint concern, not a
+    // schema concern. Backward compatible: every prior INV-XX id still passes.
+    it.each([
+      'INV-A2',
+      'INV-W1-no-auth-tokens',
+      'agent-picker-cancel-closes-popover',
+      'api-auth-logout-clears-session-cookie',
+      'simpleId',
+      'a',
+      'mixedCASE-with-Dashes-123',
+    ])('accepts %s', (id) => {
+      expect(() => ContractSchema.parse({ ...valid, id })).not.toThrow();
+    });
+
+    it.each([
+      ['empty string', ''],
+      ['starts with digit', '1starts-with-digit'],
+      ['has space', 'has space'],
+      ['has slash', 'has/slash'],
+      ['has dot', 'has.dot'],
+      ['has underscore at start', '_leading-underscore'],
+      ['over 100 chars', 'x'.repeat(101)],
+    ])('rejects (%s)', (_label, id) => {
+      expect(() => ContractSchema.parse({ ...valid, id })).toThrow();
+    });
+  });
 });
