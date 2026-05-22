@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
@@ -55,5 +55,58 @@ expected:
     const dir = await mkdtemp(path.join(os.tmpdir(), 'cqa-yml-'));
     await writeFile(path.join(dir, 'bad.yml'), `id: NO-PREFIX\nseverity: P9`);
     await expect(loadContractsFromDir(dir)).rejects.toThrow();
+  });
+
+  describe('lenient mode', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('returns valid contracts when one yaml is schema-invalid (skip-and-warn)', async () => {
+      const dir = await mkdtemp(path.join(os.tmpdir(), 'cqa-yml-lenient-'));
+      await writeFile(path.join(dir, 'good.yml'), contractYaml('INV-OK-1'));
+      await writeFile(path.join(dir, 'bad.yml'), `id: NO-PREFIX\nseverity: P9`);
+      await writeFile(path.join(dir, 'good2.yml'), contractYaml('INV-OK-2'));
+
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const contracts = await loadContractsFromDir(dir, { lenient: true });
+
+      const ids = contracts.map((c) => c.id).sort();
+      expect(ids).toEqual(['INV-OK-1', 'INV-OK-2']);
+      const warnCalls = warn.mock.calls.map((args) => String(args[0]));
+      expect(warnCalls.some((m) => m.includes('bad.yml'))).toBe(true);
+    });
+
+    it('emits a "loaded N, skipped M" summary after the walk', async () => {
+      const dir = await mkdtemp(path.join(os.tmpdir(), 'cqa-yml-summary-'));
+      await writeFile(path.join(dir, 'good.yml'), contractYaml('INV-S1'));
+      await writeFile(path.join(dir, 'bad1.yml'), `id: NO-PREFIX\nseverity: P9`);
+      await writeFile(path.join(dir, 'bad2.yml'), `not even: valid: yaml: :::`);
+
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      await loadContractsFromDir(dir, { lenient: true });
+
+      const warnCalls = warn.mock.calls.map((args) => String(args[0]));
+      expect(warnCalls.some((m) => /loaded\s+1.*skipped\s+2/i.test(m))).toBe(true);
+    });
+
+    it('does not warn when all contracts are valid (no summary noise)', async () => {
+      const dir = await mkdtemp(path.join(os.tmpdir(), 'cqa-yml-quiet-'));
+      await writeFile(path.join(dir, 'good.yml'), contractYaml('INV-Q1'));
+
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const contracts = await loadContractsFromDir(dir, { lenient: true });
+
+      expect(contracts).toHaveLength(1);
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('still throws when lenient is omitted/false (default behavior unchanged)', async () => {
+      const dir = await mkdtemp(path.join(os.tmpdir(), 'cqa-yml-strict-'));
+      await writeFile(path.join(dir, 'good.yml'), contractYaml('INV-OK-S'));
+      await writeFile(path.join(dir, 'bad.yml'), `id: NO-PREFIX\nseverity: P9`);
+      await expect(loadContractsFromDir(dir)).rejects.toThrow();
+      await expect(loadContractsFromDir(dir, { lenient: false })).rejects.toThrow();
+    });
   });
 });

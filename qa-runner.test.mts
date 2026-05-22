@@ -27,7 +27,11 @@ import {
 } from './packages/runner/dist/index.js';
 
 const contractsDir = process.env.CONTRACTQA_CONTRACTS_DIR || 'qa/contracts';
-const contracts = await loadContractsFromDir(contractsDir);
+// lenient: tolerate autopilot-generated contracts whose `expected.*` shapes
+// the ContractSchema doesn't model yet. Schema-invalid files are warned and
+// skipped instead of crashing the whole run. See docs/contractqa-run-end-to-end-gap.md
+// "Layer 7" for context.
+const contracts = await loadContractsFromDir(contractsDir, { lenient: true });
 
 for (const c of contracts) {
   const thunk = compileContract(c);

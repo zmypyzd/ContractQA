@@ -1,19 +1,21 @@
-# `contractqa run` end-to-end status — updated 2026-05-22 (round 2)
+# `contractqa run` end-to-end status — updated 2026-05-22 (round 3)
 
 Captures what was learned trying to run autopilot's deep-discovery output
 (261 contracts on the qa-eval-fixtures Poker target) through `contractqa
-run`. Seven architectural layers have been discovered. Layers 1–6 are
-fixed and committed; Layer 7 (autopilot uses `expected.*` fields beyond
-ContractSchema's surface) is the new entry point for the next session.
+run`. Seven architectural layers have been discovered and **all are
+addressed** — Layers 1–6 are real fixes; Layer 7 is a pragmatic γ
+(skip-and-warn at the loader). The α (broaden schema) and β (constrain
+autopilot) options remain open as future enhancements that would
+*increase* the load rate, not unblock it.
 
 ## TL;DR
 
-`contractqa run` against **schema-valid** contracts now works end-to-end
-— the 4 hand-templated SMOKE contracts in the Poker fixture load, boot
-chromium, and produce real PASS/FAIL verdicts. **Schema-invalid**
-contracts (the 257 LLM-generated ones in the same fixture) still fail at
-load time because the autopilot emits `expected.*` shapes the
-ContractSchema doesn't recognize. Resolving that is Layer 7.
+`contractqa run` now runs end-to-end against the full autopilot output.
+On the v1 Poker snapshot: **279 yml files → 106 schema-valid contracts
+loaded as Playwright tests, 173 skipped with per-file warnings + a final
+`loaded N, skipped M` summary**. The remaining content-level failures
+(per-contract verdicts) are quality issues in the LLM-generated
+contracts, not infrastructure failures — see "Realistic expectations".
 
 ## The seven layers
 
@@ -25,7 +27,7 @@ ContractSchema doesn't recognize. Resolving that is Layer 7.
 | 4 | Playwright associates `test()` calls with the file that called them. `registerContracts()` (in `packages/runner/dist/playwright-entry.js`) calls `test()` from inside its own module file — the tests get attached to the runner's source file, not the consumer's test file, so they're discarded. | **Fixed** (`6ae29de`) | Created `qa-runner.test.mts` at repo root that loads contracts and inlines the `test()` registration loop in the test file's own lexical scope. Added a doc-comment to `registerContracts()` warning future callers about the file-context limitation; the export stays as-is for backward compatibility. |
 | 5 | `loadContractsFromDir` doesn't recurse — but autopilot writes contracts into nested `qa/contracts/<module>/` dirs | **Fixed** (`6981a71`) | The eval scorer (`scripts/eval/score.mjs`) was already doing its own recursive walk. The runner now matches. |
 | 6 | `ContractSchema` requires `id` to match `^INV-[A-Z0-9-]+$`. Autopilot generates ids like `agent-picker-cancel-closes-popover` (lowercase, no `INV-` prefix). | **Fixed** (`a03b6d8`) | α-broadest: relaxed to `^[a-zA-Z][a-zA-Z0-9-]*$` (max 100). Backward compatible (every INV-XX id still passes). Naming convention moved out of schema into docs/lint concern. |
-| 7 | `expected.*` field shape divergence: autopilot emits `expected.url: <string>`, `expected.response_body_excludes: [...]`, `expected.visible: [{element, description}]`, `expected.autoplay_state: ...`, `expected.input_value: {...}` — all but the first are fields ContractSchema doesn't declare at all; the first is in schema but as an object (`{ matches: SafeRegex }`), not a bare string. | **Open — same class as Layer 6 was** | See below. |
+| 7 | `expected.*` field shape divergence: autopilot emits `expected.url: <string>`, `expected.response_body_excludes: [...]`, `expected.visible: [{element, description}]`, `expected.autoplay_state: ...`, `expected.input_value: {...}` — all but the first are fields ContractSchema doesn't declare at all; the first is in schema but as an object (`{ matches: SafeRegex }`), not a bare string. Also surfaces a separate class: `actions.*.target.name_regex` with Perl-style `(?i)` flags that aren't valid JS regex. | **Fixed (γ)** — see "Layer 7 resolution" below. | `loadContractsFromDir` gained an opt-in `lenient` mode that skip-and-warns on schema failures and emits a `loaded N, skipped M` summary. `qa-runner.test.mts` opts in. α and β remain open as future enhancements. |
 
 ## Verification of layers 1–6
 
@@ -48,7 +50,35 @@ snapshot helper hits `about:blank` pages before the goto action lands;
 this lives in `qa-runner.test.mts:34-38` mirrored from `packages/runner/
 src/playwright-entry.ts`), not infrastructure issues. **Pipeline works.**
 
-## Layer 7 — the design decision
+## Layer 7 resolution (γ — loader skip-and-warn)
+
+**Status: shipped.** `loadContractsFromDir(dir, { lenient: true })` wraps
+schema parsing in a try/catch — on failure it logs a single-line warning
+naming the file and the first Zod issue (with its field path), then
+emits a `loaded N, skipped M schema-invalid file(s)` summary after the
+walk. `qa-runner.test.mts` passes `lenient: true`; CLI consumers, the
+existing dogfood and e2e tests, and `scripts/dogfood-run.mjs` all
+default to strict mode (no behavior change). Two distinct failure
+classes surface in the warnings: `expected.url: string` (most common,
+73%) and Perl-style `(?i)` flags in `name_regex`. Future α work would
+extend the schema to accept the string-shorthand and other emitted
+shapes; β would tighten the autopilot prompt + validate at write time.
+
+End-to-end probe with the v1 Poker snapshot:
+
+```
+$ CONTRACTQA_CONTRACTS_DIR=/path/to/v1-snapshot/contracts \
+    pnpm exec playwright test --config=playwright.config.mts --list
+
+  [contractqa] loader: skipping .../agents/agent-edit-name-persists.yml:
+    schema validation failed (3 issues; first: "invalid regex..."
+    at actions.1.target.name_regex)
+  ...
+  [contractqa] loader: loaded 106, skipped 173 schema-invalid file(s)
+  Total: 106 tests in 1 file
+```
+
+## Layer 7 — the design decision (historical)
 
 Same shape as Layer 6 was, but multiplied across many `expected.*`
 fields. Likely candidates:
@@ -83,15 +113,21 @@ with a count summary). Doesn't fix the underlying mismatch but lets
 users still get partial output from autopilot runs. Pragmatic; orthogonal
 to α/β.
 
-## How to resume
+## How to resume (post-Layer-7)
 
-1. Decide Layer 7 strategy (α / β / γ — or hybrid).
-2. End-to-end probe: `cd qa-agent && CONTRACTQA_BASE_URL=... contractqa
-   run --contracts /abs/path/to/scratch/qa/contracts --artifacts ...`.
-   Expect Playwright to list ~261 tests, then start running them.
-3. Real bugs found ≠ FAIL count — see "Realistic expectations" below.
-4. Commit `@playwright/test` add (layer 1 from working tree) once
-   coordinated with the parallel session's `yaml@2.9.0` add.
+1. Commit `@playwright/test` add (Layer 1 from working tree) bundled
+   with the parallel session's `yaml@2.9.0` add — user approved
+   bundling.
+2. Ship localStorage SecurityError fix as standalone PR (see "Secondary
+   findings"). 5-line try/catch in both `qa-runner.test.mts:34-38` and
+   `packages/runner/src/playwright-entry.ts:9-13`.
+3. End-to-end run-not-just-list: `CONTRACTQA_BASE_URL=... pnpm exec
+   playwright test --config=playwright.config.mts` against the v1
+   snapshot. Expect ~106 tests to run; many will FAIL on
+   LLM-hallucinated selectors. Real bugs ≠ FAIL count — see "Realistic
+   expectations".
+4. Future Layer 7 enhancements (α/β) when load-rate matters more than
+   the 38% we have today.
 
 ## Secondary findings (not layers, but worth fixing)
 
@@ -125,6 +161,8 @@ real-bug signal.
   - `07a0d0a` — first version of this gap doc
   - `a03b6d8` — Layer 6 (schema id relax, α-broadest)
   - `6ae29de` — Layers 2/3/4 (config rename, testMatch, stub file, doc comment)
+  - `243dfe7` — gap doc round 2 (7-layer status)
+  - **Layer 7** — `loader.ts` lenient mode + qa-runner wiring + this doc update (round 3); pending commit at time of writing
 - Prior session's deep-discovery LLM-output fix: `6fe4839` — fully
   verified by v2 run; see `qa-autopilot-2026-05-22-v1/` and v2's
   `AUTOPILOT_REPORT.json` for evidence.
