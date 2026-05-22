@@ -33,6 +33,24 @@ export interface StashGuard {
   release(): Promise<void>;
 }
 
+async function isGitRepo(cwd: string): Promise<boolean> {
+  try {
+    await exec('git', ['rev-parse', '--git-dir'], { cwd });
+    return true;
+  } catch (err) {
+    // Differentiate "git binary missing" (spawn ENOENT) from "cwd is not a
+    // git repo" (git exits 128). Misclassifying ENOENT as non-git would
+    // silently disable stash protection AND let Phase C reach `git apply`
+    // with a confusing per-diff failure later. Surface it loudly here.
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error(
+        'git binary not found in PATH — autopilot requires git for stash protection and fix application',
+      );
+    }
+    return false;
+  }
+}
+
 async function checkDirtySubmodules(cwd: string): Promise<string[]> {
   try {
     const { stdout } = await exec('git', ['submodule', 'status'], { cwd });
@@ -82,6 +100,16 @@ export function createStashGuard(cwd: string): StashGuard {
 
   return {
     async protect(opts) {
+      // Non-git cwd (e.g. an eval-fixture scratch dir, an rsync'd copy, or a
+      // tarball extract): no working tree to protect — degrade to a no-op so
+      // autopilot's Phase A/B can still run. release() already short-circuits
+      // when stashRef stays unset. NOTE: `git rev-parse --git-dir` walks UP,
+      // so a non-git subdir of a tracked workspace is classified as in-repo
+      // and we'll protect the PARENT repo's index. Eval-fixture scratch dirs
+      // should live OUTSIDE any tracked workspace to avoid this footgun.
+      if (!(await isGitRepo(cwd))) {
+        return { stashed: false, items: [] };
+      }
       const dirtySubmodules = await checkDirtySubmodules(cwd);
       if (dirtySubmodules.length > 0) {
         const ok = await opts.confirmSensitive(
