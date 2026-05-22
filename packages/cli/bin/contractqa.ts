@@ -9,9 +9,10 @@ import { runContracts } from '../src/commands/run.js';
 import { initProject } from '../src/commands/init.js';
 import { scanProject } from '../src/commands/scan.js';
 import { doctor, renderDoctorReport, type FixName } from '../src/commands/doctor.js';
-import { runAutopilot } from '../src/commands/autopilot.js';
+import { runAutopilot, type AutopilotProgressEvent } from '../src/commands/autopilot.js';
 import { runDashboard, DASHBOARD_DEFAULTS } from '../src/commands/dashboard.js';
 import { AutoPrPreflightError } from '../src/commands/autopilot-watch.js';
+import { formatProgressEvent } from '../src/autopilot/format-progress.js';
 const program = new Command('contractqa');
 
 program
@@ -143,6 +144,18 @@ program
       discoveryMode: (opts.discoveryMode === 'deep' ? 'deep' : 'modules') as 'modules' | 'deep',
       deepConcurrency: Number(opts.deepConcurrency ?? '4'),
       deepMaxContracts: Number(opts.deepMaxContracts ?? '500'),
+      // Wire phase/log events to the terminal. Without this, non-watch
+      // autopilot runs are silent until completion — masking deep-discovery
+      // diagnostics (`[deep] ...` lines), the non-git-cwd warn, etc.
+      // info/phase → stdout, warn/error → stderr so pipes can separate them.
+      onProgress: (event: AutopilotProgressEvent): void => {
+        const line = formatProgressEvent(event);
+        if (event.type === 'log' && (event.level === 'warn' || event.level === 'error')) {
+          process.stderr.write(line + '\n');
+        } else {
+          process.stdout.write(line + '\n');
+        }
+      },
     };
 
     if (opts.discoveryMode && opts.discoveryMode !== 'modules' && opts.discoveryMode !== 'deep') {

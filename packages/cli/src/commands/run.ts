@@ -77,7 +77,12 @@ export async function runContracts(opts: {
   return new Promise((resolve) => {
     const child = spawn(
       'pnpm',
-      ['exec', 'playwright', 'test', '--config=playwright.config.ts'],
+      // .mts forces Playwright's ESM loader. The transitive import chain
+      // (config → qa-runner.test.mts → @contractqa/runner → @contractqa/core)
+      // is ESM-only (exports field has only `import`, no `require`); a .ts
+      // config would default to CJS resolution and crash with
+      // ERR_PACKAGE_PATH_NOT_EXPORTED at @contractqa/core.
+      ['exec', 'playwright', 'test', '--config=playwright.config.mts'],
       { env, stdio: 'inherit' },
     );
     child.on('exit', (code) => resolve({ exitCode: code ?? 1 }));

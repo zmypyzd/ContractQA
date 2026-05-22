@@ -10,7 +10,7 @@ import { runHttpContract } from '@contractqa/runner';
 import { assembleTargetContext } from '../autopilot/bootstrap.js';
 import { createSupabaseTempUser, buildSupabaseAdminClient } from '../autopilot/auth/supabase-temp-user.js';
 import { startTimeBudget } from '../autopilot/budget-watchdog.js';
-import { createStashGuard } from '../autopilot/stash-guard.js';
+import { createStashGuard, isGitRepo } from '../autopilot/stash-guard.js';
 import { applicablePatterns } from '../autopilot/smoke-patterns.js';
 import { discoverByModule, type ContractProposal } from '../autopilot/llm-discovery.js';
 import { discoverByInteraction } from '../autopilot/interaction-discovery.js';
@@ -354,6 +354,21 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
     // committed yet) would be hidden in the stash for the rest of the run.
     // The dashboard de-dupes by issue_json_path so re-scanning is safe.
     await scanOrphanIssues(opts.cwd, issuesWritten);
+
+    // Non-git cwd is supported (eval fixtures, rsync'd scratch dirs, tarball
+    // extracts) but Phase C's `git apply --index` cannot land diffs without
+    // a work tree. Surface that upfront so a fix-enabled run doesn't quietly
+    // produce zero applied fixes. --no-fix silences this and skips Phase C
+    // entirely.
+    if (fixEnabled && !(await isGitRepo(opts.cwd))) {
+      emit({
+        type: 'log',
+        level: 'warn',
+        message:
+          'autopilot: cwd is not a git repo — Phase C will be unable to apply fix diffs. Pass --no-fix to skip Phase C entirely.',
+        elapsedMs: elapsed(),
+      });
+    }
 
     await stashGuard.protect({
       confirmSensitive: async (items) => {

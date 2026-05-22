@@ -98,7 +98,13 @@ const ExpectedBlock = z.object({
 });
 
 export const ContractSchema = z.object({
-  id: z.string().regex(/^INV-[A-Z0-9-]+$/),
+  // id is any safe identifier: starts with a letter, then letters/digits/dashes,
+  // up to 100 chars. Accepts both the historical INV-XX ticket style (e.g.
+  // INV-A2) and autopilot's descriptive kebab-case (e.g.
+  // agent-picker-cancel-closes-popover). Naming convention beyond this is
+  // a docs/lint concern, not a schema concern — see
+  // docs/contractqa-run-end-to-end-gap.md "Layer 6".
+  id: z.string().min(1).max(100).regex(/^[a-zA-Z][a-zA-Z0-9-]*$/),
   title: z.string().min(1),
   area: z.string(),
   severity: z.enum(['P0', 'P1', 'P2', 'P3']),

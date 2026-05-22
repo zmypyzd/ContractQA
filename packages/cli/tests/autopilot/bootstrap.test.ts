@@ -14,10 +14,13 @@ beforeEach(() => {
 afterEach(() => rmSync(tmp, { recursive: true, force: true }));
 
 describe('assembleTargetContext', () => {
-  it('throws when not in a git repo', async () => {
+  it('does NOT throw on non-git cwd (eval-fixture support; autopilot.ts emits the upfront warn instead)', async () => {
     const noGit = mkdtempSync(join(tmpdir(), 'cqa-nogit-'));
     try {
-      await expect(assembleTargetContext(noGit)).rejects.toThrow(/not a git repository/i);
+      // Minimum requirement is package.json — no git needed.
+      writeFileSync(join(noGit, 'package.json'), JSON.stringify({ name: 'demo' }));
+      const ctx = await assembleTargetContext(noGit);
+      expect(ctx.cwd).toBe(noGit);
     } finally {
       rmSync(noGit, { recursive: true, force: true });
     }
