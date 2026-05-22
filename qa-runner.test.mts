@@ -38,7 +38,16 @@ for (const c of contracts) {
   test(`${c.id}: ${c.title}`, async ({ page, context }) => {
     const snapshot = async () => ({
       url: page.url(),
-      localStorageKeys: await page.evaluate(() => Object.keys(localStorage)),
+      // localStorage is unavailable on about:blank (the initial page
+      // before any goto lands) — accessing it throws SecurityError.
+      // Return [] in that case rather than crashing the contract.
+      localStorageKeys: await page.evaluate(() => {
+        try {
+          return Object.keys(localStorage);
+        } catch {
+          return [];
+        }
+      }),
       cookies: (await context.cookies()).map((x) => x.name),
     });
     await thunk({ page: page as unknown as CompiledPage, snapshot });

@@ -28,7 +28,15 @@ export async function registerContracts(dir: string): Promise<void> {
     test(`${c.id}: ${c.title}`, async ({ page, context }) => {
       const snapshot = async () => ({
         url: page.url(),
-        localStorageKeys: await page.evaluate(() => Object.keys(localStorage)),
+        // localStorage is unavailable on about:blank — return [] instead
+        // of throwing SecurityError when snapshot fires before goto.
+        localStorageKeys: await page.evaluate(() => {
+          try {
+            return Object.keys(localStorage);
+          } catch {
+            return [];
+          }
+        }),
         cookies: (await context.cookies()).map((x) => x.name),
       });
       await thunk({ page: page as unknown as CompiledPage, snapshot });
