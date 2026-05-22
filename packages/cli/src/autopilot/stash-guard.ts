@@ -33,7 +33,18 @@ export interface StashGuard {
   release(): Promise<void>;
 }
 
-async function isGitRepo(cwd: string): Promise<boolean> {
+/**
+ * Returns true when `cwd` is inside a git working tree.
+ *
+ * Throws (rather than returning false) when the `git` binary is missing —
+ * silently classifying a missing binary as "non-git" would mask a setup
+ * error and let autopilot proceed without any git operations. Other errors
+ * (cwd is not in a repo, dubious-ownership, etc.) are mapped to `false`.
+ *
+ * Exported so callers other than stash-guard (e.g. autopilot's upfront
+ * non-git warn) can probe without duplicating the binary-vs-repo logic.
+ */
+export async function isGitRepo(cwd: string): Promise<boolean> {
   try {
     await exec('git', ['rev-parse', '--git-dir'], { cwd });
     return true;

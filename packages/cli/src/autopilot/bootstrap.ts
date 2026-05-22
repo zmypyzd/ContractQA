@@ -2,12 +2,8 @@
 import { readFile, access, readdir } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { detectFramework, type Framework } from '../init/detect-framework.js';
 import { inspectAuthWiring } from '../init/inspect-auth.js';
-
-const exec = promisify(execFile);
 
 export type AuthProvider = 'supabase' | 'clerk' | 'nextauth' | 'auth0' | 'custom-cookie' | 'unknown';
 
@@ -112,12 +108,13 @@ async function listFiles(cwd: string): Promise<string[]> {
 }
 
 export async function assembleTargetContext(cwd: string): Promise<TargetContext> {
-  // Git check.
-  try {
-    await exec('git', ['rev-parse', '--is-inside-work-tree'], { cwd });
-  } catch {
-    throw new Error(`autopilot bootstrap: ${cwd} is not a git repository. Run 'git init' to initialize.`);
-  }
+  // Note: we deliberately do NOT require a git repo here. autopilot's Phase
+  // A/B don't need git, stash-guard tolerates non-git cwd (see isGitRepo
+  // helper), and Phase C's git apply is wrapped in catch+warn. autopilot.ts
+  // emits an upfront warn when fix is enabled in a non-git cwd, so the user
+  // still sees a single clear "Phase C won't apply" message — without the
+  // hard throw that used to break legitimate eval-fixture and rsync'd-copy
+  // targets here.
 
   // package.json check.
   try {
