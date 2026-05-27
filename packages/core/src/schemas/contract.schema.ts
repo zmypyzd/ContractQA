@@ -85,6 +85,59 @@ const ExpectedBlock = z.object({
           }),
         )
         .optional(),
+      // Stream 5 rich-assertion family — all four locate elements via the
+      // shared Target shape (role/name_regex/test_id/text/within/first).
+      // Snapshot must populate DomShape.elements; without that the
+      // classifier emits a "snapshot missing elements" failure (analogous
+      // to the dom-without-snapshotBrowser-captureDom case).
+      attribute_equals: z
+        .array(
+          z
+            .object({
+              target: Target,
+              attribute: z.string().min(1),
+              // booleans cover present/absent attrs (e.g. disabled). Strings
+              // cover value/data-*/aria-* etc.
+              equals: z.union([z.string(), z.boolean()]),
+            })
+            .strict(),
+        )
+        .optional(),
+      input_value: z
+        .array(
+          z
+            .object({
+              target: Target,
+              equals: z.string().optional(),
+              matches: SafeRegex.optional(),
+            })
+            .strict()
+            .refine(
+              (v) => v.equals !== undefined || v.matches !== undefined,
+              { message: 'input_value requires equals or matches' },
+            ),
+        )
+        .optional(),
+      class_contains: z
+        .array(
+          z
+            .object({
+              target: Target,
+              class: z.string().min(1),
+            })
+            .strict(),
+        )
+        .optional(),
+      element_text_equals: z
+        .array(
+          z
+            .object({
+              target: Target,
+              equals: z.string(),
+            })
+            .strict(),
+        )
+        .optional(),
     })
     .optional(),
   auth_state: z.object({ fully_logged_out: z.boolean() }).partial().optional(),

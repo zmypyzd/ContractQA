@@ -35,9 +35,26 @@ export interface CookieSummary {
 // Phase 2 schema: dom-shaped invariants. Populated by snapshotBrowser when
 // `captureDom: true` is set. Keys in roleCounts are normalized as
 // `<role>:<accessible name>`; counts include every match (not just first).
+//
+// Stream 5: `elements` carries per-interactive-element attribute snapshots
+// so the oracle can evaluate dom.attribute_equals / input_value /
+// class_contains / element_text_equals without re-querying the live DOM.
+// Optional for back-compat with snapshots written before Stream 5; absent
+// elements produces a single "snapshot missing elements" failure if any
+// new dom assertion is set.
+export interface DomElementSnapshot {
+  role: string;
+  name: string;                       // accessible name (aria-label || textContent)
+  attributes: Record<string, string>; // includes disabled, aria-*, data-*, type, role, name
+  value?: string;                     // input/select/textarea .value
+  classes: string[];                  // tokenized class list
+  text: string;                       // textContent.trim()
+}
+
 export interface DomShape {
   roleCounts: Record<string, number>;
   visibleText: string;
+  elements?: DomElementSnapshot[];
 }
 
 export interface BrowserSnapshot {

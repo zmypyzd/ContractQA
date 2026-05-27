@@ -63,6 +63,111 @@ describe('ContractSchema — expected.http (Stream 1)', () => {
   });
 });
 
+describe('ContractSchema — expected.dom rich assertions (Stream 5)', () => {
+  const base = {
+    id: 'dom-rich',
+    title: 'dom rich assertion',
+    area: 'core',
+    severity: 'P2' as const,
+    actions: [{ type: 'goto', path: '/x' }],
+    verification: { wait_ms: 0, retries: 0, evidence_required: ['state_diff'] },
+  };
+
+  it('accepts attribute_equals with string and boolean equals', () => {
+    const c = {
+      ...base,
+      expected: {
+        dom: {
+          attribute_equals: [
+            { target: { role: 'button', name_regex: 'All-?in' }, attribute: 'disabled', equals: true },
+            { target: { test_id: 'tab-featured' }, attribute: 'aria-selected', equals: 'true' },
+          ],
+        },
+      },
+    };
+    expect(() => ContractSchema.parse(c)).not.toThrow();
+  });
+
+  it('rejects attribute_equals item with missing equals', () => {
+    const c = {
+      ...base,
+      expected: {
+        dom: { attribute_equals: [{ target: { role: 'button' }, attribute: 'disabled' }] },
+      },
+    };
+    expect(() => ContractSchema.parse(c)).toThrow();
+  });
+
+  it('accepts input_value with equals OR matches (regex)', () => {
+    const c = {
+      ...base,
+      expected: {
+        dom: {
+          input_value: [
+            { target: { role: 'textbox', name_regex: 'seed' }, equals: 'abc' },
+            { target: { test_id: 'agent-name' }, matches: '^Player-\\d+$' },
+          ],
+        },
+      },
+    };
+    expect(() => ContractSchema.parse(c)).not.toThrow();
+  });
+
+  it('rejects input_value with neither equals nor matches', () => {
+    const c = {
+      ...base,
+      expected: { dom: { input_value: [{ target: { role: 'textbox' } }] } },
+    };
+    expect(() => ContractSchema.parse(c)).toThrow();
+  });
+
+  it('rejects input_value.matches with unsafe regex', () => {
+    const c = {
+      ...base,
+      expected: { dom: { input_value: [{ target: { role: 'textbox' }, matches: '(a+)+$' }] } },
+    };
+    expect(() => ContractSchema.parse(c)).toThrow(/unsafe regex/i);
+  });
+
+  it('accepts class_contains', () => {
+    const c = {
+      ...base,
+      expected: {
+        dom: { class_contains: [{ target: { test_id: 'app-shell' }, class: 'is-loaded' }] },
+      },
+    };
+    expect(() => ContractSchema.parse(c)).not.toThrow();
+  });
+
+  it('accepts element_text_equals (scoped numeric)', () => {
+    const c = {
+      ...base,
+      expected: {
+        dom: {
+          element_text_equals: [
+            { target: { test_id: 'audience-count' }, equals: '0' },
+          ],
+        },
+      },
+    };
+    expect(() => ContractSchema.parse(c)).not.toThrow();
+  });
+
+  it('rejects unknown keys inside attribute_equals items (strict)', () => {
+    const c = {
+      ...base,
+      expected: {
+        dom: {
+          attribute_equals: [
+            { target: { role: 'button' }, attribute: 'disabled', equals: true, weird: 1 },
+          ],
+        },
+      },
+    };
+    expect(() => ContractSchema.parse(c)).toThrow();
+  });
+});
+
 describe('ContractSchema — preconditions.feature_flags (Stream 2 残量)', () => {
   const base = {
     id: 'flag-gated',
