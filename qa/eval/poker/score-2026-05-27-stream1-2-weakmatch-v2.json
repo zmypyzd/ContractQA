@@ -1,0 +1,1917 @@
+{
+  "project": "poker",
+  "gt_empty": false,
+  "counts": {
+    "agent_output": 27,
+    "gt_approved": 265,
+    "gt_approved_human": 0,
+    "gt_dropped": 97,
+    "gt_merged": 8,
+    "tp": 4,
+    "tp_human": 0,
+    "tp_by_match_tier": {
+      "id": 0,
+      "fingerprint": 2,
+      "weak-fingerprint": 2
+    },
+    "fp": 4,
+    "dup": 1
+  },
+  "weak_matches": [
+    {
+      "agentId": "INV-AUTH-1",
+      "gtId": "lobby-logout-clears-session",
+      "area": "auth",
+      "paths": "/lobby"
+    },
+    {
+      "agentId": "INV-AUTH-2",
+      "gtId": "lobby-logout-clears-session",
+      "area": "auth",
+      "paths": "/lobby"
+    }
+  ],
+  "metrics": {
+    "precision": 0.14814814814814814,
+    "recall": 0.01509433962264151,
+    "net_new_recall": null,
+    "fp_rate": 0.14814814814814814,
+    "dedup_inflation": 0.037037037037037035,
+    "severity_agree": 1
+  },
+  "missed_gt": [
+    {
+      "id": "agent-buyin-accepts-valid-number",
+      "category": [
+        "error-state"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agent-buyin-default-value",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agent-edit-auth-header-name-input-accepts-value",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agent-edit-auth-header-name-optional",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agent-edit-cancel-does-not-submit-form",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agent-edit-cancel-link-navigates-to-agents-list",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agent-edit-clear-auth-checkbox-toggle",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agent-edit-clear-auth-visible-when-has-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agent-edit-form-disables-during-submit",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agent-edit-form-shows-error",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agent-edit-form-submit-redirects",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agent-edit-timeout-has-default-value",
+      "category": [
+        "auth-boundary",
+        "error-state"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agent-edit-timeout-input-accepts-numeric-value",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agent-endpoint-url-accepts-valid-url",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agent-endpoint-url-persists-on-edit",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agent-endpoint-url-required",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agent-name-input-accepts-text",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agent-name-persists-on-edit-load",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agents-connect-empty-bearer-token",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agents-connect-invalid-token",
+      "category": [
+        "error-state"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agents-connect-missing-auth-header",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agents-delete-cancel-closes-dialog",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agents-delete-cancel-preserves-agent",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agents-delete-confirm-closes-dialog",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agents-delete-confirm-removes-agent",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agents-edit-redirects-when-legacy-disabled",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agents-edit-requires-auth-when-enabled",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agents-new-link-navigation",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agents-new-redirects-when-legacy-disabled",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agents-revoke-invite-removes-from-list",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "agents-route-redirects-when-legacy-disabled",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "all-in-button-visible-when-pending-action",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "analysis-sort-select-all-options-available",
+      "category": [
+        "error-state"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "analysis-sort-select-changes-order",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-agent-invites-create-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-agent-invites-create-returns-token-once",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-agent-invites-register-invalid-token",
+      "category": [
+        "unclassified"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-agent-invites-revoke-hash-not-found",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-agent-invites-revoke-hash-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-auth-logout-clears-session-cookie",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-decision-trace-returns-404-for-missing-match",
+      "category": [
+        "error-state"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-decision-trace-strips-private-fields",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-docs-werewolf-guide-public-access",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-docs-werewolf-guide-serves-markdown",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-matches-decision-trace-returns-match-not-found",
+      "category": [
+        "error-state"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-matches-get-excludes-sensitive-fields",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-matches-get-not-found-invalid-id",
+      "category": [
+        "error-state"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-matches-list-excludes-seed",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-me-agents-create-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-me-agents-create-returns-201",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-me-agents-get-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-me-agents-list-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-me-agents-no-cache-headers",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-me-agents-update-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-me-werewolf-agents-create-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-me-werewolf-agents-create-requires-csrf",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-me-werewolf-agents-create-validates-body",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-me-werewolf-agents-list-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-tables-add-agent-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-tables-add-agent-validates-adapter-type",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-tables-create-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-tables-create-validates-schema",
+      "category": [
+        "unclassified"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-tables-get-hand-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-tables-get-hand-validates-hand-belongs-to-table",
+      "category": [
+        "auth-boundary",
+        "error-state"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-tables-get-hand-validates-table-exists",
+      "category": [
+        "auth-boundary",
+        "error-state"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-tables-get-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-tables-get-state-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-tables-hand-replay-requires-auth",
+      "category": [
+        "error-state"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-tables-leave-seat-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-tables-list-hands-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-tables-list-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-tables-remove-agent-requires-auth",
+      "category": [
+        "unclassified"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-tables-remove-agent-success",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-tables-sit-human-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-tables-start-hand-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-tables-unwatch-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-tables-watch-not-found-invalid-table",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-tables-watch-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-werewolf-games-create-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-werewolf-games-create-success",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-werewolf-games-create-validates-name-length",
+      "category": [
+        "unclassified"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-werewolf-invite-npc-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-werewolf-invite-npc-requires-csrf",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-werewolf-match-get-strips-seed",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-werewolf-matches-list",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-werewolf-matches-strips-seed",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "api-werewolf-start-host-only-REPLACE",
+      "category": [
+        "auth-boundary",
+        "domain-rule"
+      ],
+      "source": "stream3-replace"
+    },
+    {
+      "id": "appshell-brand-link-navigates-home",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "appshell-invite-button-aria-expanded",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "appshell-invite-button-close-toggle",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "appshell-invite-button-toggle",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "appshell-login-button-visible-when-anonymous",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "appshell-login-navigates-to-login-page",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "appshell-logout-button-visible-when-authenticated",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "audience-react-heart-independent-counts",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "audience-strip-shows-watching-count",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "audience-wolf-reaction-initial-zero",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "big-blind-default-value",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "big-blind-input-accepts-valid-number",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "check-action-button-visible-when-legal",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "check-action-invokes-callback",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "confirm-dialog-cancel-closes-dialog",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "confirm-dialog-cancel-focus-on-open",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "confirm-dialog-confirm-click",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "confirm-dialog-focus-management",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "delete-agent-requires-auth",
+      "category": [
+        "error-state"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "delete-table-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "fold-button-submits-action",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "hero-card-empty-state-no-link",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "hero-card-navigates-to-game",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "home-route-catch-all-redirect",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "home-route-resolves-to-werewolf",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "home-route-shows-loading-state",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "invite-agent-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "invite-http-agent-copies-to-clipboard",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "invite-http-clipboard-fallback-shows-text",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "invite-popover-coding-api-error-toast",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "invite-popover-coding-generates-invite",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-ante-input-accepts-zero",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-ante-input-integer-required",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-ante-input-non-negative",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-big-blind-must-exceed-small-blind",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-big-blind-requires-integer",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-big-blind-valid-submission",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-big-blind-validation-minimum",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-create-table-big-blind-gte-small-blind",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-create-table-max-seats-validation",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-create-table-name-required",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-join-table-link-navigation",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-logout-clears-storage",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-max-seats-validation-integer",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-max-seats-validation-minimum",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-max-seats-validation-range",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-redirects-to-home-when-legacy-disabled",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-small-blind-validation-integer",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-small-blind-validation-minimum",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-table-name-accepts-valid-input",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-table-name-required",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-timeout-integer-validation",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "lobby-timeout-positive-validation",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "login-email-input-accepts-text",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "login-error-displays-on-invalid-credentials",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "login-form-submit-success",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "login-page-redirects-authenticated-users",
+      "category": [
+        "unclassified"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "login-page-renders-form",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "login-page-respects-next-param-redirect",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "login-page-shows-register-link",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "login-password-masks-input",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "login-register-link-navigation",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "login-submit-button-disabled-while-submitting",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "logout-button-hidden-when-anonymous",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "logout-button-visible-when-authenticated",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "logout-clears-session-and-redirects",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "match-replay-back-link-navigates-to-matches",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "match-replay-redirects-when-legacy-disabled",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "match-replay-tab-switch-to-replay",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "matches-open-replay-link-navigates",
+      "category": [
+        "unclassified"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "matches-route-redirects-to-home",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "max-spectators-input-accepts-valid-zero",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "max-spectators-input-rejects-negative",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "max-spectators-input-validation-bounds",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "raise-action-submit",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "raise-slider-clamps-to-valid-range",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "raise-slider-preset-amounts-clickable",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "register-displayname-input-accepts-text",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "register-error-displays-message",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "register-form-displays-error-on-failure",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "register-login-link-navigation",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "register-page-has-login-link",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "register-page-redirects-logged-in-user",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "register-page-renders-for-anonymous",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "register-password-input-masks-characters",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "register-redirects-authenticated-user",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "register-redirects-if-already-logged-in",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "register-redirects-logged-in-user",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "register-success-redirects-to-next",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "replay-action-select-updates-selection",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "replay-play-pause-toggles-playback",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "replay-previous-button-disabled-at-start",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "replay-previous-button-navigates-backward",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "replay-previous-button-stops-playback",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "replay-street-filter-button-filters-timeline",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "route-table-redirect-when-disabled",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "route-werewolf-lobby-create-panel",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "route-werewolf-lobby-renders",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "route-werewolf-lobby-tabs-visible",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-add-agent-button-adds-agent",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-agent-name-input-accepts-text",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-agent-name-persists-in-form",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-agent-strategy-default-selection",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-agent-strategy-select-options",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-ante-default-zero",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-ante-input-accepts-valid-number",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-form-api-error-display",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-form-submit-success",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-max-seats-default-value",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-max-seats-input-accepts-valid-number",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-name-has-default-value",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-name-input-accepts-text",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-num-hands-default-value",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-num-hands-max-validation",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-remove-agent-decrements-list",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-remove-agent-preserves-minimum",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-requires-authentication",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-requires-csrf-token",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-route-redirects-when-legacy-disabled",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-route-requires-auth-when-enabled",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-seed-input-accepts-empty",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-seed-input-accepts-numeric",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-small-blind-default-value",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-small-blind-input-accepts-valid-number",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-success-matches-link",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-timeout-has-default-value",
+      "category": [
+        "auth-boundary",
+        "error-state"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-timeout-input-accepts-valid-ms",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "simulate-validates-request-schema",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-action-bet-preset-amounts",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-action-bet-submit",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-buyin-input-default-value",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-buyin-input-disables-sit-button",
+      "category": [
+        "unclassified"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-buyin-input-validation",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-delete-confirm-only-visible-for-managers",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-delete-confirm-redirects-to-lobby",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-delete-request-button-opens-dialog",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-delete-shows-error-on-failure",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-leave-seat-button-removes-player",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-preset-amount-clears-error",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-preset-amount-sets-bet-value",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-raise-amount-clears-error-on-input",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-raise-preset-amount-selection",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-sit-agent-select-default-buyin",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-sit-agent-select-validation",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-sit-human-button-disabled-invalid-buyin",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-sit-human-button-hidden-when-disabled",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-sit-human-button-triggers-callback",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-start-hand-button-initiates-hand",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "table-watch-button-registers-spectator",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-action-rejects-empty-bearer-token",
+      "category": [
+        "error-state"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-action-requires-bearer-token",
+      "category": [
+        "error-state"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-action-validates-mailbox-request-id-uuid",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-agent-picker-cancel-closes-popover",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-agent-picker-login-link",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-agent-picker-login-navigation",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-agent-picker-register-link-navigation",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-agent-picker-retry-refetches",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-agent-picker-select-agent",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-create-game-empty-name",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-create-game-navigates-to-lobby",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-create-game-shows-error-on-failure",
+      "category": [
+        "auth-boundary",
+        "error-state"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-create-game-with-name",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-create-with-seed-navigates",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-game-row-navigates-to-game",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-lobby-search-empty-shows-all",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-lobby-search-filters-games",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-room-no-auth-required",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-room-route-accessible",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-room-wrapped-in-app-shell",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-seed-input-accepts-value",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-seed-optional-create-without",
+      "category": [
+        "auth-boundary",
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-stream-requires-game-id",
+      "category": [
+        "error-state"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-wait-rejects-empty-bearer-token",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "werewolf-wait-requires-bearer-token",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "ws-subscribe-lobby-anonymous",
+      "category": [
+        "happy-path"
+      ],
+      "source": "autopilot"
+    },
+    {
+      "id": "ws-subscribe-player-topic-requires-auth",
+      "category": [
+        "auth-boundary"
+      ],
+      "source": "autopilot"
+    }
+  ]
+}
