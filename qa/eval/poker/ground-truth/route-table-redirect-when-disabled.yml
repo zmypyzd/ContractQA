@@ -1,0 +1,35 @@
+id: route-table-redirect-when-disabled
+title: Poker table route redirects to home when legacy modules disabled
+area: core
+severity: P1
+preconditions:
+  feature_flags:
+    legacy_modules: false
+actions:
+  - type: goto
+    path: /tables/abc123
+expected:
+  url:
+    matches: ^/$
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.216Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: >-
+    FAIL with no SUT source evidence: paths=["/tables/abc123","/tables/abc123"] texts=[]. Likely hallucination.
+
+    user-review 2026-05-27: KEEP, but source contract MUST add precondition: {"feature_flags":{"legacy_modules":false}}.
+
+
+    Stream 2 残量 (Group E) 2026-05-27: added preconditions.feature_flags so the contract documents its SUT setup. Schema accepts feature_flags as of Stream 2 残量 schema extension; runner does not auto-toggle.

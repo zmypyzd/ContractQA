@@ -1,0 +1,35 @@
+id: api-tables-remove-agent-requires-auth
+title: DELETE /tables/:tableId/agents/:agentId requires authentication
+area: api
+severity: P0
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: http
+    method: DELETE
+    path: /tables/{tableId}/agents/{agentId}
+category:
+  - unclassified
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:37:01.587Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P0
+  severity_final: P0
+  notes: >-
+    Schema-invalid as generated: Required. Reviewer may rescue if the intent describes a real invariant; otherwise leave dropped.
+
+    user-review 2026-05-27: KEEP intent (no expected block). Source contract needs expected: {"http":{"status":401}}
+
+
+    Stream 2 残量 (Group B) 2026-05-27: added expected.http per reviewer target above.
+expected:
+  http:
+    status: 401

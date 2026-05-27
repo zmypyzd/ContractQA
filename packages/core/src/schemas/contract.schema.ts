@@ -131,7 +131,17 @@ export const ContractSchema = z.object({
   owner: z.string().optional(),
   risk_tags: z.array(z.string()).default([]),
   preconditions: z
-    .object({ auth_state: z.string().optional(), role: z.string().optional() })
+    .object({
+      auth_state: z.string().optional(),
+      role: z.string().optional(),
+      // `feature_flags` declares which SUT flags must be set to specific
+      // values for the contract's assertions to be meaningful. The runner
+      // does not auto-toggle flags — this field is descriptive metadata
+      // for the test author (analogous to `role`). Pre-test setup must
+      // ensure the SUT reflects these values, otherwise the contract may
+      // silent-pass. Added 2026-05-27 for Group E (legacy_modules gating).
+      feature_flags: z.record(z.string(), z.boolean()).optional(),
+    })
     .default({}),
   actions: z.array(Action).min(1),
   expected: ExpectedBlock,

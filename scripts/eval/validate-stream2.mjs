@@ -6,6 +6,7 @@ import { compileContract } from '../../packages/runner/dist/compile.js';
 
 const GT = 'qa/eval/poker/ground-truth';
 const STREAM2 = [
+  // Group A (20) + 1 Group B rescue (api-agent-invites-register-invalid-token)
   'api-agent-invites-register-invalid-token',
   'api-agent-invites-revoke-hash-not-found',
   'api-decision-trace-returns-404-for-missing-match',
@@ -27,6 +28,15 @@ const STREAM2 = [
   'delete-agent-requires-auth',
   'simulate-requires-csrf-token',
   'simulate-validates-request-schema',
+  // Stream 2 残量: Group B (4 remaining — first one is the rescue above)
+  'api-tables-remove-agent-requires-auth',
+  'api-tables-create-validates-schema',
+  'api-auth-register-validates-input',
+  'api-werewolf-games-create-validates-name-length',
+  // Stream 2 残量: Group E (3 — feature_flags preconditions)
+  'agents-edit-redirects-when-legacy-disabled',
+  'match-replay-redirects-when-legacy-disabled',
+  'route-table-redirect-when-disabled',
 ];
 
 let pass = 0, fail = 0;

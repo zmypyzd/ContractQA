@@ -1,0 +1,37 @@
+id: api-werewolf-games-create-validates-name-length
+title: Game creation rejects names exceeding 100 characters
+area: api
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: POST
+    path: /werewolf-games
+    body:
+      name: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+category:
+  - unclassified
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:37:01.587Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: >-
+    Schema-invalid as generated: Required. Reviewer may rescue if the intent describes a real invariant; otherwise leave dropped.
+
+    user-review 2026-05-27: KEEP intent (no expected block). Source contract needs expected: {"http":{"status":400}}
+
+
+    Stream 2 残量 (Group B) 2026-05-27: added expected.http per reviewer target above.
+expected:
+  http:
+    status: 400

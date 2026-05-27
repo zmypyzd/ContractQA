@@ -1,0 +1,35 @@
+id: match-replay-redirects-when-legacy-disabled
+title: Match replay route redirects to home when legacy modules disabled
+area: core
+severity: P2
+preconditions:
+  feature_flags:
+    legacy_modules: false
+actions:
+  - type: goto
+    path: /matches/abc123
+expected:
+  url:
+    matches: ^/$
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:02.991Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: >-
+    FAIL with no SUT source evidence: paths=["/matches/abc123","/matches/abc123"] texts=[]. Likely hallucination.
+
+    user-review 2026-05-27: KEEP, but source contract MUST add precondition: {"feature_flags":{"legacy_modules":false}}.
+
+
+    Stream 2 残量 (Group E) 2026-05-27: added preconditions.feature_flags so the contract documents its SUT setup. Schema accepts feature_flags as of Stream 2 残量 schema extension; runner does not auto-toggle.

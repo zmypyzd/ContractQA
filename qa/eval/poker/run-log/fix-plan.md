@@ -41,12 +41,13 @@ Total GT updates: 68.
 
 ### Stream 2: 📝 Source contract edits (after DSL lands)
 
-> **Status (2026-05-27):** Group A REWRITEs ✅ done — all 20 (plus
-> `api-agent-invites-register-invalid-token` from Group B which shared
-> the rewrite shape) applied via `scripts/eval/apply-stream2-rewrites.mjs`.
-> Validated against ContractSchema (Stream 1 strict mode) + G18 via
-> `scripts/eval/validate-stream2.mjs` — 21/21 pass.
-> Remaining: Group B (4) + Group E (3) precondition gaps.
+> **Status (2026-05-27):** Stream 2 ✅ fully done.
+> - Group A (20) + 1 Group B rescue → `apply-stream2-rewrites.mjs`
+> - Group B (4 remaining) + Group E (3) → `apply-stream2-group-be.mjs`
+>   (Group E required schema extension: preconditions.feature_flags as
+>    Record<string, boolean>)
+> - All 28 contracts validated 28/28 via `scripts/eval/validate-stream2.mjs`.
+> Streams 3 + 4 remain.
 
 **Group B — 5 NO_EXPECTED contracts to fix:**
 

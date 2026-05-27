@@ -62,3 +62,38 @@ describe('ContractSchema — expected.http (Stream 1)', () => {
     expect(() => ContractSchema.parse(c)).toThrow();
   });
 });
+
+describe('ContractSchema — preconditions.feature_flags (Stream 2 残量)', () => {
+  const base = {
+    id: 'flag-gated',
+    title: 'flag-gated route',
+    area: 'core',
+    severity: 'P2' as const,
+    actions: [{ type: 'goto', path: '/agents/123/edit' }],
+    expected: { url: { matches: '^/$' } },
+    verification: { wait_ms: 0, retries: 0, evidence_required: ['state_diff'] },
+  };
+
+  it('accepts preconditions.feature_flags as Record<string, boolean>', () => {
+    const c = {
+      ...base,
+      preconditions: { feature_flags: { legacy_modules: false } },
+    };
+    const parsed = ContractSchema.parse(c);
+    expect(parsed.preconditions?.feature_flags).toEqual({ legacy_modules: false });
+  });
+
+  it('preserves feature_flags alongside auth_state + role', () => {
+    const c = {
+      ...base,
+      preconditions: {
+        auth_state: 'logged_in',
+        role: 'normal_user',
+        feature_flags: { legacy_modules: false, beta_ui: true },
+      },
+    };
+    const parsed = ContractSchema.parse(c);
+    expect(parsed.preconditions?.feature_flags).toEqual({ legacy_modules: false, beta_ui: true });
+    expect(parsed.preconditions?.auth_state).toBe('logged_in');
+  });
+});
