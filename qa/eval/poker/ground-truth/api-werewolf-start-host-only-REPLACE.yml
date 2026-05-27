@@ -1,0 +1,52 @@
+id: api-werewolf-start-host-only-REPLACE
+title: Only the game creator can start a werewolf game (non-host gets 403)
+area: api
+severity: P0
+preconditions:
+  # Logged in as a normal user who is NOT the host of the target game.
+  # The test setup must seed a game where the authenticated user is a
+  # participant but not the creator. Without this precondition the assertion
+  # is vacuous (any 401 from missing auth would also match a 403).
+  auth_state: logged_in
+  role: normal_user_non_host
+actions:
+  - type: http
+    method: POST
+    path: /api/v1/werewolf-games/test-host-only-game/start
+expected:
+  http:
+    # 403 = authenticated but forbidden (not the host). 404 acceptable if
+    # the server hides existence from non-participants (IDOR-aware servers
+    # may do this). 401 is NOT acceptable — that would indicate the auth
+    # layer failed, not the host-only domain rule.
+    status: [403, 404]
+    body:
+      contains: ["FORBIDDEN"]
+category:
+  - auth-boundary
+  - domain-rule
+provenance:
+  source: stream3-replace
+  generated_at: 2026-05-27T08:55:00.000Z
+  reviewed_by: stream3-author
+  reviewed_at: 2026-05-27T08:55:00.000Z
+  status: approved
+  replaces: api-werewolf-start-host-only
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P0
+  severity_final: P0
+  notes: >-
+    Stream 3 REPLACE for api-werewolf-start-host-only (dropped 2026-05-27 —
+    trivial url.matches=.*). Targets the domain rule directly: a logged-in
+    non-host MUST get 403 (or 404 if server is IDOR-aware) when calling
+    POST /werewolf-games/:id/start. Status array [403, 404] accepts both
+    server policies; 401 explicitly excluded because that would indicate
+    auth-layer failure rather than the host-only domain rule.
+
+    The `body.contains: ["FORBIDDEN"]` needle is the standard AppError code
+    used elsewhere in the codebase (e.g. CSRF_FAILED, UNAUTHENTICATED) —
+    keeps the assertion specific without coupling to exact prose.

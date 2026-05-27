@@ -92,7 +92,17 @@ Total GT updates: 68.
 | `api-matches-get-not-found-invalid-id` | P2 | http.status: 404 |
 | `api-matches-decision-trace-returns-match-not-found` | P2 | http.status: 404 |
 
-### Stream 3: 🆕 REPLACE contracts (10 valuable features behind DROP-ed contracts)
+### Stream 3: 🆕 REPLACE contracts (12 — partial 1/12 done, 11 gated on Stream 5)
+
+> **Status (2026-05-27):**
+> - ✅ `api-werewolf-start-host-only` → REPLACE shipped as
+>   `api-werewolf-start-host-only-REPLACE.yml` (P0 API contract using Stream
+>    1's expected.http; doesn't need DOM extension).
+> - ⏳ 11 remaining REPLACEs need DOM rich-assertion schema (attribute_equals,
+>   input_value, class_contains, element_text_equals). Gated on Stream 5.
+>   See `docs/stream5-dom-rich-assertions.md` for the design.
+
+
 
 | Dropped contract | Severity | What to write instead |
 |---|---|---|
@@ -109,7 +119,16 @@ Total GT updates: 68.
 | `werewolf-lobby-tab-featured-active-state` | P2 | Assert active class or aria-selected on Featured tab. |
 | `werewolf-lobby-tab-live-filters-games` | P2 | Assert list content changed (live games only). |
 
-### Stream 4: 💪 STRENGTHEN existing contracts (9 contracts — Group C+D strengthen)
+### Stream 4: 💪 STRENGTHEN existing contracts (9 — 2/9 doable now, 7 gated on Stream 5)
+
+> **Status (2026-05-27):**
+> - 2/9 doable with current schema (`appshell-invite-button-close-toggle`,
+>   `confirm-dialog-cancel-closes-dialog` — both use role_count sequences).
+> - 7/9 gated on Stream 5 DOM rich-assertion extension.
+> - Not yet shipped — sequencing after Stream 5 lands so the 7 can ship in
+>   one cohesive batch.
+
+
 
 | Contract | Severity | Change |
 |---|---|---|
