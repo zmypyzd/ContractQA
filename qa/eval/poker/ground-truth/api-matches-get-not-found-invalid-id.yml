@@ -1,0 +1,34 @@
+id: api-matches-get-not-found-invalid-id
+title: GET /matches/:matchId returns error for non-existent match
+area: api
+severity: P2
+preconditions: {}
+actions:
+  - type: http
+    method: GET
+    path: /matches/non-existent-match-id-999
+expected:
+  http:
+    status: 404
+category:
+  - error-state
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:47:59.893Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: >-
+    FAIL with no SUT source evidence: paths=["/matches/non-existent-match-id-999","/matches/[^/]\\+-999"] texts=[]. Likely hallucination.
+
+    user-review 2026-05-27: KEEP intent (dom-after-http silent pass). Rewrite needed when runner DSL gains http assertion family. Target: http.status: 404
+
+
+    Stream 2 REWRITE applied 2026-05-27: expected.dom.* → expected.http.* per reviewer target above. Layer 7 lenient loader + G18 (compileContract) now guard this contract structurally.

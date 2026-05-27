@@ -1,0 +1,35 @@
+id: delete-agent-requires-auth
+title: DELETE /me/agents/:agentId requires authentication
+area: api
+severity: P0
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: http
+    method: DELETE
+    path: /me/agents/test-agent-id
+expected:
+  http:
+    status: 401
+category:
+  - error-state
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:00.812Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P0
+  severity_final: P0
+  notes: >-
+    FAIL with no SUT source evidence: paths=["/me/agents/test-agent-id","/me/agents/[^/]\\+"] texts=[]. Likely hallucination.
+
+    user-review 2026-05-27: KEEP intent (dom-after-http silent pass). Rewrite needed when runner DSL gains http assertion family. Target: http.status: 401
+
+
+    Stream 2 REWRITE applied 2026-05-27: expected.dom.* → expected.http.* per reviewer target above. Layer 7 lenient loader + G18 (compileContract) now guard this contract structurally.

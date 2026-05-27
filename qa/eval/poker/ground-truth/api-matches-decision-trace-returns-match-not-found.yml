@@ -1,0 +1,31 @@
+id: api-matches-decision-trace-returns-match-not-found
+title: Decision trace endpoint returns error for invalid matchId
+area: api
+severity: P2
+actions:
+  - type: http
+    method: GET
+    path: /matches/nonexistent-match-12345/decision-trace
+expected:
+  http:
+    status: 404
+category:
+  - error-state
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:47:59.835Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: |-
+    FAIL with no SUT source evidence: paths=["/matches/nonexistent-match-12345/decision-trace","/matches/nonexistent-match-12345/decision-trace"] texts=[]. Likely hallucination.
+    user-review 2026-05-27: KEEP intent (dom-after-http silent pass). Rewrite needed when runner DSL gains http assertion family. Target: http.status: 404
+
+    Stream 2 REWRITE applied 2026-05-27: expected.dom.* → expected.http.* per reviewer target above. Layer 7 lenient loader + G18 (compileContract) now guard this contract structurally.

@@ -1,0 +1,34 @@
+id: api-tables-get-hand-validates-table-exists
+title: GET /tables/:tableId/hands/:handId returns error for non-existent table
+area: api
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: GET
+    path: /tables/nonexistent-table-id/hands/any-hand-id
+expected:
+  http:
+    status: 404
+category:
+  - auth-boundary
+  - error-state
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:00.307Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: |-
+    FAIL with no SUT source evidence: paths=["/tables/nonexistent-table-id/hands/any-hand-id","/tables/[^/]\\+/hands/[^/]\\+"] texts=[]. Likely hallucination.
+    user-review 2026-05-27: KEEP intent (dom-after-http silent pass). Rewrite needed when runner DSL gains http assertion family. Target: http.status: 404
+
+    Stream 2 REWRITE applied 2026-05-27: expected.dom.* → expected.http.* per reviewer target above. Layer 7 lenient loader + G18 (compileContract) now guard this contract structurally.

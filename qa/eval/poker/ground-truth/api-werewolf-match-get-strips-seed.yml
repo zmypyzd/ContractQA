@@ -1,0 +1,38 @@
+id: api-werewolf-match-get-strips-seed
+title: GET /werewolf-matches/:matchId strips seed from index entries
+area: api
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: http
+    method: GET
+    path: /werewolf-matches/test-match-id
+expected:
+  http:
+    status: 200
+    body:
+      not_contains_keys:
+        - seed
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.665Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: >-
+    weak-pass (flags: dom-after-http). Assertion was schema-ignored or evaluated against wrong page; the PASS was a silent / coincidental match. Phase B drift pattern.
+
+    user-review 2026-05-27: KEEP intent (dom-after-http silent pass). Rewrite needed when runner DSL gains http assertion family. Target: http.status: 200 + body.not_contains_keys: [seed]
+
+
+    Stream 2 REWRITE applied 2026-05-27: expected.dom.* → expected.http.* per reviewer target above. Layer 7 lenient loader + G18 (compileContract) now guard this contract structurally.

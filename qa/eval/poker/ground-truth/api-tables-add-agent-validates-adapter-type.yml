@@ -1,0 +1,42 @@
+id: api-tables-add-agent-validates-adapter-type
+title: Adding agent rejects non-mock adapter types
+area: api
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: POST
+    path: /tables/test-table-id/agents
+    body:
+      adapterType: openai
+      name: TestAgent
+      buyIn: 1000
+expected:
+  http:
+    status: 400
+    body:
+      contains:
+        - adapterType
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:00.196Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: >-
+    FAIL with no SUT source evidence: paths=["/tables/test-table-id/agents","/tables/[^/]\\+/agents"] texts=[]. Likely hallucination.
+
+    user-review 2026-05-27: KEEP intent (dom-after-http silent pass). Rewrite needed when runner DSL gains http assertion family. Target: http.status: 400 + body explains adapter constraint
+
+
+    Stream 2 REWRITE applied 2026-05-27: expected.dom.* → expected.http.* per reviewer target above. Layer 7 lenient loader + G18 (compileContract) now guard this contract structurally.
