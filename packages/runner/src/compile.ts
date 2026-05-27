@@ -22,14 +22,36 @@ export interface CompiledPage {
 export interface CompiledContext {
   page: CompiledPage;
   snapshot: () => Promise<StateSlice>;
+  // Optional Playwright BrowserContext, exposed so authSetup can manipulate
+  // cookies / storage state. Loose-typed to avoid a hard @playwright/test
+  // dep in the runner package.
+  context?: unknown;
+}
+
+export interface AuthSetupContext {
+  page: CompiledPage;
+  context: unknown;
+  contract: ContractDoc;
+}
+
+// Optional per-project auth bootstrap. Called once per contract whose
+// preconditions.auth_state === 'logged_in', BEFORE the before-snapshot,
+// so the snapshot reflects the logged-in state.
+export type AuthSetup = (ctx: AuthSetupContext) => Promise<void>;
+
+export interface CompileOptions {
+  authSetup?: AuthSetup;
 }
 
 export type CompiledContract = (
   ctx: CompiledContext,
 ) => Promise<{ before: StateSlice; after: StateSlice }>;
 
-export function compileContract(c: ContractDoc): CompiledContract {
+export function compileContract(c: ContractDoc, opts: CompileOptions = {}): CompiledContract {
   return async (ctx) => {
+    if (c.preconditions?.auth_state === 'logged_in' && opts.authSetup) {
+      await opts.authSetup({ page: ctx.page, context: ctx.context, contract: c });
+    }
     const before = await ctx.snapshot();
     for (const a of c.actions) {
       if (a.type === 'goto') {

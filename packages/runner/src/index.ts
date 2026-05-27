@@ -1,6 +1,13 @@
 export { loadContractsFromDir } from './loader.js';
 export { compileContract } from './compile.js';
-export type { CompiledContract, CompiledContext, CompiledPage } from './compile.js';
+export type {
+  CompiledContract,
+  CompiledContext,
+  CompiledPage,
+  AuthSetup,
+  AuthSetupContext,
+  CompileOptions,
+} from './compile.js';
 export { verifiedAction } from './verified-action.js';
 export type {
   VerifiedActionInput,
