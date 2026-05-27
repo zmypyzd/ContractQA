@@ -9,7 +9,7 @@ interface PageLike {
   viewportSize(): { width: number; height: number } | null;
   screenshot(opts?: { fullPage?: boolean }): Promise<Buffer>;
   content(): Promise<string>;
-  evaluate<T>(fn: (...a: unknown[]) => T): Promise<T>;
+  evaluate<T, A = unknown>(fn: (a: A) => T, arg?: A): Promise<T>;
   context(): {
     cookies(): Promise<
       Array<{
@@ -97,15 +97,30 @@ export async function snapshotBrowser(
   let dom: BrowserSnapshot['dom'] | undefined;
   if (opts.captureDom) {
     try {
-      dom = await page.evaluate(() => {
+      // Stream 5: in addition to roleCounts/visibleText, capture per-element
+      // attribute snapshots so the oracle can evaluate attribute_equals /
+      // input_value / class_contains / element_text_equals. Capped to
+      // ELEMENT_BUDGET to keep snapshots bounded on rich pages.
+      const ELEMENT_BUDGET = 500;
+      dom = await page.evaluate((budget: number) => {
         try {
-          const elements = Array.from(
+          const els = Array.from(
             document.querySelectorAll<HTMLElement>(
-              '[role], a, button, h1, h2, h3, input, [aria-label]',
+              // Add select/textarea/[data-testid] vs the original selector
+              // list — covers input_value targets + test_id-based targeting.
+              '[role], a, button, h1, h2, h3, input, select, textarea, [aria-label], [data-testid]',
             ),
           );
           const counts: Record<string, number> = {};
-          for (const el of elements) {
+          const elementSnapshots: Array<{
+            role: string;
+            name: string;
+            attributes: Record<string, string>;
+            value?: string;
+            classes: string[];
+            text: string;
+          }> = [];
+          for (const el of els) {
             const tag = el.tagName;
             const role =
               el.getAttribute('role') ??
@@ -117,20 +132,60 @@ export async function snapshotBrowser(
                     ? 'heading'
                     : tag === 'INPUT'
                       ? 'textbox'
-                      : null);
+                      : tag === 'TEXTAREA'
+                        ? 'textbox'
+                        : tag === 'SELECT'
+                          ? 'combobox'
+                          : null);
             if (!role) continue;
             const name = (el.getAttribute('aria-label') ?? el.textContent ?? '').trim();
             const key = `${role}:${name}`;
             counts[key] = (counts[key] ?? 0) + 1;
+            if (elementSnapshots.length >= budget) continue;
+            // Capture a focused attribute set: aria-*, data-*, plus the
+            // ones the new oracle commonly asserts on (disabled, hidden,
+            // type, name, role, class). Skip noisy/large attrs (style,
+            // srcdoc, innerHTML-via-attr).
+            const attrs: Record<string, string> = {};
+            for (const a of Array.from(el.attributes)) {
+              const n = a.name.toLowerCase();
+              if (n === 'style' || n === 'srcdoc') continue;
+              if (
+                n === 'disabled' ||
+                n === 'hidden' ||
+                n === 'type' ||
+                n === 'name' ||
+                n === 'role' ||
+                n === 'class' ||
+                n.startsWith('aria-') ||
+                n.startsWith('data-')
+              ) {
+                attrs[n] = a.value;
+              }
+            }
+            const classes = el.classList ? Array.from(el.classList) : [];
+            const value =
+              tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+                ? (el as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement).value
+                : undefined;
+            const snap: typeof elementSnapshots[number] = {
+              role,
+              name,
+              attributes: attrs,
+              classes,
+              text: (el.textContent ?? '').trim(),
+            };
+            if (value !== undefined) snap.value = value;
+            elementSnapshots.push(snap);
           }
           const visibleText = (document.body?.innerText ?? '').replace(/\s+/g, ' ').trim();
-          return { roleCounts: counts, visibleText };
+          return { roleCounts: counts, visibleText, elements: elementSnapshots };
         } catch {
-          return { roleCounts: {}, visibleText: '' };
+          return { roleCounts: {}, visibleText: '', elements: [] };
         }
-      });
+      }, ELEMENT_BUDGET);
     } catch {
-      dom = { roleCounts: {}, visibleText: '' };
+      dom = { roleCounts: {}, visibleText: '', elements: [] };
     }
   }
 

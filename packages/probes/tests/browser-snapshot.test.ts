@@ -71,7 +71,7 @@ describe('snapshotBrowser', () => {
         // object with roleCounts; storage callbacks return key-value maps.
         const src = String(fn);
         if (src.includes('roleCounts')) {
-          return { roleCounts: { 'link:Login': 2 }, visibleText: 'Hi WolfMind' } as unknown as T;
+          return { roleCounts: { 'link:Login': 2 }, visibleText: 'Hi WolfMind', elements: [] } as unknown as T;
         }
         return {} as T;
       },
@@ -82,6 +82,54 @@ describe('snapshotBrowser', () => {
     });
     expect(snap.dom?.roleCounts['link:Login']).toBe(2);
     expect(snap.dom?.visibleText).toContain('WolfMind');
+  });
+
+  it('Stream 5: captureDom populates dom.elements (attributes/value/classes/text)', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'cqa-snap-'));
+    const cannedElements = [
+      {
+        role: 'button',
+        name: 'All-in',
+        attributes: { disabled: 'true', class: 'btn primary', 'aria-pressed': 'false' },
+        classes: ['btn', 'primary'],
+        text: 'All-in',
+      },
+      {
+        role: 'textbox',
+        name: 'seed',
+        attributes: { name: 'seed', type: 'text' },
+        value: 'abc123',
+        classes: ['input'],
+        text: '',
+      },
+    ];
+    const page = {
+      ...mockPage(),
+      evaluate: async <T,>(fn: () => T, _arg?: number): Promise<T> => {
+        const src = String(fn);
+        if (src.includes('roleCounts')) {
+          return {
+            roleCounts: { 'button:All-in': 1, 'textbox:seed': 1 },
+            visibleText: 'All-in',
+            elements: cannedElements,
+          } as unknown as T;
+        }
+        return {} as T;
+      },
+    };
+    const snap = await snapshotBrowser(page, {
+      screenshotPath: path.join(dir, 'x.png'),
+      captureDom: true,
+    });
+    expect(snap.dom?.elements).toBeDefined();
+    expect(snap.dom?.elements?.length).toBe(2);
+    expect(snap.dom?.elements?.[0]).toMatchObject({
+      role: 'button',
+      name: 'All-in',
+      classes: ['btn', 'primary'],
+    });
+    expect(snap.dom?.elements?.[0].attributes.disabled).toBe('true');
+    expect(snap.dom?.elements?.[1].value).toBe('abc123');
   });
 
   it('captureDom default false: snap.dom is undefined', async () => {
