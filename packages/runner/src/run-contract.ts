@@ -2,6 +2,7 @@ import { mkdir, writeFile as fsWriteFile, readFile as fsReadFile } from 'node:fs
 import path from 'node:path';
 import type { BackendAdapter, ContractDoc, NoiseProfile, VerdictResult } from '@contractqa/core';
 import type { StateSlice } from '@contractqa/oracle';
+import { classifyHttp, type HttpExpected } from '@contractqa/oracle';
 import { writeEvidenceBundle } from '@contractqa/evidence';
 import { snapshotBrowser } from '@contractqa/probes';
 import { compileContract, type CompiledPage } from './compile.js';
@@ -77,8 +78,8 @@ export async function runContract(input: RunContractInput): Promise<RunContractR
     cookies: beforeSnap.cookies.map((c) => c.name),
   };
 
-  const compiled = compileContract(input.contract);
-  await compiled({
+  const compiled = compileContract(input.contract, { baseUrl: input.stripBaseUrl });
+  const compiledResult = await compiled({
     page: input.page,
     snapshot: async () => ({
       url: stripBase(input.page.url()),
@@ -110,6 +111,7 @@ export async function runContract(input: RunContractInput): Promise<RunContractR
     missingCapabilities: [],
     attach: (a) => oracleAttached.push(a),
     tmpDir: scratchDir,
+    httpResponse: compiledResult.httpResponse,
   });
 
   // Evaluate backend_state if present in the contract.
@@ -235,6 +237,7 @@ export async function runHttpContract(input: RunHttpContractInput): Promise<RunH
 
   let lastStatus = 0;
   let lastBody = '';
+  let lastHeaders: Record<string, string> = {};
   for (const a of contract.actions) {
     if (a.type !== 'http') continue; // satisfies TS narrowing
     // Normalize incoming header names to lowercase so the default Content-Type
@@ -255,7 +258,20 @@ export async function runHttpContract(input: RunHttpContractInput): Promise<RunH
     const res = await fetch(`${baseUrl}${a.path}`, init);
     lastStatus = res.status;
     lastBody = await res.text();
+    lastHeaders = {};
+    res.headers.forEach((value, key) => {
+      lastHeaders[key.toLowerCase()] = value;
+    });
   }
+
+  // Stream 1: classify expected.http against the last response. Surfaces
+  // status / body / headers violations as front-end fails before falling
+  // through to backend_state. expected.http failures hard-FAIL the verdict
+  // regardless of backend.
+  const expectedHttp = (contract.expected as { http?: HttpExpected }).http;
+  const httpClassification = expectedHttp
+    ? classifyHttp(expectedHttp, { status: lastStatus, body: lastBody, headers: lastHeaders })
+    : { passContributions: [], failContributions: [] };
 
   // Backend state evaluation (reuses Phase 4 evaluator).
   const expectedBackend = (contract.expected as any).backend_state as
@@ -317,6 +333,27 @@ export async function runHttpContract(input: RunHttpContractInput): Promise<RunH
       flakeScore: 0,
       evidenceCompleteness: 1,
       missingCapabilities: [],
+    };
+  }
+
+  // Merge expected.http failures into the verdict. A front-end http fail
+  // always escalates to FAIL (overrides PASS and INCONCLUSIVE) and appends
+  // its violations alongside any backend_state violation.
+  if (httpClassification.failContributions.length > 0) {
+    verdict = {
+      ...verdict,
+      verdict: 'FAIL',
+      violations: [
+        ...verdict.violations,
+        ...httpClassification.failContributions.map((f) => ({
+          invariantId: f.field,
+          message: f.detail,
+          expected: f.detail,
+          actual: f.actual,
+        })),
+      ],
+      confidence: 1,
+      evidenceCompleteness: Math.max(verdict.evidenceCompleteness, 1),
     };
   }
 

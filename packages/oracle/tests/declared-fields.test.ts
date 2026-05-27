@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyDiff } from '../src/declared-fields.js';
+import { classifyDiff, classifyHttp } from '../src/declared-fields.js';
 
 const diff = {
   url: { before: '/x', after: '/agents', changed: true },
@@ -89,5 +89,84 @@ describe('classifyDiff', () => {
     };
     const r = classifyDiff(addedDiff, { cookies: { no_name_matches: '^apk_sid$' } }, noise);
     expect(r.failContributions.some((f) => f.field === 'cookies')).toBe(true);
+  });
+});
+
+describe('classifyHttp', () => {
+  const okResp = {
+    status: 201,
+    body: '{"id":"abc","ok":true}',
+    headers: { 'content-type': 'application/json', 'x-trace': 't1' },
+  };
+
+  it('status matches scalar → PASS contribution', () => {
+    const r = classifyHttp({ status: 201 }, okResp);
+    expect(r.passContributions.map((p) => p.field)).toContain('http.status');
+    expect(r.failContributions).toEqual([]);
+  });
+
+  it('status matches array → PASS contribution', () => {
+    const r = classifyHttp({ status: [200, 201, 202] }, okResp);
+    expect(r.passContributions.length).toBe(1);
+  });
+
+  it('status mismatch → FAIL contribution carries actual', () => {
+    const r = classifyHttp({ status: 200 }, okResp);
+    expect(r.failContributions[0]).toMatchObject({ field: 'http.status', actual: 201 });
+  });
+
+  it('body.contains hits substring; not_contains negates it', () => {
+    const r = classifyHttp(
+      { body: { contains: ['"ok":true'], not_contains: ['error'] } },
+      okResp,
+    );
+    expect(r.passContributions.length).toBe(2);
+    expect(r.failContributions).toEqual([]);
+  });
+
+  it('body.contains miss → FAIL with body snippet as actual', () => {
+    const r = classifyHttp({ body: { contains: ['__missing__'] } }, okResp);
+    expect(r.failContributions[0]?.field).toBe('http.body.contains');
+    expect(r.failContributions[0]?.actual).toContain('"ok":true');
+  });
+
+  it('body.contains_keys parses JSON and validates top-level keys', () => {
+    const r = classifyHttp(
+      { body: { contains_keys: ['id', 'ok'], not_contains_keys: ['secret'] } },
+      okResp,
+    );
+    expect(r.passContributions.length).toBe(3);
+    expect(r.failContributions).toEqual([]);
+  });
+
+  it('body.contains_keys miss → FAIL with parsed keys as actual', () => {
+    const r = classifyHttp({ body: { contains_keys: ['missing'] } }, okResp);
+    expect(r.failContributions[0]?.field).toBe('http.body.contains_keys');
+    expect(r.failContributions[0]?.actual).toEqual(['id', 'ok']);
+  });
+
+  it('body.contains_keys on non-JSON body → FAIL (keys treated as empty)', () => {
+    const r = classifyHttp(
+      { body: { contains_keys: ['id'] } },
+      { ...okResp, body: 'plain text' },
+    );
+    expect(r.failContributions[0]?.field).toBe('http.body.contains_keys');
+  });
+
+  it('headers compared case-insensitively', () => {
+    const r = classifyHttp({ headers: { 'X-Trace': 't1' } }, okResp);
+    expect(r.passContributions.length).toBe(1);
+    expect(r.failContributions).toEqual([]);
+  });
+
+  it('missing response when expected.http set → single FAIL', () => {
+    const r = classifyHttp({ status: 200 }, undefined);
+    expect(r.failContributions).toEqual([
+      {
+        field: 'http',
+        detail: 'contract declares expected.http but no http response was captured',
+        actual: null,
+      },
+    ]);
   });
 });

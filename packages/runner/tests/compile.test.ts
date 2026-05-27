@@ -84,6 +84,85 @@ describe('compileContract', () => {
     expect(calls).toEqual(['page:getByRole(navigation)', 'scoped:getByRole(link)']);
   });
 
+  it('http action: captures last response on returned thunk', async () => {
+    const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
+      expect(url).toBe('http://api.local/v1/cards');
+      expect(init.method).toBe('POST');
+      return new Response('{"id":"abc","ok":true}', {
+        status: 201,
+        headers: { 'content-type': 'application/json', 'x-trace': 't1' },
+      });
+    });
+    const origFetch = globalThis.fetch;
+    (globalThis as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
+
+    const page: any = {
+      goto: vi.fn(),
+      url: () => '/',
+      waitForTimeout: vi.fn(),
+      getByRole: vi.fn(),
+    };
+    const c: ContractDoc = {
+      id: 'http-capture',
+      title: 'http capture',
+      area: 'api',
+      severity: 'P1',
+      risk_tags: [],
+      preconditions: { auth_state: 'anonymous' },
+      actions: [
+        {
+          type: 'http',
+          method: 'POST',
+          path: '/v1/cards',
+          body: { suit: 'spade' },
+        },
+      ],
+      expected: { http: { status: 201, body: { contains: ['"ok":true'] } } },
+      verification: { wait_ms: 0, retries: 0, evidence_required: ['state_diff'] },
+    } as unknown as ContractDoc;
+    try {
+      const result = await compileContract(c, { baseUrl: 'http://api.local' })({
+        page,
+        snapshot: async () => ({ url: '/', localStorageKeys: [], cookies: [] }),
+      });
+      expect(result.httpResponse?.status).toBe(201);
+      expect(result.httpResponse?.body).toContain('"ok":true');
+      expect(result.httpResponse?.headers['x-trace']).toBe('t1');
+    } finally {
+      (globalThis as { fetch: typeof fetch }).fetch = origFetch;
+    }
+  });
+
+  it('G18: throws when expected.dom set but no goto/click/fill action', () => {
+    const c: ContractDoc = {
+      id: 'g18-violation',
+      title: 'dom check with only http',
+      area: 'api',
+      severity: 'P1',
+      risk_tags: [],
+      preconditions: { auth_state: 'anonymous' },
+      actions: [{ type: 'http', method: 'GET', path: '/api/x' }],
+      expected: { dom: { contains_text: ['Cards'] } },
+      verification: { wait_ms: 0, retries: 0, evidence_required: ['state_diff'] },
+    } as unknown as ContractDoc;
+    expect(() => compileContract(c, { baseUrl: 'http://x' })).toThrow(/G18/);
+  });
+
+  it('G18: passes when expected.dom set AND a goto action is present', () => {
+    const c: ContractDoc = {
+      id: 'g18-pass',
+      title: 'dom check with goto',
+      area: 'ui',
+      severity: 'P2',
+      risk_tags: [],
+      preconditions: { auth_state: 'anonymous' },
+      actions: [{ type: 'goto', path: '/x' }],
+      expected: { dom: { contains_text: ['Hello'] } },
+      verification: { wait_ms: 0, retries: 0, evidence_required: ['state_diff'] },
+    } as unknown as ContractDoc;
+    expect(() => compileContract(c, { baseUrl: 'http://x' })).not.toThrow();
+  });
+
   it('goto.locale calls page.setExtraHTTPHeaders before goto', async () => {
     const calls: string[] = [];
     const locator: any = {

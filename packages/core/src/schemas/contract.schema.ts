@@ -95,7 +95,27 @@ const ExpectedBlock = z.object({
       cookies: z.array(SafeRegex).optional(),
     })
     .optional(),
-});
+  // `http` asserts on the response captured by an `http` action. Required when
+  // a contract's only navigation is an `http` action — otherwise the runner
+  // emits a strictness error (G18) because `dom` checks against the wrong
+  // page. See qa/eval/poker/run-log/fix-plan.md Stream 1.
+  http: z
+    .object({
+      status: z.union([z.number().int(), z.array(z.number().int())]).optional(),
+      body: z
+        .object({
+          contains: z.array(z.string()).optional(),
+          not_contains: z.array(z.string()).optional(),
+          contains_keys: z.array(z.string()).optional(),
+          not_contains_keys: z.array(z.string()).optional(),
+        })
+        .strict()
+        .optional(),
+      headers: z.record(z.string(), z.string()).optional(),
+    })
+    .strict()
+    .optional(),
+}).strict();
 
 export const ContractSchema = z.object({
   // id is any safe identifier: starts with a letter, then letters/digits/dashes,

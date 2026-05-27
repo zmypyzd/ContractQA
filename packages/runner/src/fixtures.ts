@@ -1,7 +1,13 @@
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { ContractDoc, NoiseProfile, VerdictResult } from '@contractqa/core';
-import { computeStateDiff, classifyDiff, computeVerdict, type StateSlice } from '@contractqa/oracle';
+import {
+  computeStateDiff,
+  classifyDiff,
+  computeVerdict,
+  type StateSlice,
+  type CapturedHttpResponse,
+} from '@contractqa/oracle';
 
 export interface RunOracleInput {
   contract: ContractDoc;
@@ -11,6 +17,7 @@ export interface RunOracleInput {
   missingCapabilities: string[];
   attach: (info: { name: string; path: string; contentType: string }) => void;
   tmpDir: string;
+  httpResponse?: CapturedHttpResponse;
 }
 
 export async function runOracle(input: RunOracleInput): Promise<VerdictResult> {
@@ -20,6 +27,7 @@ export async function runOracle(input: RunOracleInput): Promise<VerdictResult> {
     input.contract.expected as Parameters<typeof classifyDiff>[1],
     input.noise,
     input.after,
+    input.httpResponse,
   );
   const verdict = computeVerdict({
     runs: [{ failContributions: classified.failContributions, evidence: { state_diff: true } }],
