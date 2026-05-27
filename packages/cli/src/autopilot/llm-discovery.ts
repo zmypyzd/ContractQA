@@ -1,7 +1,22 @@
 // packages/cli/src/autopilot/llm-discovery.ts
 import { z } from 'zod';
+import { stringify as yamlStringify } from 'yaml';
 import type { LLMClient } from '@contractqa/orchestrator/llm';
 import type { TargetContext } from './bootstrap.js';
+import { extractJsonFromLlmResponse } from './interaction-discovery.js';
+
+// Heuristic: an LLM-emitted object is a raw contract (not a wrapped
+// ContractProposal) when it carries the contract id/area shape but is
+// missing the wrapper's `yaml` string field.
+function looksLikeRawContract(o: unknown): o is Record<string, unknown> {
+  if (!o || typeof o !== 'object') return false;
+  const r = o as Record<string, unknown>;
+  return (
+    typeof r.id === 'string' &&
+    typeof r.area === 'string' &&
+    typeof r.yaml !== 'string'
+  );
+}
 
 export interface UncertainQuestion {
   text: string;
@@ -47,7 +62,16 @@ function buildSystemPrompt(ctx: TargetContext): string {
     `- Auth provider: ${ctx.authProvider}`,
     `- Entry routes: ${ctx.routes.join(', ') || '(unknown)'}`,
     '',
-    'Each contract YAML must conform to this shape:',
+    'Each ContractProposal is a JSON object with this exact shape:',
+    '  {',
+    '    yaml: string,              // the YAML contract (see schema below), as a YAML-formatted string',
+    '    confidence: "high" | "medium" | "low",',
+    '    module: string,            // the module name passed in the user prompt',
+    '    uncertainQuestions?: [ { text, type: "yes-no"|"multiple-choice", defaultAnswer, appliesTo: "whole-contract" | { jsonPath: "..." }, choices?: [string] } ],',
+    '    evidence: { sourceFiles: string[], rationale: string }',
+    '  }',
+    '',
+    'The YAML string inside `yaml` must itself conform to this contract shape:',
     '  id: <string-id>',
     '  title: <human-readable title>',
     '  area: <auth | core | admin | ...>',
@@ -62,21 +86,13 @@ function buildSystemPrompt(ctx: TargetContext): string {
     '  - For HTTP API contracts: use {type: http} actions and assert via expected.http.{status, body, headers}.',
     '  - For DOM checks: actions MUST include at least one goto/click/fill — http-only actions + expected.dom is rejected (G18).',
     '',
-    'Example (the canonical auth invariant):',
-    '  id: INV-A2',
-    '  title: Logged-out users cannot access protected routes',
-    '  area: auth',
-    '  severity: P0',
-    '  preconditions: { auth_state: logged_in, role: normal_user }',
-    '  actions:',
-    '    - { type: goto, path: /lobby }',
-    '    - type: click',
-    '      target: { role: button, name_regex: "logout|sign out" }',
-    '    - { type: goto, path: /agents }',
-    '  expected:',
-    '    url: { matches: "^/login" }',
-    '    localStorage: { no_key_matches: "^sb-" }',
-    '    auth_state: { fully_logged_out: true }',
+    'Example output (single ContractProposal — top-level is an ARRAY of these):',
+    '  {',
+    '    "yaml": "id: INV-A2\\ntitle: Logged-out users cannot access protected routes\\narea: auth\\nseverity: P0\\npreconditions: { auth_state: logged_in, role: normal_user }\\nactions:\\n  - { type: goto, path: /lobby }\\n  - type: click\\n    target: { role: button, name_regex: \\"logout|sign out\\" }\\n  - { type: goto, path: /agents }\\nexpected:\\n  url: { matches: \\"^/login\\" }\\n  localStorage: { no_key_matches: \\"^sb-\\" }\\n  auth_state: { fully_logged_out: true }\\n",',
+    '    "confidence": "high",',
+    '    "module": "auth",',
+    '    "evidence": { "sourceFiles": ["app/(auth)/logout/route.ts"], "rationale": "logout handler redirects to /login and clears sb-* keys" }',
+    '  }',
     '',
     'Confidence rubric:',
     '- high: invariant directly evidenced by code (e.g., explicit redirect after logout); no ambiguity.',
@@ -132,12 +148,34 @@ async function callWithBackoff(
   throw lastErr ?? new Error('exhausted retries');
 }
 
-function parseProposals(raw: string): ContractProposal[] | null {
+function parseProposals(raw: string, module: string): ContractProposal[] | null {
+  // LLMs (Claude in particular) frequently emit "Now I have understanding of
+  // the X module. Let me produce the JSON array..." before the actual array.
+  // Without preamble-stripping, every single LLM response gets quarantined
+  // and Phase B reports generated=0. The deep-discovery path solved this
+  // months ago via extractJsonFromLlmResponse; the modules path was left
+  // exposed. See Finding 6 — 2026-05-27 root-cause.
   try {
-    const json = JSON.parse(raw);
+    const cleaned = extractJsonFromLlmResponse(raw);
+    const json = JSON.parse(cleaned);
     const parsed = ProposalsSchema.safeParse(json);
-    if (!parsed.success) return null;
-    return parsed.data as ContractProposal[];
+    if (parsed.success) return parsed.data as ContractProposal[];
+
+    // Finding 7 fallback: the LLM commonly ignores the ContractProposal
+    // wrapper and emits raw contract objects ({id, area, severity, actions,
+    // expected, ...}) at the top level. Rather than silent-quarantining a
+    // whole batch of otherwise-valid contracts, synthesize the wrapper
+    // shape so they reach the loader. Confidence defaults to "medium"
+    // (LLM omitted it — safest middle ground for the gating downstream).
+    if (Array.isArray(json) && json.length > 0 && json.every(looksLikeRawContract)) {
+      return json.map((c) => ({
+        yaml: yamlStringify(c),
+        confidence: 'medium' as const,
+        module,
+        evidence: { sourceFiles: [], rationale: 'discoverByModule (raw-contract fallback, Finding 7)' },
+      }));
+    }
+    return null;
   } catch {
     return null;
   }
@@ -160,7 +198,7 @@ export async function discoverByModule(
     const user = buildModulePrompt(m, `${ctx.cwd}/${m}`);
     try {
       const raw = await callWithBackoff(llm, system, user, signal, { backoffMs, maxRetries });
-      const parsed = parseProposals(raw);
+      const parsed = parseProposals(raw, m);
       if (parsed === null) {
         opts.onQuarantine?.(raw, m);
         await onModule(m, []);
