@@ -1,0 +1,38 @@
+id: werewolf-lobby-tab-featured-active-state-REPLACE
+title: Werewolf lobby Featured tab shows active state
+area: core
+severity: P2
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /werewolf
+  - type: click
+    target:
+      role: tab
+      name_regex: FEATURED
+expected:
+  dom:
+    attribute_equals:
+      - target:
+          role: tab
+          name_regex: FEATURED
+        attribute: aria-selected
+        equals: "true"
+category:
+  - ui-state
+provenance:
+  source: stream3-replace
+  generated_at: 2026-05-27T08:55:00.000Z
+  reviewed_by: stream3-author
+  reviewed_at: 2026-05-27T08:55:00.000Z
+  status: approved
+  replaces: werewolf-lobby-tab-featured-active-state
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: "Stream 3 REPLACE 2026-05-27: REPLACE for werewolf-lobby-tab-featured-active-state: original mirror assertion. Stream 5 attribute_equals on aria-selected is the standard a11y signal for tab active state."

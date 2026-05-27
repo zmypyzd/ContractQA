@@ -1,0 +1,36 @@
+id: audience-reactions-start-at-zero-REPLACE
+title: Audience reaction counters initialize at "0"
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /game
+expected:
+  dom:
+    element_text_equals:
+      - target:
+          test_id: audience-count-heart
+        equals: "0"
+      - target:
+          test_id: audience-count-fire
+        equals: "0"
+category:
+  - ui-state
+  - initial-state
+provenance:
+  source: stream3-replace
+  generated_at: 2026-05-27T08:55:00.000Z
+  reviewed_by: stream3-author
+  reviewed_at: 2026-05-27T08:55:00.000Z
+  status: approved
+  replaces: audience-reactions-start-at-zero
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: 'Stream 3 REPLACE 2026-05-27: REPLACE for audience-reactions-start-at-zero: original had vacuous needles ("0", "data", "error") that any page satisfies (G17). Stream 5 element_text_equals scoped to the actual count test_id is the rigorous check.'

@@ -1,0 +1,48 @@
+id: appshell-invite-button-close-toggle
+title: Clicking invite button twice closes the popover
+area: core
+severity: P3
+actions:
+  - type: goto
+    path: /
+  - type: click
+    target:
+      role: button
+      name_regex: 邀请
+  - type: click
+    target:
+      role: button
+      name_regex: 邀请
+expected:
+  dom:
+    role_count:
+      - role: dialog
+        eq: 0
+    attribute_equals:
+      - target:
+          role: button
+          name_regex: 邀请
+        attribute: aria-pressed
+        equals: "false"
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.785Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P3
+  severity_final: P3
+  notes: >-
+    Chinese-locale selector or text (name_regex) on English SUT — likely i18n hallucination.
+
+    user-review 2026-05-27: KEEP + STRENGTHEN. G16 toggle half: add intermediate "dialog count == 1" assertion between open and close.
+
+
+    Stream 4 STRENGTHEN 2026-05-27: extended expected with Stream 5 rich assertions (attribute_equals / input_value / class_contains / element_text_equals scoped to test_id) to replace vacuous role_count-only or contains_text-only checks. See docs/stream5-dom-rich-assertions.md.

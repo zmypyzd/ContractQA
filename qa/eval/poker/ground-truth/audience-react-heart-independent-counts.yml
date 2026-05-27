@@ -1,0 +1,51 @@
+id: audience-react-heart-independent-counts
+title: Heart reaction count is independent of other reaction counts
+area: core
+severity: P3
+actions:
+  - type: click
+    target:
+      role: button
+      name_regex: React ❤️
+  - type: click
+    target:
+      role: button
+      name_regex: React 🔥
+expected:
+  dom:
+    role_count:
+      - role: button
+        name_regex: React ❤️
+        eq: 1
+      - role: button
+        name_regex: React 🔥
+        eq: 1
+    element_text_equals:
+      - target:
+          test_id: react-heart-count
+        equals: "1"
+      - target:
+          test_id: react-fire-count
+        equals: "1"
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:02.221Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P3
+  severity_final: P3
+  notes: >-
+    FAIL with no SUT source evidence: paths=[] texts=["React ❤️","React 🔥"]. Likely hallucination.
+
+    user-review 2026-05-27: KEEP + STRENGTHEN. Currently only asserts both buttons exist. Rewrite: click ❤️ then assert ❤️ +1 AND 🔥 unchanged.
+
+
+    Stream 4 STRENGTHEN 2026-05-27: extended expected with Stream 5 rich assertions (attribute_equals / input_value / class_contains / element_text_equals scoped to test_id) to replace vacuous role_count-only or contains_text-only checks. See docs/stream5-dom-rich-assertions.md.

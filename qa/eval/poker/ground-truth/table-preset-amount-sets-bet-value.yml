@@ -1,0 +1,42 @@
+id: table-preset-amount-sets-bet-value
+title: Clicking preset amount button updates bet input field
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: click
+    target:
+      role: button
+      name_regex: ^(Min|Pot|Mid|Max|[0-9]+)$
+expected:
+  dom:
+    role_count:
+      - role: textbox
+        gte: 1
+    input_value:
+      - target:
+          role: textbox
+        matches: ^\d+$
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:50:01.199Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: >-
+    Same as table-preset-amount-clears-error — preset buttons not in SUT.
+
+    user-review 2026-05-27: KEEP + STRENGTHEN. Add input.value: <expected preset amount>; currently only asserts textbox presence.
+
+
+    Stream 4 STRENGTHEN 2026-05-27: extended expected with Stream 5 rich assertions (attribute_equals / input_value / class_contains / element_text_equals scoped to test_id) to replace vacuous role_count-only or contains_text-only checks. See docs/stream5-dom-rich-assertions.md.

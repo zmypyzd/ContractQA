@@ -1,0 +1,46 @@
+id: check-action-button-visible-when-legal
+title: Check button visible when check is a legal action
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+  role: normal_user_at_active_table
+actions:
+  - type: goto
+    path: /table/test-table
+  - type: wait
+    ms: 1000
+expected:
+  dom:
+    role_count:
+      - role: button
+        name_regex: ^Check$
+        gte: 1
+    attribute_equals:
+      - target:
+          role: button
+          name_regex: ^Check$
+        attribute: disabled
+        equals: false
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:02.434Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: >-
+    FAIL with no SUT source evidence: paths=["/table/test-table","/table/test-table"] texts=[]. Likely hallucination.
+
+    user-review 2026-05-27: KEEP + STRENGTHEN. Add preconditions describing the game state where Check is legal; currently not setting up state.
+
+
+    Stream 4 STRENGTHEN 2026-05-27: extended expected with Stream 5 rich assertions (attribute_equals / input_value / class_contains / element_text_equals scoped to test_id) to replace vacuous role_count-only or contains_text-only checks. See docs/stream5-dom-rich-assertions.md.

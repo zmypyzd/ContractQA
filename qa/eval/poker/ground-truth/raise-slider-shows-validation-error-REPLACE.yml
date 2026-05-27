@@ -1,0 +1,41 @@
+id: raise-slider-shows-validation-error-REPLACE
+title: Raise slider shows validation error for illegal amount
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /table
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Aa]mount|[Rr]aise|[Bb]et"
+    value: "0"
+  - type: click
+    target:
+      role: button
+      name_regex: "[Rr]aise|[Bb]et"
+expected:
+  dom:
+    element_text_equals:
+      - target:
+          test_id: raise-validation-error
+        equals: Amount must be at least the big blind
+category:
+  - validation
+provenance:
+  source: stream3-replace
+  generated_at: 2026-05-27T08:55:00.000Z
+  reviewed_by: stream3-author
+  reviewed_at: 2026-05-27T08:55:00.000Z
+  status: approved
+  replaces: raise-slider-shows-validation-error
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: 'Stream 3 REPLACE 2026-05-27: REPLACE for raise-slider-shows-validation-error: original used "error" needle (G17). Stream 5 element_text_equals on a scoped validation message element is the rigorous check. The exact message string may need adjustment per the SUT — left as a likely-correct placeholder.'

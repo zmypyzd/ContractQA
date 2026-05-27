@@ -92,15 +92,14 @@ Total GT updates: 68.
 | `api-matches-get-not-found-invalid-id` | P2 | http.status: 404 |
 | `api-matches-decision-trace-returns-match-not-found` | P2 | http.status: 404 |
 
-### Stream 3: 🆕 REPLACE contracts (12 — partial 1/12 done, 11 gated on Stream 5)
+### Stream 3: 🆕 REPLACE contracts (12 — ✅ all 12 done)
 
-> **Status (2026-05-27):**
-> - ✅ `api-werewolf-start-host-only` → REPLACE shipped as
->   `api-werewolf-start-host-only-REPLACE.yml` (P0 API contract using Stream
->    1's expected.http; doesn't need DOM extension).
-> - ⏳ 11 remaining REPLACEs need DOM rich-assertion schema (attribute_equals,
->   input_value, class_contains, element_text_equals). Gated on Stream 5.
->   See `docs/stream5-dom-rich-assertions.md` for the design.
+> **Status (2026-05-27):** Stream 3 ✅ complete.
+> - 1/12 shipped earlier (api-werewolf-start-host-only, expected.http)
+> - 11/12 shipped via `scripts/eval/apply-stream3-replace.mjs` after
+>   Stream 5 landed. Each uses Stream 5 dom rich assertions (attribute_equals,
+>   input_value, class_contains, element_text_equals).
+> - All 12 validated via `scripts/eval/validate-stream3-4.mjs`.
 
 
 
@@ -119,14 +118,16 @@ Total GT updates: 68.
 | `werewolf-lobby-tab-featured-active-state` | P2 | Assert active class or aria-selected on Featured tab. |
 | `werewolf-lobby-tab-live-filters-games` | P2 | Assert list content changed (live games only). |
 
-### Stream 4: 💪 STRENGTHEN existing contracts (9 — 2/9 doable now, 7 gated on Stream 5)
+### Stream 4: 💪 STRENGTHEN existing contracts (9 — ✅ all 9 done)
 
-> **Status (2026-05-27):**
-> - 2/9 doable with current schema (`appshell-invite-button-close-toggle`,
->   `confirm-dialog-cancel-closes-dialog` — both use role_count sequences).
-> - 7/9 gated on Stream 5 DOM rich-assertion extension.
-> - Not yet shipped — sequencing after Stream 5 lands so the 7 can ship in
->   one cohesive batch.
+> **Status (2026-05-27):** Stream 4 ✅ complete via
+> `scripts/eval/apply-stream4-strengthen.mjs`. Every contract preserves
+> its prior expected block and additively gains Stream 5 rich assertions
+> (element_text_equals on scoped count test_ids, attribute_equals on
+> disabled/aria-* state, input_value for form persistence,
+> class_contains for app-shell scoping). check-action-button-visible-
+> when-legal additionally got the missing precondition documenting the
+> game state where Check is legal. 9/9 validated.
 
 
 

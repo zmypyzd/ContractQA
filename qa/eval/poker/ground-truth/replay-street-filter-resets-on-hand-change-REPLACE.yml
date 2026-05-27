@@ -1,0 +1,41 @@
+id: replay-street-filter-resets-on-hand-change-REPLACE
+title: Replay street filter resets to "all" when changing hands
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /replay
+  - type: click
+    target:
+      role: button
+      name_regex: "[Ff]lop"
+  - type: click
+    target:
+      role: listitem
+      name_regex: "[Hh]and"
+expected:
+  dom:
+    element_text_equals:
+      - target:
+          test_id: street-filter-active
+        equals: all
+category:
+  - ui-state
+  - reset
+provenance:
+  source: stream3-replace
+  generated_at: 2026-05-27T08:55:00.000Z
+  reviewed_by: stream3-author
+  reviewed_at: 2026-05-27T08:55:00.000Z
+  status: approved
+  replaces: replay-street-filter-resets-on-hand-change
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: 'Stream 3 REPLACE 2026-05-27: REPLACE for replay-street-filter-resets-on-hand-change: original had empty contains_text. Stream 5 element_text_equals on the active-filter element catches the reset to "all".'

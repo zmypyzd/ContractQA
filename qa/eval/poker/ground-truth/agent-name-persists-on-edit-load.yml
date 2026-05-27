@@ -1,0 +1,44 @@
+id: agent-name-persists-on-edit-load
+title: Agent name field is populated when editing existing agent
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /agents/test-agent-id/edit
+  - type: wait
+    ms: 1000
+expected:
+  dom:
+    role_count:
+      - role: textbox
+        name_regex: "[Aa]gent [Nn]ame"
+        gte: 1
+    input_value:
+      - target:
+          role: textbox
+          name_regex: "[Aa]gent [Nn]ame"
+        matches: ^.+$
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:01.884Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: >-
+    FAIL with no SUT source evidence: paths=["/agents/test-agent-id/edit","/agents/[^/]\\+/edit"] texts=[]. Likely hallucination.
+
+    user-review 2026-05-27: KEEP + STRENGTHEN. Add attribute: value, equals: ${fixture.agent.name} — currently only asserts textbox presence.
+
+
+    Stream 4 STRENGTHEN 2026-05-27: extended expected with Stream 5 rich assertions (attribute_equals / input_value / class_contains / element_text_equals scoped to test_id) to replace vacuous role_count-only or contains_text-only checks. See docs/stream5-dom-rich-assertions.md.

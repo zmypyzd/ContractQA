@@ -1,0 +1,44 @@
+id: werewolf-lobby-recent-tab-filters-completed-games-REPLACE
+title: Werewolf lobby RECENT tab shows completed games (different list than ALL)
+area: core
+severity: P2
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /werewolf
+  - type: click
+    target:
+      role: tab
+      name_regex: RECENT
+expected:
+  dom:
+    element_text_equals:
+      - target:
+          test_id: lobby-list-status-badge
+          first: true
+        equals: Completed
+    attribute_equals:
+      - target:
+          role: tab
+          name_regex: RECENT
+        attribute: aria-selected
+        equals: "true"
+category:
+  - ui-state
+  - filter
+provenance:
+  source: stream3-replace
+  generated_at: 2026-05-27T08:55:00.000Z
+  reviewed_by: stream3-author
+  reviewed_at: 2026-05-27T08:55:00.000Z
+  status: approved
+  replaces: werewolf-lobby-recent-tab-filters-completed-games
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: "Stream 3 REPLACE 2026-05-27: REPLACE for werewolf-lobby-recent-tab-filters-completed-games: original was a mirror assertion (click \"RECENT\" → assert text contains \"RECENT\") — doesn't test filtering. Stream 5 dual check: tab marked active (aria-selected) + scoped status badge on first list item shows \"Completed\"."

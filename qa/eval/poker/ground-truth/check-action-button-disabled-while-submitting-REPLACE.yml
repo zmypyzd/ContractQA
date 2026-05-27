@@ -1,0 +1,38 @@
+id: check-action-button-disabled-while-submitting-REPLACE
+title: Check action button is disabled while submitting
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /table
+  - type: click
+    target:
+      role: button
+      name_regex: ^Check$
+expected:
+  dom:
+    attribute_equals:
+      - target:
+          role: button
+          name_regex: ^Check$
+        attribute: disabled
+        equals: true
+category:
+  - ui-state
+provenance:
+  source: stream3-replace
+  generated_at: 2026-05-27T08:55:00.000Z
+  reviewed_by: stream3-author
+  reviewed_at: 2026-05-27T08:55:00.000Z
+  status: approved
+  replaces: check-action-button-disabled-while-submitting
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: "Stream 3 REPLACE 2026-05-27: REPLACE for check-action-button-disabled-while-submitting: same shape as all-in. Original asserted presence rather than disabled state (G15). attribute_equals on disabled boolean."

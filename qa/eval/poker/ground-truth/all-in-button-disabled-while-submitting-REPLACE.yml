@@ -1,0 +1,38 @@
+id: all-in-button-disabled-while-submitting-REPLACE
+title: All-in button is disabled while action is being submitted
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /table
+  - type: click
+    target:
+      role: button
+      name_regex: "[Aa]ll.?[Ii]n"
+expected:
+  dom:
+    attribute_equals:
+      - target:
+          role: button
+          name_regex: "[Aa]ll.?[Ii]n"
+        attribute: disabled
+        equals: true
+category:
+  - ui-state
+provenance:
+  source: stream3-replace
+  generated_at: 2026-05-27T08:55:00.000Z
+  reviewed_by: stream3-author
+  reviewed_at: 2026-05-27T08:55:00.000Z
+  status: approved
+  replaces: all-in-button-disabled-while-submitting
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: 'Stream 3 REPLACE 2026-05-27: REPLACE for all-in-button-disabled-while-submitting: original asserted contains_text: "Submitting" which is unrelated to "button is disabled" (G15 title-vs-assertion lie). Stream 5 attribute_equals on disabled boolean is the rigorous check.'

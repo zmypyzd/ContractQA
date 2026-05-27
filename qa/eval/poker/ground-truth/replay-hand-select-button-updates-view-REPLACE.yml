@@ -1,0 +1,39 @@
+id: replay-hand-select-button-updates-view-REPLACE
+title: Selecting a hand in replay updates the view via URL hand-id
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /replay
+  - type: click
+    target:
+      role: button
+      name_regex: "[Ss]elect|[Hh]and"
+expected:
+  url:
+    matches: \bhand=
+  dom:
+    class_contains:
+      - target:
+          test_id: replay-canvas
+        class: is-loaded
+category:
+  - ui-state
+  - navigation
+provenance:
+  source: stream3-replace
+  generated_at: 2026-05-27T08:55:00.000Z
+  reviewed_by: stream3-author
+  reviewed_at: 2026-05-27T08:55:00.000Z
+  status: approved
+  replaces: replay-hand-select-button-updates-view
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: 'Stream 3 REPLACE 2026-05-27: REPLACE for replay-hand-select-button-updates-view: original had empty contains_text. Stream 5 combines url change (hand= query param) + class_contains on the canvas being is-loaded. class_contains is the structural signal of "view updated"; URL is the navigation signal.'

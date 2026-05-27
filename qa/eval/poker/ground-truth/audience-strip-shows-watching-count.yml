@@ -1,0 +1,40 @@
+id: audience-strip-shows-watching-count
+title: Audience strip displays watching count
+area: core
+severity: P2
+actions:
+  - type: goto
+    path: /game
+expected:
+  dom:
+    contains_text:
+      - watching
+      - AUDIENCE
+    element_text_equals:
+      - target:
+          test_id: audience-watching-count
+        equals: "0"
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:02.274Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: >-
+    FAIL with no SUT source evidence: paths=["/game","/game"] texts=[]. Likely hallucination.
+
+    user-review 2026-05-27: KEEP + STRENGTHEN. Add scoped numeric assertion on count element; current "watching"/"AUDIENCE" needles are better than single-char but still weak.
+
+    user-review 2026-05-27: Clean KEEP. MEDIUM: "watching"+"AUDIENCE" multi-word needle stronger than single char but still weak; see Group C STRENGTHEN note.
+
+
+    Stream 4 STRENGTHEN 2026-05-27: extended expected with Stream 5 rich assertions (attribute_equals / input_value / class_contains / element_text_equals scoped to test_id) to replace vacuous role_count-only or contains_text-only checks. See docs/stream5-dom-rich-assertions.md.

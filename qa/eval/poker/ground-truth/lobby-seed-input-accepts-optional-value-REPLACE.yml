@@ -1,0 +1,38 @@
+id: lobby-seed-input-accepts-optional-value-REPLACE
+title: Lobby seed input retains user-typed value
+area: core
+severity: P3
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /lobby
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Ss]eed"
+    value: test-seed-12345
+expected:
+  dom:
+    input_value:
+      - target:
+          role: textbox
+          name_regex: "[Ss]eed"
+        equals: test-seed-12345
+category:
+  - form-state
+provenance:
+  source: stream3-replace
+  generated_at: 2026-05-27T08:55:00.000Z
+  reviewed_by: stream3-author
+  reviewed_at: 2026-05-27T08:55:00.000Z
+  status: approved
+  replaces: lobby-seed-input-accepts-optional-value
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P3
+  severity_final: P3
+  notes: "Stream 3 REPLACE 2026-05-27: REPLACE for lobby-seed-input-accepts-optional-value: original had empty contains_text array. Stream 5 input_value.equals catches the actual intent (input.value persists after fill)."

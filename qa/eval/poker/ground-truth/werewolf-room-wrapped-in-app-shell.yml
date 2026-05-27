@@ -1,0 +1,38 @@
+id: werewolf-room-wrapped-in-app-shell
+title: Werewolf room page renders within AppShell layout
+area: core
+severity: P2
+actions:
+  - type: goto
+    path: /werewolf/any-game-id
+expected:
+  dom:
+    role_count:
+      - role: navigation
+        gte: 1
+    class_contains:
+      - target:
+          test_id: app-shell
+        class: werewolf-room
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.998Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: >-
+    FAIL with no SUT source evidence: paths=["/werewolf/any-game-id","/werewolf/[^/]\\+"] texts=[]. Likely hallucination.
+
+    user-review 2026-05-27: KEEP + STRENGTHEN. Scope to app-shell container and assert inner content is werewolf room; "navigation" element appears on every page.
+
+
+    Stream 4 STRENGTHEN 2026-05-27: extended expected with Stream 5 rich assertions (attribute_equals / input_value / class_contains / element_text_equals scoped to test_id) to replace vacuous role_count-only or contains_text-only checks. See docs/stream5-dom-rich-assertions.md.

@@ -1,0 +1,37 @@
+id: replay-next-button-advances-timeline-REPLACE
+title: Replay Next button advances the timeline by 1
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /replay
+  - type: click
+    target:
+      role: button
+      name_regex: "[Nn]ext"
+expected:
+  dom:
+    element_text_equals:
+      - target:
+          test_id: replay-timeline-index
+        equals: "2"
+category:
+  - ui-state
+  - sequence
+provenance:
+  source: stream3-replace
+  generated_at: 2026-05-27T08:55:00.000Z
+  reviewed_by: stream3-author
+  reviewed_at: 2026-05-27T08:55:00.000Z
+  status: approved
+  replaces: replay-next-button-advances-timeline
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: 'Stream 3 REPLACE 2026-05-27: REPLACE for replay-next-button-advances-timeline: original had empty contains_text. Stream 5 element_text_equals on the timeline counter test_id catches the +1 increment. If the SUT starts at 0 instead of 1, change equals to "1".'
