@@ -115,8 +115,10 @@ function summarizeContract(c) {
 }
 
 async function judgeCoverage(checklistItem, contractSummaries, opts) {
-  // LLM judge — Anthropic API. The system prompt is the rubric; the user
-  // message has one checklist item + the contract corpus.
+  // LLM judge using the orchestrator's pickClient — picks whichever
+  // provider autopilot uses (OPENAI_API_KEY > ANTHROPIC_API_KEY > Claude
+  // Code SDK). No extra SDK install needed for the common case where
+  // Claude Code is already configured.
   //
   // Returns { covered: bool, matched_contract_ids: [...], reason: '...' }
   const sys = [
@@ -149,27 +151,18 @@ async function judgeCoverage(checklistItem, contractSummaries, opts) {
     return { covered: false, matched_contract_ids: [], reason: '[dry-run] not called' };
   }
 
-  // Use the Anthropic SDK if available; else surface a clear error.
-  const { default: Anthropic } = await import('@anthropic-ai/sdk').catch(() => ({}));
-  if (!Anthropic) {
-    throw new Error(
-      'webtestbench-score: @anthropic-ai/sdk not installed. ' +
-        'Add it to packages/orchestrator or run `npm i -D @anthropic-ai/sdk` at root, ' +
-        'OR pass --dry-run to skip LLM calls.',
-    );
+  // Lazy-cache the client so we don't pay pickClient cost per call.
+  if (!opts._client) {
+    const { pickClient } = await import('../../packages/orchestrator/dist/llm/pick-client.js');
+    opts._client = await pickClient();
   }
-  const client = new Anthropic();
-  const resp = await client.messages.create({
-    model: opts.model ?? 'claude-haiku-4-5-20251001',
-    max_tokens: 400,
+  const resp = await opts._client.generate({
     system: sys,
     messages: [{ role: 'user', content: user }],
+    temperature: 0.2,
+    maxTokens: 400,
   });
-  const text = resp.content
-    .filter((b) => b.type === 'text')
-    .map((b) => b.text)
-    .join('')
-    .trim();
+  const text = resp.content.trim();
   // Strip any wrapping; pull out the first {...} block.
   const m = text.match(/\{[\s\S]*\}/);
   if (!m) {
@@ -210,10 +203,12 @@ async function main() {
 
   const coverage = [];
   const items = limit ? entry.checklist.slice(0, limit) : entry.checklist;
+  // Shared opts so judgeCoverage can lazy-cache the LLM client across calls.
+  const judgeOpts = { dryRun: !!args['dry-run'], model: args.model };
   for (let i = 0; i < items.length; i++) {
     const it = items[i];
     process.stderr.write(`  [${i + 1}/${items.length}] judging #${it.id} (${it.class})… `);
-    const j = await judgeCoverage(it, summaries, { dryRun: !!args['dry-run'], model: args.model });
+    const j = await judgeCoverage(it, summaries, judgeOpts);
     coverage.push({
       checklist_id: it.id,
       content: it.content,
