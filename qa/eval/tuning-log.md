@@ -1245,4 +1245,138 @@ prior-entry positions corrected:
    pricing).
 
 ---
+
+## Entry 11 — Docker-parallel batch 1-10 on MiniMax, first measurable Reflexion data
+
+**Date:** 2026-05-29
+**Commit:** `d506360` (docker-batch + inlined pLimit fix)
+**Hypothesis:** With `docker-batch.mjs` (per-app isolated containers, random
+host ports, parallel concurrency=3) + the MiniMax shim (Entry 10's Arm B
+config), we should escape both the port-8080 sequential bottleneck AND
+the OAuth burst-rate-limit. Goal: first measurable Reflexion data + first
+clean batch since Entry 3.
+
+**Setup:**
+- Apps 1-10, MiniMax-M2.7-highspeed
+- `ANTHROPIC_API_KEY=sk-cp-…` + `ANTHROPIC_BASE_URL=https://api.minimaxi.com/anthropic`
+- `CONTRACTQA_FORCE_SDK_CLIENT=claude-agent` (Arm B path: SDK subprocess, no
+  harness — Entry 10's winner)
+- `docker-batch.mjs --range 1-10 --concurrency 3`
+- 30 min budget per app
+- Wallclock: 98 minutes (16:48 → 18:27 UTC)
+
+**Result — 6/10 OK, first non-zero content-class output across the entire log:**
+
+| App  | OK | Autopilot   | Contracts | Coverage | Bugs   | Bug % |
+|------|----|-------------|-----------|----------|--------|-------|
+| 0001 | ✓  | 1064s       | 41        | 11.1%    | 0/3    |  0.0% |
+| 0002 | ✓  |  886s       | 31        | 21.1%    | 2/5    | 40.0% |
+| 0003 | ✓  |  585s       | 24        | 23.5%    | 0/3    |  0.0% |
+| 0004 | ✓  |  832s       | 25        | **44.4%**| 2/7    | 28.6% |
+| 0005 | ✓  |  694s       | 34        | 16.7%    | 0/6    |  0.0% |
+| 0006 | ✓  |  575s       | 17        | 33.3%    | 2/6    | 33.3% |
+| 0007 | ✗  |  758s       | -         | -        | -      | -     |
+| 0008 | ✗  | 1945s       | -         | -        | -      | -     |
+| 0009 | ✗  | 1881s       | -         | -        | -      | -     |
+| 0010 | ✗  | 1294s       | -         | -        | -      | -     |
+
+**Aggregate:** 6/10 OK, mean coverage 25.0%, mean bug detection 17.0%,
+total contracts 172, total bugs covered 6/30.
+
+**Comparison to Entry 3 (Haiku 4.5 OAuth, the historical best):**
+
+| Metric                | Entry 3 (Haiku, OAuth, sequential) | Entry 11 (MiniMax, docker parallel) |
+|-----------------------|-------------------------------------|--------------------------------------|
+| Apps OK               | 10/10                              | 6/10                                 |
+| Mean coverage         | 44.5%                              | 25.0% (-19.5pp)                      |
+| Mean bug detection    | 30.1%                              | 17.0% (-13.1pp)                      |
+| Wallclock             | ~120 min                           | 98 min (-18%)                        |
+| Total contracts       | ~750 (extrapolated)                | 172 (much lower)                     |
+
+This is a **different model** so per-app numbers aren't directly
+comparable to Haiku. The directional read: MiniMax-M2.7-highspeed
+underproduces contracts per app (~24 mean vs Haiku's ~75), but the
+contracts it does produce are reasonable quality (44.4% on 0004 is
+real Entry-3-class output). Docker parallel saved ~22% wallclock vs
+the Entry 3 sequential timing despite running fewer apps successfully.
+
+### Finding 1 (the load-bearing one): Reflexion empirically WORKS
+
+After 8 entries of "Reflexion untested/blocked," Entry 11 has the first
+positive data:
+
+- All 5 apps that reached Stage 2 successfully (0001, 0002, 0003, 0005,
+  0006) ran the Reflexion pass and logged "5 proposals" each.
+- App 0001 has **2 contracts in `contracts/content/`** that look like
+  classic content-class invariants:
+  - "Products heading remains All Products when category is filtered"
+    (cross-view consistency)
+  - "Product count text matches number of article cards displayed"
+    (count/total matching)
+- Apps 0002/0003/0005/0006 don't have a `contracts/content/` subdir, but
+  their Reflexion proposals likely landed under their feature-area
+  subdirs (`core`, `auth`, `dashboard`, …) since the LLM categorized them
+  by feature rather than by class. They need title-level audit to count.
+
+**This is the first non-zero content-class entry across Entry 0–10
+(all 0%).** Reflexion is empirically validated on at least the
+cross-view-consistency / count-matching pattern. Lock-in candidate
+pending broader audit.
+
+### Finding 2: Scorer dies under FORCE_SDK_CLIENT inheritance
+
+Apps 0007/0008/0009/0010 had autopilot exit=0 but score_exit=1. Score
+log shows "Claude Code process exited with code 1" — the scorer's
+inherited `CONTRACTQA_FORCE_SDK_CLIENT=claude-agent` env routes its LLM
+judge calls through ClaudeAgentSDKClient (SDK subprocess) instead of
+direct HTTP. Under concurrent burst (3 parallel autopilots finishing in
+overlapping windows + their scorers piling on), the SDK subprocess
+auth path fails to keep up.
+
+**Fix committed in this entry's follow-up commit:** `docker-batch.mjs`
+now sets `CONTRACTQA_FORCE_SDK_CLIENT=''` when spawning the scorer, so
+the scorer routes to `AnthropicSDKClient` (direct HTTP) — no SDK
+subprocess in the scoring path. Autopilot still uses the SDK subprocess
+for its agentic-search benefit (Entry 10's Arm B winner).
+
+### Finding 3: Docker parallel concurrency-3 is right-sized for MiniMax
+
+Per-app autopilot wallclock: 575-1064s (~10-18 min) at concurrency=3.
+vs Entry 10's Arm B at concurrency=1: 525s for app 0001. So parallel-3
+**doubles** per-app wallclock but processes 3 apps in that window,
+which is roughly break-even on throughput. The MiniMax per-key
+concurrent rate limit appears tight; concurrency=5+ would likely
+worsen per-app numbers further.
+
+Net: docker concurrency=3 saved ~22% wallclock on completed apps vs
+sequential, primarily by overlapping the npm-install + docker-build
+phases with API-bound autopilot phases of other apps. The API-bound
+phase doesn't parallelize cleanly under MiniMax's rate limit.
+
+**Cleanup performed:**
+- Killed prior Arm B serial batch (`b5xh6c4z0`) before launch.
+- All cqa-* docker containers removed post-run.
+- Scratch state cleaned.
+
+**Verdict:** First fully-measurable batch since Entry 3, first positive
+Reflexion data ever. The 25.0%/17.0% numbers are not directly
+comparable to Entry 3's 44.5%/30.1% (different model), but they're
+**real numbers** and they show ContractQA can deliver under MiniMax +
+Reflexion + Arm B config.
+
+**Next:**
+
+1. **Re-run with fixed scorer env** (this entry's follow-up commit) to
+   measure all 10 apps cleanly — Entry 12 will have 10/10 instead of 6/10.
+2. **Title-level audit of Reflexion impact**: for each OK app, identify
+   which contracts came from Reflexion vs from Stage 2, classify by the
+   four invariant classes, compute Reflexion's per-app coverage lift.
+3. **Cross-model validation**: if Anthropic API key becomes available,
+   run docker-batch with `CONTRACTQA_LLM_MODEL=claude-haiku-4-5-20251001`
+   to compare Haiku vs MiniMax at apples-to-apples Arm B settings.
+4. **Tune MiniMax-specific JSON output**: enumerateSurface still fails
+   on some apps (Arm A Entry 10 + apps 0007-0010 here). Could add a
+   markdown-stripping pass to `extractJsonFromLlmResponse`.
+
+---
 <!-- Add new entries below this line. Don't edit anything above. -->

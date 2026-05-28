@@ -221,12 +221,20 @@ async function runApp(idx, batchDir, opts) {
       logFile: path.join(appLogDir, '5-autopilot.log'),
     });
 
-    // 7. score
+    // 7. score — drop CONTRACTQA_FORCE_SDK_CLIENT so the scorer routes to
+    // AnthropicSDKClient (direct HTTP) instead of ClaudeAgentSDKClient
+    // (subprocess). Scorer doesn't need agentic search — and the SDK
+    // subprocess path hits burst-rate-limit cascades when many scorers run
+    // concurrently (Entry 11 observation: 4/10 apps' scorers died via SDK
+    // path while autopilot succeeded).
     log('score (LLM judge)');
     const scoreArgs = ['scripts/eval/webtestbench-score.mjs', '--idx', idx];
     if (opts.scoreLimit) scoreArgs.push('--limit', String(opts.scoreLimit));
     const scoreRes = await run('node', scoreArgs, {
       cwd: QA_AGENT_ROOT,
+      // Empty string overrides the inherited 'claude-agent' value; pickClient
+      // matches only against the exact string 'claude-agent' / 'anthropic'.
+      env: { CONTRACTQA_FORCE_SDK_CLIENT: '' },
       logFile: path.join(appLogDir, '6-score.log'),
     });
 
