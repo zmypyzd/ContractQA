@@ -9,6 +9,67 @@ import { z } from 'zod';
 import type { LLMClient } from '@contractqa/orchestrator/llm';
 import type { ContractProposal } from './llm-discovery.js';
 
+// Retry transient LLM failures with exponential backoff. Wraps llm.generate
+// so the rest of the file can call as-if it's a single-shot generate.
+// Retries on:
+//   - HTTP 429 / 503 / 5xx (rate-limit + server errors; same as the modules
+//     path's callWithBackoff)
+//   - Claude Code SDK subprocess crashes ("Claude Code process exited with
+//     code 1" — transient at the SDK subprocess layer, not the API; observed
+//     2026-05-28 affecting 7/10 apps in a batch)
+//   - Network transients (ECONNRESET/ETIMEDOUT/fetch failed)
+// Default: 3 retries, 1s base backoff (1s, 2s, 4s).
+// See [[deep-mode-sdk-crash-2026-05-27]] for the root cause class.
+export async function generateWithBackoff(
+  llm: LLMClient,
+  req: {
+    system?: string;
+    messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+    temperature?: number;
+    signal?: AbortSignal;
+  },
+  opts: { maxRetries?: number; backoffMs?: number } = {},
+): Promise<{ content: string }> {
+  const maxRetries = opts.maxRetries ?? 3;
+  const backoffMs = opts.backoffMs ?? 1000;
+  let attempt = 0;
+  let lastErr: unknown;
+  while (attempt <= maxRetries) {
+    if (req.signal?.aborted) throw new Error('aborted');
+    try {
+      const r = await llm.generate(req);
+      return { content: r.content };
+    } catch (err) {
+      lastErr = err;
+      const status =
+        (err as { statusCode?: number; status?: number }).statusCode
+        ?? (err as { statusCode?: number; status?: number }).status;
+      const isHttpRetryable =
+        status === 429 || status === 503 || (status !== undefined && status >= 500);
+      const message = ((err as Error).message ?? '').toString();
+      const isSdkTransient =
+        /Claude Code process exited|Claude Agent SDK call failed|ECONNRESET|ETIMEDOUT|fetch failed|socket hang up/i.test(
+          message,
+        );
+      const retryable = (isHttpRetryable || isSdkTransient) && attempt < maxRetries;
+      if (!retryable) throw err;
+      const wait = backoffMs * (2 ** attempt);
+      await new Promise<void>((resolve, reject) => {
+        const t = setTimeout(resolve, wait);
+        if (req.signal) {
+          const onAbort = () => {
+            clearTimeout(t);
+            reject(new Error('aborted during backoff'));
+          };
+          req.signal.addEventListener('abort', onAbort, { once: true });
+        }
+      });
+      attempt++;
+    }
+  }
+  throw lastErr;
+}
+
 export const InteractionSchema = z.object({
   id: z.string().regex(/^[a-z0-9-]+$/, 'id must be kebab-case alphanumeric'),
   type: z.enum(['button', 'form', 'route', 'api-endpoint', 'link', 'submit-handler']),
@@ -291,7 +352,7 @@ export async function enumerateSurface(opts: EnumerateSurfaceOptions): Promise<E
 
   let content: string;
   try {
-    const r = await opts.llmClient.generate({
+    const r = await generateWithBackoff(opts.llmClient, {
       system,
       messages: [{ role: 'user', content: user }],
       temperature: 0.2,
@@ -592,7 +653,7 @@ export async function generateContractFor(opts: GenerateContractForOptions): Pro
 
   let content: string;
   try {
-    const r = await opts.llmClient.generate({
+    const r = await generateWithBackoff(opts.llmClient, {
       system,
       messages: [{ role: 'user', content: user }],
       temperature: 0.2,

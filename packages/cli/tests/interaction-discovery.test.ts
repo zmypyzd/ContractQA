@@ -8,6 +8,7 @@ import {
   buildGenerateSystemPrompt,
   enumerateSurface,
   generateContractFor,
+  generateWithBackoff,
   runPool,
   buildExistingIndex,
   mergeContracts,
@@ -870,5 +871,83 @@ describe('enumerateSurface JSON extraction', () => {
     const result = await enumerateSurface({ cwd, llmClient: llm });
     expect(result.interactions).toHaveLength(1);
     expect(result.interactions![0]!.id).toBe('btn-test');
+  });
+});
+
+describe('generateWithBackoff (Route A: deep-discovery SDK retry)', () => {
+  function makeLlm(plan: Array<{ kind: 'ok' | 'sdk-crash' | 'http-500' | 'non-retryable'; content?: string }>) {
+    let i = 0;
+    return {
+      providerName: 'claude-agent-sdk' as const,
+      modelHint: 'test',
+      generate: vi.fn(async () => {
+        const step = plan[i++];
+        if (!step) throw new Error('plan exhausted');
+        if (step.kind === 'ok') return { content: step.content ?? 'OK', usage: { inputTokens: 0, outputTokens: 0 } };
+        if (step.kind === 'sdk-crash') {
+          throw new Error('Claude Agent SDK call failed: Claude Code process exited with code 1');
+        }
+        if (step.kind === 'http-500') {
+          const e: Error & { statusCode?: number } = new Error('server error');
+          e.statusCode = 500;
+          throw e;
+        }
+        throw new Error('schema parse failed'); // non-retryable
+      }),
+    };
+  }
+
+  it('retries on Claude Agent SDK exit-1 then succeeds', async () => {
+    const llm = makeLlm([{ kind: 'sdk-crash' }, { kind: 'sdk-crash' }, { kind: 'ok', content: 'pong' }]);
+    const r = await generateWithBackoff(
+      llm,
+      { messages: [{ role: 'user', content: 'ping' }] },
+      { backoffMs: 1 }, // fast tests
+    );
+    expect(r.content).toBe('pong');
+    expect(llm.generate).toHaveBeenCalledTimes(3);
+  });
+
+  it('retries on HTTP 500 then succeeds', async () => {
+    const llm = makeLlm([{ kind: 'http-500' }, { kind: 'ok', content: 'ok' }]);
+    const r = await generateWithBackoff(llm, { messages: [] }, { backoffMs: 1 });
+    expect(r.content).toBe('ok');
+    expect(llm.generate).toHaveBeenCalledTimes(2);
+  });
+
+  it('does NOT retry non-retryable errors (e.g. schema parse failed)', async () => {
+    const llm = makeLlm([{ kind: 'non-retryable' }, { kind: 'ok' }]);
+    await expect(
+      generateWithBackoff(llm, { messages: [] }, { backoffMs: 1 }),
+    ).rejects.toThrow(/schema parse failed/);
+    expect(llm.generate).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives up after maxRetries and throws last error', async () => {
+    const llm = makeLlm([
+      { kind: 'sdk-crash' }, { kind: 'sdk-crash' }, { kind: 'sdk-crash' }, { kind: 'sdk-crash' },
+    ]);
+    await expect(
+      generateWithBackoff(llm, { messages: [] }, { backoffMs: 1, maxRetries: 2 }),
+    ).rejects.toThrow(/Claude Code process exited/);
+    expect(llm.generate).toHaveBeenCalledTimes(3); // first + 2 retries
+  });
+
+  it('AbortSignal during backoff exits promptly without further retry', async () => {
+    const ac = new AbortController();
+    const llm = makeLlm([
+      { kind: 'sdk-crash' }, { kind: 'sdk-crash' }, { kind: 'ok' },
+    ]);
+    const start = Date.now();
+    setTimeout(() => ac.abort(), 5);
+    await expect(
+      generateWithBackoff(
+        llm,
+        { messages: [], signal: ac.signal },
+        { backoffMs: 200, maxRetries: 5 },
+      ),
+    ).rejects.toThrow(/abort/i);
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeLessThan(500); // should not wait the full 200ms backoff × 2 = 400ms
   });
 });
