@@ -117,7 +117,7 @@ program
   .option('--watch', 'Watch the project directory and re-run autopilot on every file change')
   .option('--watch-debounce <ms>', 'Debounce window for --watch (default 2000ms)', '2000')
   .option('--dashboard-url <url>', 'Report each --watch iteration to a running ContractQA dashboard (or set DASHBOARD_URL env)')
-  .option('--discovery-mode <mode>', 'Phase B discovery: modules (default) or deep (1 contract per interaction)', 'modules')
+  .option('--discovery-mode <mode>', 'Phase B discovery: deep (default, 1 contract per interaction) or modules', 'deep')
   .option('--deep-concurrency <n>', 'Concurrent LLM calls in deep Stage 2 (default 4)', '4')
   .option('--deep-max-contracts <n>', 'Hard cap on contracts generated per deep run (default 500)', '500')
   .action(async (opts: {
@@ -141,7 +141,10 @@ program
       yes: opts.yes,
       regenerate: opts.regenerate,
       regressionScope: opts.regressionScope as ('one' | 'touched-files' | 'all' | undefined),
-      discoveryMode: (opts.discoveryMode === 'deep' ? 'deep' : 'modules') as 'modules' | 'deep',
+      // Default flipped to 'deep' 2026-05-28 per WebTestBench experience —
+      // modules mode misses interaction-level invariants the agent can find
+      // by walking source. Pass --discovery-mode modules to opt out.
+      discoveryMode: (opts.discoveryMode === 'modules' ? 'modules' : 'deep') as 'modules' | 'deep',
       deepConcurrency: Number(opts.deepConcurrency ?? '4'),
       deepMaxContracts: Number(opts.deepMaxContracts ?? '500'),
       // Wire phase/log events to the terminal. Without this, non-watch
