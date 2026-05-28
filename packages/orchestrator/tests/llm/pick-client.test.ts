@@ -11,6 +11,7 @@ const ORIG_ENV = { ...process.env };
 function clearEnv() {
   delete process.env.OPENAI_API_KEY;
   delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.CONTRACTQA_FORCE_SDK_CLIENT;
 }
 
 describe('pickClient', () => {
@@ -52,5 +53,31 @@ describe('pickClient', () => {
     const { pickClient } = await import('../../src/llm/pick-client.js');
     await expect(pickClient({ resolveSdk: (name) => name !== 'openai' }))
       .rejects.toThrow(/npm install openai/);
+  });
+
+  it('CONTRACTQA_FORCE_SDK_CLIENT=claude-agent forces ClaudeAgentSDKClient even when ANTHROPIC_API_KEY set', async () => {
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-fake';
+    process.env.CONTRACTQA_FORCE_SDK_CLIENT = 'claude-agent';
+    const { pickClient } = await import('../../src/llm/pick-client.js');
+    const c = await pickClient({
+      resolveSdk: (name) => name === '@anthropic-ai/claude-agent-sdk',
+      claudeAgentCredsExist: () => false, // does NOT need creds — forced
+    });
+    expect(c.providerName).toBe('claude-agent-sdk');
+  });
+
+  it('CONTRACTQA_FORCE_SDK_CLIENT=anthropic requires ANTHROPIC_API_KEY', async () => {
+    process.env.CONTRACTQA_FORCE_SDK_CLIENT = 'anthropic';
+    const { pickClient } = await import('../../src/llm/pick-client.js');
+    await expect(pickClient({ resolveSdk: () => true }))
+      .rejects.toThrow(/CONTRACTQA_FORCE_SDK_CLIENT=anthropic requires ANTHROPIC_API_KEY/);
+  });
+
+  it('CONTRACTQA_FORCE_SDK_CLIENT=anthropic with key returns AnthropicSDKClient', async () => {
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-fake';
+    process.env.CONTRACTQA_FORCE_SDK_CLIENT = 'anthropic';
+    const { pickClient } = await import('../../src/llm/pick-client.js');
+    const c = await pickClient({ resolveSdk: () => true });
+    expect(c.providerName).toBe('anthropic-sdk');
   });
 });

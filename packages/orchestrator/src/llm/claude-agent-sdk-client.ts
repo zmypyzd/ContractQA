@@ -37,14 +37,22 @@ export class ClaudeAgentSDKClient implements LLMClient {
   // from the calling repo's CLAUDE.md / MEMORY.md / hooks / skill metadata
   // so it doesn't auto-load 100+ skill descriptions on every call.
   private readonly isolatedCwd: string;
+  // Experimental: when true, drop the cwd/systemPrompt/disallowedTools/
+  // maxTurns harness and let the inner Claude Code agent operate with its
+  // full default scaffolding (Read/Grep/Glob/Task/etc) — the Arm C of the
+  // Entry 8 harness A/B (tuning-log.md). Default false (current production
+  // behavior). Toggled via env CONTRACTQA_DISABLE_SDK_HARNESS=1 or ctor opt.
+  private readonly harnessDisabled: boolean;
 
-  constructor(opts: { model?: string } = {}) {
+  constructor(opts: { model?: string; disableHarness?: boolean } = {}) {
     // Match AnthropicSDKClient's env contract — same var works for both
     // client paths so tuning experiments are reproducible regardless of
     // which provider pickClient lands on.
     this.model = opts.model ?? process.env.CONTRACTQA_LLM_MODEL ?? undefined;
     this.modelHint = this.model ?? 'claude-code-managed';
     this.isolatedCwd = mkdtempSync(path.join(tmpdir(), 'cqa-llm-'));
+    this.harnessDisabled =
+      opts.disableHarness ?? process.env.CONTRACTQA_DISABLE_SDK_HARNESS === '1';
   }
 
   async generate(opts: GenerateOptions): Promise<GenerateResult> {
@@ -66,13 +74,23 @@ export class ClaudeAgentSDKClient implements LLMClient {
       //   - disallowedTools: blocks Read/Bash/Task/etc → no file probing or subagent spawn
       //   - maxTurns: 1 → forbids multi-turn loops even if a tool somehow got through
       // Without these, Sonnet+discovery-prompt enters a 69-tool-call / 240s+ loop.
-      const sdkOptions: Parameters<typeof query>[0]['options'] = {
-        permissionMode: 'bypassPermissions',
-        cwd: this.isolatedCwd,
-        systemPrompt: STATELESS_SYSTEM_PROMPT,
-        disallowedTools: STATELESS_DISALLOWED_TOOLS,
-        maxTurns: 1,
-      };
+      //
+      // BUT: these same options trigger 403 under OAuth subscription auth
+      // (Entry 7 bisect, tuning-log.md). Under ANTHROPIC_API_KEY billing the
+      // 403 should not apply and the harness works again. And with
+      // harnessDisabled, we drop the harness to let the inner agent use its
+      // full Claude Code scaffolding — the A/B comparison Arm C.
+      const sdkOptions: Parameters<typeof query>[0]['options'] = this.harnessDisabled
+        ? {
+            permissionMode: 'bypassPermissions',
+          }
+        : {
+            permissionMode: 'bypassPermissions',
+            cwd: this.isolatedCwd,
+            systemPrompt: STATELESS_SYSTEM_PROMPT,
+            disallowedTools: STATELESS_DISALLOWED_TOOLS,
+            maxTurns: 1,
+          };
       if (this.model) sdkOptions.model = this.model;
       for await (const msg of query({ prompt, options: sdkOptions })) {
         if (opts.signal?.aborted) throw new Error('aborted mid-stream');

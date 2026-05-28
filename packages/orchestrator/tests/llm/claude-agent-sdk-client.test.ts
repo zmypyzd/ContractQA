@@ -30,6 +30,60 @@ describe('ClaudeAgentSDKClient', () => {
       .rejects.toThrow(/abort/i);
   });
 
+  it('disableHarness=true passes only permissionMode (no cwd/systemPrompt/disallowedTools/maxTurns)', async () => {
+    const { query } = await import('@anthropic-ai/claude-agent-sdk');
+    vi.mocked(query).mockImplementationOnce(async function* () {
+      yield { type: 'result', result: 'ok' };
+    });
+    const { ClaudeAgentSDKClient } = await import('../../src/llm/claude-agent-sdk-client.js');
+    const c = new ClaudeAgentSDKClient({ disableHarness: true });
+    await c.generate({ messages: [{ role: 'user', content: 'Hi' }] });
+    const call = vi.mocked(query).mock.calls[vi.mocked(query).mock.calls.length - 1]!;
+    const opts = call[0].options!;
+    expect(opts.permissionMode).toBe('bypassPermissions');
+    expect(opts.cwd).toBeUndefined();
+    expect(opts.systemPrompt).toBeUndefined();
+    expect(opts.disallowedTools).toBeUndefined();
+    expect(opts.maxTurns).toBeUndefined();
+  });
+
+  it('default harness path passes cwd + systemPrompt + disallowedTools + maxTurns', async () => {
+    const { query } = await import('@anthropic-ai/claude-agent-sdk');
+    vi.mocked(query).mockImplementationOnce(async function* () {
+      yield { type: 'result', result: 'ok' };
+    });
+    const { ClaudeAgentSDKClient } = await import('../../src/llm/claude-agent-sdk-client.js');
+    const c = new ClaudeAgentSDKClient(); // no disableHarness
+    await c.generate({ messages: [{ role: 'user', content: 'Hi' }] });
+    const call = vi.mocked(query).mock.calls[vi.mocked(query).mock.calls.length - 1]!;
+    const opts = call[0].options!;
+    expect(opts.cwd).toBeTruthy();
+    expect(opts.systemPrompt).toBeTruthy();
+    expect(opts.disallowedTools).toBeTruthy();
+    expect(opts.maxTurns).toBe(1);
+  });
+
+  it('CONTRACTQA_DISABLE_SDK_HARNESS=1 env triggers harness disable', async () => {
+    const prev = process.env.CONTRACTQA_DISABLE_SDK_HARNESS;
+    process.env.CONTRACTQA_DISABLE_SDK_HARNESS = '1';
+    try {
+      const { query } = await import('@anthropic-ai/claude-agent-sdk');
+      vi.mocked(query).mockImplementationOnce(async function* () {
+        yield { type: 'result', result: 'ok' };
+      });
+      const { ClaudeAgentSDKClient } = await import('../../src/llm/claude-agent-sdk-client.js');
+      const c = new ClaudeAgentSDKClient();
+      await c.generate({ messages: [{ role: 'user', content: 'Hi' }] });
+      const call = vi.mocked(query).mock.calls[vi.mocked(query).mock.calls.length - 1]!;
+      const opts = call[0].options!;
+      expect(opts.cwd).toBeUndefined();
+      expect(opts.disallowedTools).toBeUndefined();
+    } finally {
+      if (prev === undefined) delete process.env.CONTRACTQA_DISABLE_SDK_HARNESS;
+      else process.env.CONTRACTQA_DISABLE_SDK_HARNESS = prev;
+    }
+  });
+
   it('mid-stream abort is NOT wrapped as LLMTransportError', async () => {
     const { query } = await import('@anthropic-ai/claude-agent-sdk');
     const ac = new AbortController();

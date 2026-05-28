@@ -87,6 +87,48 @@ export async function pickClient(opts: PickClientOptions = {}): Promise<LLMClien
   const credsExist = opts.claudeAgentCredsExist ?? defaultClaudeAgentCredsExist;
   const tried: ProviderName[] = [];
 
+  // Experimental override for the harness-vs-no-harness A/B (Entry 8 plan,
+  // tuning-log.md). Default routing is unchanged; this env flag only fires
+  // when explicitly set.
+  //
+  //   CONTRACTQA_FORCE_SDK_CLIENT=claude-agent → force ClaudeAgentSDKClient
+  //     even when ANTHROPIC_API_KEY is set, so we can compare:
+  //       - AnthropicSDKClient (direct messages.create, no tools)
+  //       - ClaudeAgentSDKClient + harness (current default, stateless JSON)
+  //       - ClaudeAgentSDKClient + CONTRACTQA_DISABLE_SDK_HARNESS=1
+  //         (full Claude Code agentic search via Read/Grep/Glob/Task)
+  //   CONTRACTQA_FORCE_SDK_CLIENT=anthropic → force AnthropicSDKClient
+  //     (mostly defensive; equivalent to setting ANTHROPIC_API_KEY alone)
+  const forceClient = process.env.CONTRACTQA_FORCE_SDK_CLIENT;
+  if (forceClient === 'claude-agent') {
+    tried.push('claude-agent-sdk');
+    if (!resolveSdk('@anthropic-ai/claude-agent-sdk')) {
+      throw new LLMConfigError(
+        'CONTRACTQA_FORCE_SDK_CLIENT=claude-agent but `@anthropic-ai/claude-agent-sdk` is not installed.',
+        { tried },
+      );
+    }
+    const { ClaudeAgentSDKClient } = await import('./claude-agent-sdk-client.js');
+    return new ClaudeAgentSDKClient();
+  }
+  if (forceClient === 'anthropic') {
+    tried.push('anthropic-sdk');
+    if (!resolveSdk('@anthropic-ai/sdk')) {
+      throw new LLMConfigError(
+        'CONTRACTQA_FORCE_SDK_CLIENT=anthropic but `@anthropic-ai/sdk` is not installed.',
+        { tried },
+      );
+    }
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new LLMConfigError(
+        'CONTRACTQA_FORCE_SDK_CLIENT=anthropic requires ANTHROPIC_API_KEY to be set.',
+        { tried },
+      );
+    }
+    const { AnthropicSDKClient } = await import('./anthropic-sdk-client.js');
+    return new AnthropicSDKClient();
+  }
+
   if (process.env.OPENAI_API_KEY) {
     tried.push('openai-compatible');
     if (!resolveSdk('openai')) {
