@@ -156,12 +156,37 @@ async function judgeCoverage(checklistItem, contractSummaries, opts) {
     const { pickClient } = await import('../../packages/orchestrator/dist/llm/pick-client.js');
     opts._client = await pickClient();
   }
-  const resp = await opts._client.generate({
-    system: sys,
-    messages: [{ role: 'user', content: user }],
-    temperature: 0.2,
-    maxTokens: 400,
-  });
+  // Inline retry — same shape as generateWithBackoff in cli/autopilot/
+  // interaction-discovery.ts. Scorer doesn't import from cli (to avoid a
+  // build-order dep), so duplicate the 20-line helper rather than refactor.
+  // Retries on Claude Code SDK exit-1 + HTTP 5xx + transient network errors.
+  // See tuning log Entry 2 — scorer was the unrecovered failure mode.
+  const callWithBackoff = async () => {
+    const maxRetries = 3;
+    let attempt = 0;
+    let lastErr;
+    while (attempt <= maxRetries) {
+      try {
+        return await opts._client.generate({
+          system: sys,
+          messages: [{ role: 'user', content: user }],
+          temperature: 0.2,
+          maxTokens: 400,
+        });
+      } catch (err) {
+        lastErr = err;
+        const status = err?.statusCode ?? err?.status;
+        const message = (err?.message ?? '').toString();
+        const isHttpRetryable = status === 429 || status === 503 || (status !== undefined && status >= 500);
+        const isSdkTransient = /Claude Code process exited|Claude Agent SDK call failed|ECONNRESET|ETIMEDOUT|fetch failed|socket hang up/i.test(message);
+        if (!(isHttpRetryable || isSdkTransient) || attempt >= maxRetries) throw err;
+        await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+        attempt++;
+      }
+    }
+    throw lastErr;
+  };
+  const resp = await callWithBackoff();
   const text = resp.content.trim();
   // Strip any wrapping; pull out the first {...} block.
   const m = text.match(/\{[\s\S]*\}/);
