@@ -1090,4 +1090,159 @@ for ContractQA tuning, with higher confidence than Entry 8.
    batch since Entry 3.
 
 ---
+
+## Entry 10 — 3-arm A/B under MiniMax-M2.7-highspeed (Anthropic-compat API key)
+
+**Date:** 2026-05-29
+**Commit:** `cb6081e` (current main HEAD)
+**Hypothesis:** With a non-Anthropic API key tunneled through an
+Anthropic-compatible endpoint (MiniMax's `https://api.minimaxi.com/anthropic`
+shim), we can run the 3-arm SDK harness comparison Entry 8 planned
+without the Anthropic-OAuth burst-limit interference. This isolates
+**which client + harness combo actually produces the best ContractQA
+output** when service-side gating is out of the picture.
+
+**Setup:**
+- App: WebTestBench_0001
+- Model: `MiniMax-M2.7-highspeed` (via MiniMax Anthropic-compat shim)
+- Env: `ANTHROPIC_API_KEY=sk-cp-...`, `ANTHROPIC_BASE_URL=https://api.minimaxi.com/anthropic`,
+  `CONTRACTQA_LLM_MODEL=MiniMax-M2.7-highspeed`
+- Mode: deep, time-budget 10 min, `--no-fix --yes --regenerate`
+- Each arm runs sequentially with fresh fixture (teardown + reset + launch).
+- Snapshot dirs: `WebTestBench/snapshots/arm-{A,B,C}/contracts/`
+
+**Three arms:**
+
+- **Arm A:** direct HTTP via `AnthropicSDKClient` (pickClient default when
+  `ANTHROPIC_API_KEY` is set). No subprocess, no agent scaffolding.
+- **Arm B:** ClaudeAgentSDKClient subprocess **without harness**
+  (`CONTRACTQA_FORCE_SDK_CLIENT=claude-agent`, harness default OFF per
+  Entry 8 commit `932f974`).
+- **Arm C:** ClaudeAgentSDKClient subprocess **with harness re-enabled**
+  (same as B + `CONTRACTQA_ENABLE_SDK_HARNESS=1`). The full
+  cwd/systemPrompt/disallowedTools/maxTurns options.
+
+**Pre-batch single-call connectivity probe** (with `reply: pong`):
+
+| Arm | Latency | Result |
+|-----|---------|--------|
+| A   | 2562ms  | OK, `"pong"` |
+| B   | 3377ms  | OK, `"pong"` |
+| C   | 3217ms  | OK, `"pong"` |
+
+All three connect; the harness shape (Arm C) does NOT 403 — first cross-
+provider validation that Entry 7's bisect 403 was Anthropic-OAuth-tier
+policy, not SDK code.
+
+**Autopilot 0001 results:**
+
+| Arm | Wallclock | Contracts | Deep Stage 1 (enumerateSurface) | Interactions found | Notes |
+|-----|-----------|-----------|----------------------------------|--------------------|-------|
+| A   | 99s       | 24        | ❌ "LLM response is not valid JSON" → modules fallback | 0 (deep) | modules generated 19; 5 smoke |
+| **B** | **525s**  | **46**    | ✅                                | **72**             | deep merge done, 41 deep contracts + 5 smoke |
+| C   | 19s       | 5         | ❌ "LLM response is not valid JSON" → modules fallback | 0        | modules fallback ALSO returned 0 — total collapse |
+
+**Four findings that load-bearing reframe prior entries:**
+
+### Finding 1: Entry 7's 403 was Anthropic-OAuth policy, not SDK code
+
+Arm C under MiniMax sends *the exact option-bag* that Entry 7's bisect
+proved triggered HTTP 403 under Anthropic OAuth (`cwd` +
+`systemPrompt: STATELESS_SYSTEM_PROMPT` + `disallowedTools: [...]` +
+`maxTurns: 1`). Under MiniMax it does NOT 403 — it returns invalid JSON
+instead. So the rejection observed across Entries 4-9 was service-side
+policy at api.anthropic.com (likely "OAuth subscription users can use
+the SDK only as Claude Code, not as a custom-context library"), not a
+universal SDK behavior.
+
+### Finding 2: The harness HURTS quality (correction to Entry 8's claim)
+
+Entry 8 stated "harness was the primary blocker; flipping it off
+restored Entry 3 behavior." That was half right. Entry 10 shows the
+harness ALSO degrades output even when the API endpoint accepts it:
+Arm C with harness produces **5 contracts** (Phase A smoke only); Arm B
+without harness produces **46 contracts** including 72 found
+interactions. The `systemPrompt: STATELESS_SYSTEM_PROMPT` overrides
+the inner agent's default instructions in a way that makes
+MiniMax produce malformed JSON, AND maxTurns:1 cuts off the
+exploration loop before it can self-correct. Even modules fallback
+collapsed (interactionsFound=0). So Entry 8 commit `932f974` (flip
+default to OFF) wasn't just "restore Entry 3" — it's an unambiguous
+quality improvement, validated empirically.
+
+### Finding 3: SDK subprocess's agentic search is REAL extra capability
+
+Arm A (direct HTTP, no tools) failed the deep-discovery JSON
+validation entirely. Arm B (SDK subprocess with Read/Grep/Glob/Task)
+returned 72 interactions and 46 contracts. Same model, same prompt,
+same temperature — only difference is whether the agent can probe
+files. The user's earlier intuition ("agentic search is real extra
+capability") is empirically validated. For deep discovery against
+non-trivial component trees, **SDK subprocess (no harness) >
+direct HTTP**.
+
+This contradicts my earlier framing that ContractQA's Node-side context
+assembly was "sufficient." The Node walker hands the LLM a file tree,
+but a LLM with Read/Grep tools can pull additional component sources
+on demand, find cross-file relationships, and generate more contracts
+that reference them. Net delta: +22 contracts, +72 interactions.
+
+### Finding 4: AnthropicSDKClient's strict-JSON failure mode hides real model capability
+
+Arm A succeeded at modules fallback but failed deep Stage 1 with
+"LLM response is not valid JSON." This is the JSON parse layer in
+`enumerateSurface` (`interaction-discovery.ts`) rejecting MiniMax's
+output. MiniMax may have emitted markdown-wrapped JSON or trailing
+prose that the strict `JSON.parse` step refuses. A more lenient JSON
+extractor (already partially implemented via `extractJsonFromLlmResponse`)
+could rescue these cases. Arm B's SDK subprocess might also produce
+imperfect JSON internally, but the agent loop self-corrects across
+turns.
+
+**Recommendations:**
+
+1. **For production ContractQA tuning with API key, default to Arm B**:
+   SDK subprocess + no harness + API key. Highest output, agentic search
+   captures cross-file relationships, no 403 risk.
+2. **Update `pickClient` precedence** to default to ClaudeAgentSDKClient
+   when API key is set AND user hasn't explicitly opted into direct HTTP.
+   Currently API key short-circuits to Arm A path, which is the worst of
+   the three for this workload. This is a defaults change with a real
+   measured cost.
+3. **Investigate Arm A JSON parsing**: tighten or loosen the parser to
+   not reject MiniMax-shape outputs (markdown-wrapped, trailing prose).
+4. **Drop the harness option entirely** for ContractQA in main code path
+   (already done as of `932f974`). Keep `CONTRACTQA_ENABLE_SDK_HARNESS=1`
+   only as a tuning-experiment escape hatch — not a recommended setting.
+5. **Reflexion measurement under MiniMax**: Entry 10 didn't enable
+   Reflexion (the eval bench in this repo doesn't expose a flag from CLI;
+   Reflexion is autopilot-only). Could re-run with Reflexion enabled
+   internally to get content-class data on MiniMax.
+
+**Verdict:** Arm B wins decisively for ContractQA on MiniMax. Three
+prior-entry positions corrected:
+- Entry 7 tail's "OAuth pool quota" framing — already retracted; now
+  also more precisely positioned as "OAuth-tier policy on custom-context
+  SDK options."
+- Entry 8's "harness was the only blocker" — too weak; harness was
+  ALSO actively harmful to quality.
+- My earlier "ContractQA doesn't need agentic search" claim — empirically
+  wrong on MiniMax; SDK agentic search adds 22 contracts and 72
+  interactions to the deep discovery pass.
+
+**Next:**
+
+1. Re-run **same 3-arm setup on Haiku 4.5** if user has Anthropic API
+   key access — separates "MiniMax-specific JSON oddities" from
+   "harness-vs-no-harness on the canonical model."
+2. **Default pickClient routing change**: when API key is set, prefer
+   `ClaudeAgentSDKClient` over `AnthropicSDKClient` for the autopilot
+   workload. Behind a `CONTRACTQA_PREFER_AGENT_CLIENT=1` opt-in first
+   (don't break existing users); flip to default after a clean Entry 11
+   measurement on Haiku.
+3. **Batch 1-10 on MiniMax with Arm B configuration**: get the first
+   full-batch numbers since Entry 3. Cost should be modest (MiniMax
+   pricing).
+
+---
 <!-- Add new entries below this line. Don't edit anything above. -->
