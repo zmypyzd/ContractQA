@@ -30,13 +30,13 @@ describe('ClaudeAgentSDKClient', () => {
       .rejects.toThrow(/abort/i);
   });
 
-  it('disableHarness=true passes only permissionMode (no cwd/systemPrompt/disallowedTools/maxTurns)', async () => {
+  it('default (no harness) passes only permissionMode + model — restores pre-Entry-4 behavior', async () => {
     const { query } = await import('@anthropic-ai/claude-agent-sdk');
     vi.mocked(query).mockImplementationOnce(async function* () {
       yield { type: 'result', result: 'ok' };
     });
     const { ClaudeAgentSDKClient } = await import('../../src/llm/claude-agent-sdk-client.js');
-    const c = new ClaudeAgentSDKClient({ disableHarness: true });
+    const c = new ClaudeAgentSDKClient(); // default: harness off
     await c.generate({ messages: [{ role: 'user', content: 'Hi' }] });
     const call = vi.mocked(query).mock.calls[vi.mocked(query).mock.calls.length - 1]!;
     const opts = call[0].options!;
@@ -47,13 +47,13 @@ describe('ClaudeAgentSDKClient', () => {
     expect(opts.maxTurns).toBeUndefined();
   });
 
-  it('default harness path passes cwd + systemPrompt + disallowedTools + maxTurns', async () => {
+  it('enableHarness:true ctor opt re-enables the cwd+systemPrompt+disallowedTools+maxTurns harness', async () => {
     const { query } = await import('@anthropic-ai/claude-agent-sdk');
     vi.mocked(query).mockImplementationOnce(async function* () {
       yield { type: 'result', result: 'ok' };
     });
     const { ClaudeAgentSDKClient } = await import('../../src/llm/claude-agent-sdk-client.js');
-    const c = new ClaudeAgentSDKClient(); // no disableHarness
+    const c = new ClaudeAgentSDKClient({ enableHarness: true });
     await c.generate({ messages: [{ role: 'user', content: 'Hi' }] });
     const call = vi.mocked(query).mock.calls[vi.mocked(query).mock.calls.length - 1]!;
     const opts = call[0].options!;
@@ -63,7 +63,28 @@ describe('ClaudeAgentSDKClient', () => {
     expect(opts.maxTurns).toBe(1);
   });
 
-  it('CONTRACTQA_DISABLE_SDK_HARNESS=1 env triggers harness disable', async () => {
+  it('CONTRACTQA_ENABLE_SDK_HARNESS=1 env enables harness', async () => {
+    const prev = process.env.CONTRACTQA_ENABLE_SDK_HARNESS;
+    process.env.CONTRACTQA_ENABLE_SDK_HARNESS = '1';
+    try {
+      const { query } = await import('@anthropic-ai/claude-agent-sdk');
+      vi.mocked(query).mockImplementationOnce(async function* () {
+        yield { type: 'result', result: 'ok' };
+      });
+      const { ClaudeAgentSDKClient } = await import('../../src/llm/claude-agent-sdk-client.js');
+      const c = new ClaudeAgentSDKClient();
+      await c.generate({ messages: [{ role: 'user', content: 'Hi' }] });
+      const call = vi.mocked(query).mock.calls[vi.mocked(query).mock.calls.length - 1]!;
+      const opts = call[0].options!;
+      expect(opts.cwd).toBeTruthy();
+      expect(opts.disallowedTools).toBeTruthy();
+    } finally {
+      if (prev === undefined) delete process.env.CONTRACTQA_ENABLE_SDK_HARNESS;
+      else process.env.CONTRACTQA_ENABLE_SDK_HARNESS = prev;
+    }
+  });
+
+  it('legacy CONTRACTQA_DISABLE_SDK_HARNESS=1 still forces harness off (backward compat)', async () => {
     const prev = process.env.CONTRACTQA_DISABLE_SDK_HARNESS;
     process.env.CONTRACTQA_DISABLE_SDK_HARNESS = '1';
     try {
@@ -77,7 +98,6 @@ describe('ClaudeAgentSDKClient', () => {
       const call = vi.mocked(query).mock.calls[vi.mocked(query).mock.calls.length - 1]!;
       const opts = call[0].options!;
       expect(opts.cwd).toBeUndefined();
-      expect(opts.disallowedTools).toBeUndefined();
     } finally {
       if (prev === undefined) delete process.env.CONTRACTQA_DISABLE_SDK_HARNESS;
       else process.env.CONTRACTQA_DISABLE_SDK_HARNESS = prev;

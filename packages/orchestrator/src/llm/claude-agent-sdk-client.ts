@@ -37,22 +37,35 @@ export class ClaudeAgentSDKClient implements LLMClient {
   // from the calling repo's CLAUDE.md / MEMORY.md / hooks / skill metadata
   // so it doesn't auto-load 100+ skill descriptions on every call.
   private readonly isolatedCwd: string;
-  // Experimental: when true, drop the cwd/systemPrompt/disallowedTools/
-  // maxTurns harness and let the inner Claude Code agent operate with its
-  // full default scaffolding (Read/Grep/Glob/Task/etc) — the Arm C of the
-  // Entry 8 harness A/B (tuning-log.md). Default false (current production
-  // behavior). Toggled via env CONTRACTQA_DISABLE_SDK_HARNESS=1 or ctor opt.
-  private readonly harnessDisabled: boolean;
+  // Whether to wrap the inner Claude Code agent in the cwd / systemPrompt /
+  // disallowedTools / maxTurns harness. Default **off** as of 2026-05-28
+  // (commit reverting Entry 4 default): the harness's option-bag triggers
+  // a server-side 403 ("Request not allowed") under OAuth subscription
+  // auth, breaking ALL discovery calls including Haiku (Entry 7 bisect in
+  // qa/eval/tuning-log.md). Pre-Entry-4 behavior (no harness) was 10/10
+  // working with Haiku in Entry 3 and is restored here.
+  //
+  // The harness exists for Sonnet — without it Sonnet enters a 69-tool-call
+  // loop and times out at 240s+ (docs/SONNET_SDK_HARNESS_INVESTIGATION.md).
+  // For Sonnet under API-key auth (where 403 doesn't apply), opt back in
+  // via CONTRACTQA_ENABLE_SDK_HARNESS=1 or `enableHarness: true`.
+  private readonly harnessEnabled: boolean;
 
-  constructor(opts: { model?: string; disableHarness?: boolean } = {}) {
+  constructor(opts: { model?: string; enableHarness?: boolean; disableHarness?: boolean } = {}) {
     // Match AnthropicSDKClient's env contract — same var works for both
     // client paths so tuning experiments are reproducible regardless of
     // which provider pickClient lands on.
     this.model = opts.model ?? process.env.CONTRACTQA_LLM_MODEL ?? undefined;
     this.modelHint = this.model ?? 'claude-code-managed';
     this.isolatedCwd = mkdtempSync(path.join(tmpdir(), 'cqa-llm-'));
-    this.harnessDisabled =
-      opts.disableHarness ?? process.env.CONTRACTQA_DISABLE_SDK_HARNESS === '1';
+    // enableHarness ctor opt wins; then CONTRACTQA_ENABLE_SDK_HARNESS=1 env;
+    // legacy disableHarness:true ctor opt forces off (kept for tests);
+    // legacy CONTRACTQA_DISABLE_SDK_HARNESS=1 env also forces off; default off.
+    if (opts.enableHarness === true) this.harnessEnabled = true;
+    else if (opts.disableHarness === true) this.harnessEnabled = false;
+    else if (process.env.CONTRACTQA_ENABLE_SDK_HARNESS === '1') this.harnessEnabled = true;
+    else if (process.env.CONTRACTQA_DISABLE_SDK_HARNESS === '1') this.harnessEnabled = false;
+    else this.harnessEnabled = false;
   }
 
   async generate(opts: GenerateOptions): Promise<GenerateResult> {
@@ -80,16 +93,16 @@ export class ClaudeAgentSDKClient implements LLMClient {
       // 403 should not apply and the harness works again. And with
       // harnessDisabled, we drop the harness to let the inner agent use its
       // full Claude Code scaffolding — the A/B comparison Arm C.
-      const sdkOptions: Parameters<typeof query>[0]['options'] = this.harnessDisabled
+      const sdkOptions: Parameters<typeof query>[0]['options'] = this.harnessEnabled
         ? {
-            permissionMode: 'bypassPermissions',
-          }
-        : {
             permissionMode: 'bypassPermissions',
             cwd: this.isolatedCwd,
             systemPrompt: STATELESS_SYSTEM_PROMPT,
             disallowedTools: STATELESS_DISALLOWED_TOOLS,
             maxTurns: 1,
+          }
+        : {
+            permissionMode: 'bypassPermissions',
           };
       if (this.model) sdkOptions.model = this.model;
       for await (const msg of query({ prompt, options: sdkOptions })) {
