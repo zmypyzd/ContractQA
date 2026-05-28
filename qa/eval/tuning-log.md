@@ -143,4 +143,89 @@ task `b23dj8ij5`). If aggregate lifts, ratchet to:
 2. DSPy/TextGrad automatic prompt search using WebTestBench as metric.
 
 ---
+
+## Entry 2 — tuning v1 batch validation (Haiku 4.5), SDK-unstable day
+
+**Date:** 2026-05-28
+**Commit:** `4e17ce2` (tuning log + model env)
+**Hypothesis:** Verify Entry 1's single-app lift generalizes across
+apps 1-10. Originally planned on Opus; switched to Haiku after
+Sonnet hung on CC SDK path (see "Model timing finding" below).
+
+**Change (vs Entry 1):** model only — same prompt.
+
+**Setup:**
+- Apps: WebTestBench 1-10
+- Model: `CONTRACTQA_LLM_MODEL=claude-haiku-4-5-20251001`
+- Mode: deep (CLI default)
+- Time budget: 30 min/app
+- Wallclock: 28 min total (way under budget — most apps crashed fast)
+
+**Result — degraded by SDK instability:**
+
+| App  | OK | Min | Contracts | Coverage | Bugs | Notes                          |
+|------|----|-----|-----------|----------|------|--------------------------------|
+| 0001 | ✓  | 9.6 | 96        | 61.1%    | 1/3  | matches Entry 1 single-app     |
+| 0002 | ✓  | 7.9 | 66        | 36.8%    | 2/5  |                                |
+| 0003 | ✗  | 2.7 | -         | n/a      | -    | Stage 1 SDK exit 1 + modules also failed |
+| 0004 | ✗  | 0.5 | -         | n/a      | -    | same                           |
+| 0005 | ✗  | 0.6 | -         | n/a      | -    | same                           |
+| 0006 | ✗  | 0.5 | -         | n/a      | -    | same                           |
+| 0007 | ✗  | 0.5 | -         | n/a      | -    | same                           |
+| 0008 | ✗  | 0.5 | -         | n/a      | -    | same                           |
+| 0009 | ✗  | 0.4 | -         | n/a      | -    | same                           |
+| 0010 | ✓  | 3.4 | 5         | 0.0%     | 0/8  | autopilot crashed mid-way, only smoke patterns |
+
+**Aggregate:** 3/10 completed (only 2 with meaningful contracts); not
+statistically comparable to Entry 0 baseline (10/10 with Opus).
+
+**Per-class on 0001 (the comparable apple):**
+
+| Class          | Opus tuning v1 | Haiku tuning v1 | Δ |
+|----------------|----------------|-----------------|---|
+| functionality  | 6/10 (60%)     | 8/10 (80%)      | + |
+| constraint     | 2/2 (100%)     | 1/2 (50%)       | − |
+| interaction    | 3/3 (100%)     | 2/3 (67%)       | − |
+| content        | 0/3 (0%)       | 0/3 (0%)        | = |
+
+Haiku slightly less specific than Opus on constraint/interaction classes
+(misses a few) but slightly more in functionality. **Same bug catch** (1/3).
+Conclusion: Haiku is **comparable quality** at ~20× lower cost when the
+SDK doesn't crash.
+
+**Model timing finding (Sonnet excluded):**
+
+Diagnostic runs on app 0007 with `--deep-concurrency 1`:
+
+| Model  | per-call | 24-contract run | Verdict |
+|--------|----------|-----------------|---------|
+| Opus   | ~3-4s    | ~80s            | fast    |
+| Sonnet | 30-180s  | hung past 100m  | **unusable on CC SDK path** |
+| Haiku  | ~15s     | 360s (full)     | usable  |
+
+Sonnet via Claude Code SDK subprocess is 10-50× slower than Haiku on
+the same path, likely due to CC's per-model defaults (thinking budgets
+or tool-use loops). Direct Anthropic SDK with `ANTHROPIC_API_KEY=...`
+would bypass this (HTTP not subprocess) — that's the right escape hatch
+for Sonnet.
+
+**Verdict:** Not a clean experimental result. SDK reliability is the
+load-bearing bottleneck today (Stage 1 enumerate exits with code 1 in
+7/10 apps, fallback to modules also fails). Tuning v1 prompt change
+is NOT invalidated — Entry 1's single-app result + apps 0001/0002
+here are consistent. But we can't claim aggregate lift.
+
+**Next:**
+1. **Stability fix** — add retry-with-backoff to deep-discovery Stage 1
+   (interaction-discovery.ts:264). Currently single attempt; one transient
+   SDK crash = whole app falls back to modules. A 2-3× retry would
+   recover the 7 apps that crashed at the 5-6s mark today.
+2. **Or: switch to direct Anthropic SDK** — `export ANTHROPIC_API_KEY=...`
+   + same env. Fast Sonnet, no subprocess overhead, no transient SDK
+   exit codes. Bigger lift than retry alone.
+3. **After stability:** re-run batch (Opus OR Sonnet-direct OR Haiku)
+   to actually validate tuning v1 aggregate, then move to Reflexion
+   for content class.
+
+---
 <!-- Add new entries below this line. Don't edit anything above. -->
