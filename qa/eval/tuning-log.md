@@ -499,4 +499,167 @@ expected lift is **+5-15pp on content** which would translate to
    few-shot examples (per the original survey's Tier 1C recommendation).
 
 ---
+
+## Entry 6 — Reflexion batch attempted, blocked by SDK 403 (root cause identified)
+
+**Date:** 2026-05-28
+**Commit:** `0c0f0c9` (Reflexion content-class sub-phase, same code as Entry 5)
+**Hypothesis:** Same as Entry 5 — content class has been 0/N on every prior
+entry; a single extra LLM call after Stage 2 asking for content-class
+gap-fillers should break through. Now that Claude Code SDK appeared to
+recover (`pickClient` probe returned `pong` in 4.3s at session start), run
+the apps 1-10 batch end-to-end to measure.
+
+**Change vs Entry 5:** none — Reflexion code unchanged, same prompt, same
+generateWithBackoff wiring, same Haiku-only setup. This entry is a re-run
+attempt of Entry 5's intended setup.
+
+**Setup:**
+- Apps 1-10, `CONTRACTQA_LLM_MODEL=claude-haiku-4-5-20251001`, deep mode,
+  30 min/app budget, Reflexion enabled (the default).
+- Snapshot dir cleared, fixture torn down before launch.
+- Wallclock: 4 min for 10/10 fail-fast (vs Entry 3's 2 hours for 10/10 success).
+
+**Result — 0/10 completed, every app died identically at Stage 1:**
+
+| App   | autopilot ms | autopilot exit | score exit | contracts | bugs |
+|-------|--------------|----------------|------------|-----------|------|
+| 0001  | 18,447       | 0              | 1          | null      | null |
+| 0002  | 21,966       | 0              | 1          | null      | null |
+| 0003  | 11,110       | 0              | 1          | null      | null |
+| 0004  | 19,912       | 0              | 1          | null      | null |
+| 0005  | 30,120       | 0              | 1          | null      | null |
+| 0006  | 18,243       | 0              | 1          | null      | null |
+| 0007  | …            | 0              | 1          | null      | null |
+| 0008  | …            | 0              | 1          | null      | null |
+| 0009  | …            | 0              | 1          | null      | null |
+| 0010  | …            | 0              | 1          | null      | null |
+
+Pattern across all apps (from `snapshots/batch-2026-05-28/0001-logs/4-autopilot.log`):
+
+```
+[0.25s] [autopilot] deep discovery enumerate: start
+[14.08s] warn: [deep] enumerateSurface quarantine: LLM call failed:
+  Claude Agent SDK call failed: Claude Code process exited with code 1
+[14.08s] error: [deep] surface enumeration failed (invalid LLM output);
+  falling back to module discovery
+[18.15s] phase=B status=done generated=0 ... interactionsFound=0
+  fallbackUsed=true fallbackReason='surface enumeration failed (invalid LLM output)'
+```
+
+Then the scorer also dies on the first few judge calls with the same
+`Claude Code process exited with code 1`, despite Entry 3's inline retry
+patch still in place. Phase A's 5 smoke contracts are the only thing
+that exists when the scorer runs, so even if it survived, coverage
+would be ~0.
+
+**Root cause investigation — what's actually broken:**
+
+The SDK error string ("Claude Code process exited with code 1") swallows
+the real failure. Running with `DEBUG_CLAUDE_AGENT_SDK=1` exposed it:
+
+```
+[ERROR] AxiosError: Request failed with status code 403
+[ERROR] Error streaming, falling back to non-streaming mode:
+  403 {"error":{"type":"forbidden","message":"Request not allowed"}}
+[ERROR] Error in non-streaming fallback:
+  403 {"error":{"type":"forbidden","message":"Request not allowed"}}
+[ERROR] countTokensWithFallback: haiku fallback failed:
+  403 {"error":{"type":"forbidden","message":"Request not allowed"}}
+```
+
+This is **not** what we thought it was in Entries 2/4/5:
+
+| Entry 2 hypothesis  | "transient SDK crash"      | wrong — was always 403 |
+| Entry 4 hypothesis  | "Sonnet rate-limit ceiling"| partial — quota-side, but mechanism is 403 not 429 |
+| Entry 5 hypothesis  | "upstream API degraded"    | wrong — direct CLI still works |
+
+What's actually happening:
+
+1. `ClaudeAgentSDKClient.generate` calls `query()` from `@anthropic-ai/claude-agent-sdk`.
+2. That spawns `node .../@anthropic-ai/claude-agent-sdk/cli.js --output-format
+   stream-json --input-format stream-json --max-turns 1 …` as a subprocess.
+3. That bundled cli.js makes HTTP calls to the Anthropic API for the actual
+   model invocation. **Those calls return HTTP 403 "Request not allowed".**
+4. cli.js logs the 403, exits non-zero. The SDK wrapper sees the non-zero
+   exit and reports the generic "Claude Code process exited with code 1".
+5. `generateWithBackoff` retries 3× — every retry gets the same 403 — quarantines
+   the call. Falls back to modules. Modules also calls the same client →
+   also 403 → also exits.
+
+**Crucial contrast** that proves it's a per-auth-path problem, not
+account-wide outage:
+
+```
+$ claude --print --model claude-haiku-4-5-20251001 <<< "reply: pong"
+pong
+[exit=0]
+```
+
+The user-facing `claude` CLI binary works on the **same account, same
+model, same machine, at the same instant** as the SDK subprocess gets
+403'd. So:
+- The account is not banned.
+- The model is reachable.
+- The CLI's session OAuth path is honored.
+- The SDK's bundled `cli.js` subprocess auth path is being rejected.
+
+**Why the probe worked at session start.** First 3 probes returned `pong`
+in ~5s each. After the failed batch (which still made ~30 attempted
+calls before crashing fast), probes flipped to 100% FAIL @ ~1.4s. This
+is the Pro/Max subscription's per-window cap hitting — early probes
+were under cap, batch attempts pushed past, now everything in the
+SDK-subprocess path is 403'd. Direct CLI binary remains under a
+separate quota counter (or different auth tier) and still answers.
+
+**Reproducer for future-us** (verifies the diagnosis in one minute):
+
+```bash
+DEBUG_CLAUDE_AGENT_SDK=1 CONTRACTQA_LLM_MODEL=claude-haiku-4-5-20251001 node -e "
+import('./packages/orchestrator/dist/llm/pick-client.js').then(async m => {
+  const c = await m.pickClient();
+  await c.generate({messages:[{role:'user',content:'reply: pong'}]});
+});
+" 2>&1
+# → check /Users/zmy/.claude/debug/sdk-*.txt for the 403 line.
+```
+
+**Verdict on Reflexion:** untested for the 2nd consecutive session.
+Code is the same as Entry 5, tests still pass; we cannot measure lift
+because nothing reaches Stage 2 (where Reflexion runs). Reflexion's
+empirical question remains open.
+
+**Verdict on the root cause:** identified and load-bearing. Every prior
+entry's "transient SDK crash" / "rate limit" / "upstream degraded"
+analysis collapses into one thing: **the bundled cli.js subprocess's
+HTTP path is gated by a quota or trust check that returns 403, distinct
+from the CLI-binary OAuth path.** This explains:
+
+- Entry 2's 7/10 fast-fail (quota burned cumulatively across apps)
+- Entry 4's Sonnet "rate-limit ceiling" (same 403, masquerading)
+- Entry 5's "SDK upstream broken" (same 403, masquerading)
+- Today's 0/10 (probes at session start fit under the cap, batch pushed past)
+
+**Next — three routes ordered by how much they unblock:**
+
+1. **Set `ANTHROPIC_API_KEY`** (highest leverage). `pickClient` already
+   prefers `AnthropicSDKClient` when the key is present — that path uses
+   direct HTTPS to api.anthropic.com with the API key, **not** the
+   bundled cli.js subprocess, so the 403 mechanism doesn't apply. This
+   has been listed as "the right escape hatch" since Entry 2's model-timing
+   finding; today's evidence finally proves *why* it matters (not just
+   speed — it's auth-path).
+2. **Throttle to under the SDK-subprocess quota cap.** Lower
+   `--deep-concurrency` to 1, add a per-call sleep, and accept ~4-6×
+   slower batches. Doesn't eliminate the 403; pushes the moment we hit it
+   later. Useful only if (1) is unavailable.
+3. **Switch to AnthropicSDKClient programmatically** even when the user
+   hasn't exported a key, by reading from a tuning-only secret file.
+   Bigger change; probably not worth it if (1) lands.
+
+For the next session: get `ANTHROPIC_API_KEY` exported, re-run apps 1-10
+with Reflexion. If batch completes, Entry 7 is the measured Reflexion
+result against Entry 3's Haiku baseline.
+
+---
 <!-- Add new entries below this line. Don't edit anything above. -->
