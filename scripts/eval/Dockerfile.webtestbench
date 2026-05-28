@@ -1,0 +1,6 @@
+FROM node:20-alpine
+WORKDIR /app
+COPY . .
+RUN npm install --no-audit --no-fund --loglevel=error
+EXPOSE 8080
+CMD ["npx", "vite", "--host", "0.0.0.0"]
