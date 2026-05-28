@@ -999,4 +999,95 @@ OAuth pool, much higher per-key rate limits, no subprocess overhead).
   dirs hold the 34 from 0001 and similar partials from 0002/0005)
 
 ---
+
+## Entry 9 — direct reproducibility test at Entry 3's exact commit (`f14144f`)
+
+**Date:** 2026-05-28
+**Commit run:** `f14144f` (Entry 3's exact commit, pre-`efaf3b6` harness fix)
+**Hypothesis being tested:** User asked whether reverting the working tree
+to Entry 3's exact commit could reproduce Entry 3's 10/10 OK + 44.5% mean
+coverage result. This isolates *code* as a variable — if reproduction
+fails at the same commit, the regression is service-side or account-side,
+not code-side.
+
+**Method:** Tag current `main` as `backup-main-2026-05-28-pre-entry3-repro`
+(= `ed3057b`). `git checkout f14144f`. `pnpm install` + rebuild orchestrator
++ cli. Verified the on-disk code matches Entry 3 era: ClaudeAgentSDKClient
+ships only `{permissionMode, model}` to query() (no harness options), no
+Reflexion code present, same tuning-v1 CoT prompts. Cleared fixture
+scratch + snapshot dirs. Ran the same `batch-webtestbench.mjs --range 1-10`
+as Entry 3 with `CONTRACTQA_LLM_MODEL=claude-haiku-4-5-20251001`.
+
+**Setup:**
+- Apps 1-10, Haiku 4.5, deep mode, 30 min/app, identical to Entry 3.
+- Driving CC agent (me) deliberately quiet during the run (no parallel
+  tool calls competing for the OAuth pool).
+
+**Result — Entry 3 NOT reproducible:**
+
+| App | Entry 3 reported (earlier today) | Entry 9 today on `f14144f` | % of Entry 3 |
+|-----|----------------------------------|-----------------------------|--------------|
+| 0001 | 111 contracts, 55.6% cov, 1/3 bugs | **29 contracts**, scorer 403 | 26% |
+| 0002 | 90, 52.6%, 3/5                   | **26**, 403                  | 29% |
+| 0003 | 71, 70.6%, 1/3                   | **5** (Phase A only)         | 7%  |
+| 0004 | 76, 50.0%, 2/7                   | **5**                        | 7%  |
+| 0005 | 97, 55.6%, 4/6                   | **5**                        | 5%  |
+| 0006 | 94, 52.4%, 1/6                   | **5**                        | 5%  |
+| 0007 | 49, 38.9%, 3/8                   | **5**                        | 10% |
+| 0008 | 100, 57.9%, 1/4                  | **5**                        | 5%  |
+| 0009 | 24, 11.8%, 0/8                   | **5**                        | 21% |
+| 0010 | 5, 0.0%, 0/8                     | 5                            | 100%|
+
+**Aggregate:** Entry 3 → 10/10 OK, mean cov 44.5%, mean bug 30.1%.
+Entry 9 → **0/10 OK** (scorer 403s on every app, autopilot collapses
+to Phase A only after the first 2 apps' bursts cook the window).
+
+**What this rules out:**
+
+- Not a code regression. Same commit, different result.
+- Not the Entry 4 harness change (`efaf3b6`). `f14144f` predates it; no
+  harness options in flight.
+- Not the Reflexion addition (`0c0f0c9`). `f14144f` has no Reflexion code.
+- Not the driving-CC-agent activity hypothesis from Entry 7 tail. I kept
+  the agent quiet during this run — first 2 apps' degradation shows up
+  anyway, and 0003-0010 all collapse to Phase A.
+
+**What this leaves:**
+
+The only difference between Entry 3's run and Entry 9's run is **the
+Anthropic OAuth service's burst-rate behavior** (and/or this account's
+state on the OAuth tier). Same auth token, same model, same `query()`
+options, same fixture, same prompt — different output. Sometime between
+Entry 3 (earlier on 2026-05-28) and Entry 9 (later on 2026-05-28),
+Anthropic appears to have tightened OAuth-subscription burst limits, or
+this account hit some per-day soft cap, or there's a deployment in
+flight changing the per-window cap.
+
+**Stronger version of Entry 8's conclusion:** **OAuth subscription auth
+is no longer reliable for ContractQA batches at all** — not because of
+the harness (which we already fixed in `932f974`), but because we cannot
+reproduce Entry 3's result on Entry 3's own commit. The remaining viable
+path is API key.
+
+**Cleanup performed:**
+- `git checkout main` → restored to `ed3057b`.
+- Backup tag `backup-main-2026-05-28-pre-entry3-repro` retained pointing
+  at `ed3057b`, so this revert is fully reversible (`git checkout
+  backup-main-2026-05-28-pre-entry3-repro` to return).
+- Rebuilt orchestrator + cli on main HEAD.
+
+**Verdict:** Entry 3 is empirically NOT reproducible at its own commit
+under OAuth today. This is the cleanest possible falsification of "code
+is the only variable." `ANTHROPIC_API_KEY` becomes the only path forward
+for ContractQA tuning, with higher confidence than Entry 8.
+
+**Next (unchanged from Entry 8):**
+
+1. `export ANTHROPIC_API_KEY=sk-ant-api03-...` from console.anthropic.com.
+2. Re-run apps 1-10 on current `main` HEAD (`ed3057b`). Expected: 10/10
+   complete via AnthropicSDKClient direct HTTPS, Reflexion measurable.
+3. That becomes Entry 10 — first clean Reflexion data + first clean
+   batch since Entry 3.
+
+---
 <!-- Add new entries below this line. Don't edit anything above. -->
