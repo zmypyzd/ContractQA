@@ -839,37 +839,58 @@ full failure shape, which is consistent with both "quota" and
 **For future SDK debugging: when an option-bag call fails, bisect the
 option bag before theorizing about state.**
 
-### Tail addendum: both layers stack
+### Tail addendum: my "quota gating" follow-up was unsupported — retracted
 
-Right after the bisect (which proved option-validation) I added two
-experiment switches (commit `3fa2413`: `CONTRACTQA_FORCE_SDK_CLIENT`
-and `CONTRACTQA_DISABLE_SDK_HARNESS`) and ran a follow-up probe with
-the harness disabled (= shape C of the bisect, which had worked at
-5870ms). Result: **shape C also FAILed instantly at ~1.3s** in the
-follow-up — and even shape A (raw, model only) which had taken 8120ms
-during the bisect now also instant-FAILed.
+Right after the bisect, I added experiment switches (commit `3fa2413`)
+and ran a probe with `CONTRACTQA_DISABLE_SDK_HARNESS=1` (= shape C of
+the bisect, which had worked at 5870ms). Result: shape C FAILed
+instantly. I then re-ran the full bisect — A/B/C/D/E/F all FAILed
+uniformly at ~1.3s, including the bare shape A that had succeeded at
+8120ms in the original bisect ~30 min earlier.
 
-So both Entry 6 and Entry 7's framings hold *partial* truth:
+My first read on this was "quota burned between the two bisects, so a
+second gating layer must also exist." User pushed back: that's just
+post-hoc rationalization, not evidence. Reviewing carefully, they're
+right:
 
-- The option-validation gating (cwd/systemPrompt/disallowedTools → 403)
-  is real and was cleanly demonstrated by the bisect snapshot.
-- A separate, additive *quota / burst rate* gating ALSO exists and
-  kicks in once enough requests have flowed through the session. When
-  quota is fresh, only the option-gated shapes fail. When quota is
-  burned, every shape fails.
+- `claude --print` still succeeds on the same OAuth token at the same
+  moment shape A is failing. If "OAuth quota burnt" were the
+  mechanism, both should fail. They don't.
+- The first 403 in the fresh DEBUG log is on `Grove notice config`
+  (an internal Anthropic notice/banner service), which 403s on cli.js
+  startup regardless of inference call shape. The original bisect's
+  DEBUG log also showed Grove 403 at startup — yet shape A then
+  succeeded. So Grove 403 isn't the gate either.
+- I have no positive evidence for a "quota counter" mechanism. I was
+  pattern-matching from Entry 6's wrong framing.
 
-The bisect was lucky to land in a quota-fresh window. By the time the
-harness-disabled probe ran, additional probes (the bisect itself, plus
-the option-narrow probe before it) had moved the account into
-quota-throttled state, so even the un-gated shape returned 403.
+**Retracted:** the claim that "option gating AND quota gating stack."
+I don't actually know why shape A succeeded in the bisect and FAILs
+now. Possible candidates I can't distinguish:
 
-**Practical consequence for ContractQA:** even the new
-`CONTRACTQA_DISABLE_SDK_HARNESS=1` escape hatch does not unblock
-batches under OAuth subscription auth — once quota is burned, the
-option-clean path also 403s. **API key remains the only viable path
-for actual tuning runs**; the disable-harness switch is meaningful
-only as Arm C of the Entry 8 experiment, which itself requires API
-key billing to bypass the quota-layer.
+- Anthropic rolled out a stricter policy between the two probes.
+- Burst-rate limiting with a long window (slow reset).
+- The bundled SDK 0.1.77 cli.js has an unreliable session-refresh
+  path that flakes asymmetrically.
+
+What stands: the bisect ITSELF still proves the option-validation
+mechanism (A/B/C OK + D/E/F FAIL in the same session, same auth,
+within seconds of each other — that pattern can't be a quota counter
+or burst limit, since those would be order-dependent, and D/E/F came
+right after A/B/C with no different timing).
+
+What does NOT stand: my second-pass claim that a quota mechanism
+separately explains the persistent post-bisect failures. That was
+unsupported speculation. The honest answer for current SDK behavior
+is "unknown — needs more probes spread across time / fresh sessions
+to disambiguate."
+
+**Practical consequence unchanged:** API key + AnthropicSDKClient (or
+forced ClaudeAgentSDKClient via the new switches) remains the path
+that bypasses whatever is gating the OAuth-auth subprocess calls.
+The disable-harness switch IS correctly minimal (verified by tests
+in `claude-agent-sdk-client.test.ts` — confirms cwd / systemPrompt /
+disallowedTools / maxTurns all undefined when `disableHarness:true`).
 
 ---
 <!-- Add new entries below this line. Don't edit anything above. -->
