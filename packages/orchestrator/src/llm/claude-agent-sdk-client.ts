@@ -1,11 +1,42 @@
 // packages/orchestrator/src/llm/claude-agent-sdk-client.ts
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { LLMTransportError, type LLMClient, type GenerateOptions, type GenerateResult } from './index.js';
+
+// Tools the inner agent should NEVER reach for during a stateless JSON
+// generation. Sonnet without these constraints enters Read/Bash/Glob/Task
+// loops and times out at 240s+ (see docs SONNET_SDK_HARNESS_INVESTIGATION.md
+// 2026-05-28 probes). Haiku also calls tools but ~6× less and converges
+// before timeout — fix benefits both models.
+//
+// We DON'T disallow MCP tools by name (would need full registry walk);
+// maxTurns: 1 + this list + minimal systemPrompt makes tool use unreachable
+// in practice.
+const STATELESS_DISALLOWED_TOOLS = [
+  'Bash', 'Read', 'Write', 'Edit', 'NotebookEdit',
+  'Glob', 'Grep', 'Task', 'Agent',
+  'WebFetch', 'WebSearch',
+];
+
+// Replaces CC's "you are Claude Code…" preamble with a focused JSON-only
+// directive. Stops the inner agent from thinking it's expected to do
+// software engineering work.
+const STATELESS_SYSTEM_PROMPT =
+  'You are a JSON-output assistant invoked by an automated pipeline. ' +
+  'Read the user message, follow its instructions, and respond with the ' +
+  'requested content directly. Do not use tools. Do not spawn subagents. ' +
+  'Do not analyze the project. Respond in one turn with the final answer.';
 
 export class ClaudeAgentSDKClient implements LLMClient {
   readonly providerName = 'claude-agent-sdk' as const;
   readonly modelHint: string;
   private readonly model: string | undefined;
+  // One isolated working dir per client instance — keeps inner agent away
+  // from the calling repo's CLAUDE.md / MEMORY.md / hooks / skill metadata
+  // so it doesn't auto-load 100+ skill descriptions on every call.
+  private readonly isolatedCwd: string;
 
   constructor(opts: { model?: string } = {}) {
     // Match AnthropicSDKClient's env contract — same var works for both
@@ -13,6 +44,7 @@ export class ClaudeAgentSDKClient implements LLMClient {
     // which provider pickClient lands on.
     this.model = opts.model ?? process.env.CONTRACTQA_LLM_MODEL ?? undefined;
     this.modelHint = this.model ?? 'claude-code-managed';
+    this.isolatedCwd = mkdtempSync(path.join(tmpdir(), 'cqa-llm-'));
   }
 
   async generate(opts: GenerateOptions): Promise<GenerateResult> {
@@ -28,12 +60,18 @@ export class ClaudeAgentSDKClient implements LLMClient {
 
     let content = '';
     try {
-      // The SDK `options.model` accepts the same model IDs as the Anthropic
-      // SDK (e.g. 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'). When
-      // unset, Claude Code's CLI default applies — usually the model your
-      // current Claude Code session is on.
+      // Harness constraints (2026-05-28 fix per docs/SONNET_SDK_HARNESS_INVESTIGATION.md):
+      //   - cwd: tmp dir → no CLAUDE.md / hooks / skill autoload from caller repo
+      //   - systemPrompt: minimal JSON-only → no CC "I'm Claude Code" agentic preamble
+      //   - disallowedTools: blocks Read/Bash/Task/etc → no file probing or subagent spawn
+      //   - maxTurns: 1 → forbids multi-turn loops even if a tool somehow got through
+      // Without these, Sonnet+discovery-prompt enters a 69-tool-call / 240s+ loop.
       const sdkOptions: Parameters<typeof query>[0]['options'] = {
         permissionMode: 'bypassPermissions',
+        cwd: this.isolatedCwd,
+        systemPrompt: STATELESS_SYSTEM_PROMPT,
+        disallowedTools: STATELESS_DISALLOWED_TOOLS,
+        maxTurns: 1,
       };
       if (this.model) sdkOptions.model = this.model;
       for await (const msg of query({ prompt, options: sdkOptions })) {

@@ -152,9 +152,27 @@ async function judgeCoverage(checklistItem, contractSummaries, opts) {
   }
 
   // Lazy-cache the client so we don't pay pickClient cost per call.
+  // Judge model selection (hybrid Sonnet+Haiku setups):
+  //   CONTRACTQA_JUDGE_MODEL     — preferred; lets scorer use a different
+  //                                model than autopilot (e.g. Haiku judge
+  //                                while Sonnet discovers)
+  //   CONTRACTQA_LLM_MODEL       — fallback shared across all callers
+  //   unset                       — Claude Code's default model
+  // We temp-swap CONTRACTQA_LLM_MODEL so pickClient's provider selection
+  // (Anthropic SDK direct vs Claude Code SDK) still applies — only the
+  // model id changes for the judge call path.
   if (!opts._client) {
     const { pickClient } = await import('../../packages/orchestrator/dist/llm/pick-client.js');
-    opts._client = await pickClient();
+    const judgeModel = process.env.CONTRACTQA_JUDGE_MODEL;
+    const saved = process.env.CONTRACTQA_LLM_MODEL;
+    if (judgeModel) process.env.CONTRACTQA_LLM_MODEL = judgeModel;
+    try {
+      opts._client = await pickClient();
+    } finally {
+      if (saved === undefined) delete process.env.CONTRACTQA_LLM_MODEL;
+      else process.env.CONTRACTQA_LLM_MODEL = saved;
+    }
+    process.stderr.write(`  (judge model: ${opts._client.modelHint})\n`);
   }
   // Inline retry — same shape as generateWithBackoff in cli/autopilot/
   // interaction-discovery.ts. Scorer doesn't import from cli (to avoid a

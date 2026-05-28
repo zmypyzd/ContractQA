@@ -32,14 +32,20 @@ model:
 Recommended for tuning experiments — set explicitly so the log is reproducible:
 
 ```bash
-# autopilot discovery (harder reasoning task)
-export CONTRACTQA_LLM_MODEL=claude-sonnet-4-6
+# Hybrid (since 2026-05-28 SDK harness fix):
+#   - autopilot discovery on Sonnet (harder reasoning, was unusable on
+#     CC SDK before the fix, now ~9s for the same trivial probe)
+#   - scorer judge on Haiku (cheap task, judge calls are trivial-shaped)
+export CONTRACTQA_LLM_MODEL=claude-sonnet-4-6         # autopilot uses this
+export CONTRACTQA_JUDGE_MODEL=claude-haiku-4-5-20251001  # scorer uses this
 
-# scorer / LLM-judge (cheaper task, Haiku is fine)
-# scorer uses pickClient too; same env applies.
-# If you want a SEPARATE model for the judge, run scorer in a subshell with
-#   CONTRACTQA_LLM_MODEL=claude-haiku-4-5-20251001 node scripts/eval/...
+# Or single-model (legacy / simpler):
+export CONTRACTQA_LLM_MODEL=claude-haiku-4-5-20251001  # both autopilot + scorer
 ```
+
+Precedence on the scorer side: `CONTRACTQA_JUDGE_MODEL` wins; falls back to
+`CONTRACTQA_LLM_MODEL`; then Claude Code default. Autopilot reads only
+`CONTRACTQA_LLM_MODEL`.
 
 Examples of valid IDs (per Anthropic SDK / Claude Agent SDK):
 - `claude-opus-4-7` — most capable, slowest, $$$
