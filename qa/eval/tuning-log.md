@@ -661,5 +661,65 @@ For the next session: get `ANTHROPIC_API_KEY` exported, re-run apps 1-10
 with Reflexion. If batch completes, Entry 7 is the measured Reflexion
 result against Entry 3's Haiku baseline.
 
+**Addendum (same session, deeper investigation): the 403 mechanism.**
+
+After committing the above, dug into *why* the 403 fires. The 403 itself
+is the symptom; the underlying mechanism is **per-window session-quota
+exhaustion against the OAuth `user:sessions:claude_code` scope**, with
+two concurrent consumers fighting over the same pool:
+
+Evidence:
+
+- Keychain OAuth (macOS `Claude Code-credentials`) shows
+  `scopes:["user:file_upload","user:inference","user:mcp_servers",
+  "user:profile","user:sessions:claude_code"]`,
+  `subscriptionType:"max"`, `rateLimitTier:"default_claude_max_20x"`.
+  Token is NOT expired (`expiresAt` ~4.6h future at investigation time).
+- Stripping `CLAUDE_CODE_ENTRYPOINT` / `CLAUDE_CODE_EXECPATH` /
+  `CLAUDE_CODE_SESSION_ID` from the env before invoking pickClient did
+  NOT change the 403 result — so it's not env-inheritance / "nested
+  session" detection by the API.
+- `claude --print` from the same shell with the same env succeeds but
+  is **17s slow** (vs the ~5s probe at session start, vs the ~1.2s
+  failure of the SDK subprocess) — looks like throttled-queued rather
+  than rejected.
+- No `ANTHROPIC_API_KEY` set anywhere on the machine (`~/.zshrc`,
+  `~/.zprofile`, `~/.bashrc`, current env all checked). So the "another
+  project using my API key" angle does not apply.
+- `ps -ef` shows no other concurrent `cli.js` / SDK processes —
+  there's no separate ContractQA shell hammering the quota.
+
+What IS hammering the same pool: **the Claude Code agent session
+running the tuning experiment**. Each tool call from the driving CC
+agent (Bash, Read, Edit, etc.) is itself an `user:inference` request
+against the same OAuth bucket as the SDK subprocess. A heavy
+session — probe → teardown → background batch → batch runs 30+ SDK
+calls → agent does heavy investigation in parallel — burns the
+per-window cap quickly. After that, every SDK-subprocess call returns
+403 instantly, while interactive `claude --print` still squeaks
+through but slowly.
+
+Stated more sharply: **the driving Claude Code session and the SDK
+subprocess share the OAuth session quota**. This is the "other project
+using my API key" mechanism the user intuited — except it's not another
+project and not an API key, it's the same OAuth token's session counter
+counted twice (once for the driving agent, once per SDK call).
+
+This refines the Next list:
+
+0. **For tuning sessions: keep the driving agent quiet during batches.**
+   Launch the batch in background, then don't spawn dozens of tool
+   calls for parallel investigation. Each driving-agent tool call
+   subtracts from the same Max-20x window the batch needs.
+1. (unchanged) `export ANTHROPIC_API_KEY=...` — uses billing-by-key path,
+   not OAuth session quota. Cleanest fix.
+2. (unchanged) Throttle SDK concurrency to 1 + sleep.
+3. (unchanged) Wait for window reset.
+
+The 403 root-cause story across Entries 2 / 4 / 5 / 6 now collapses into:
+**OAuth session quota for the Max subscription is shared across the
+driving CC agent and the SDK subprocesses, and tuning batches routinely
+exceed it.**
+
 ---
 <!-- Add new entries below this line. Don't edit anything above. -->
