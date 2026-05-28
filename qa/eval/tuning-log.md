@@ -839,5 +839,37 @@ full failure shape, which is consistent with both "quota" and
 **For future SDK debugging: when an option-bag call fails, bisect the
 option bag before theorizing about state.**
 
+### Tail addendum: both layers stack
+
+Right after the bisect (which proved option-validation) I added two
+experiment switches (commit `3fa2413`: `CONTRACTQA_FORCE_SDK_CLIENT`
+and `CONTRACTQA_DISABLE_SDK_HARNESS`) and ran a follow-up probe with
+the harness disabled (= shape C of the bisect, which had worked at
+5870ms). Result: **shape C also FAILed instantly at ~1.3s** in the
+follow-up — and even shape A (raw, model only) which had taken 8120ms
+during the bisect now also instant-FAILed.
+
+So both Entry 6 and Entry 7's framings hold *partial* truth:
+
+- The option-validation gating (cwd/systemPrompt/disallowedTools → 403)
+  is real and was cleanly demonstrated by the bisect snapshot.
+- A separate, additive *quota / burst rate* gating ALSO exists and
+  kicks in once enough requests have flowed through the session. When
+  quota is fresh, only the option-gated shapes fail. When quota is
+  burned, every shape fails.
+
+The bisect was lucky to land in a quota-fresh window. By the time the
+harness-disabled probe ran, additional probes (the bisect itself, plus
+the option-narrow probe before it) had moved the account into
+quota-throttled state, so even the un-gated shape returned 403.
+
+**Practical consequence for ContractQA:** even the new
+`CONTRACTQA_DISABLE_SDK_HARNESS=1` escape hatch does not unblock
+batches under OAuth subscription auth — once quota is burned, the
+option-clean path also 403s. **API key remains the only viable path
+for actual tuning runs**; the disable-harness switch is meaningful
+only as Arm C of the Entry 8 experiment, which itself requires API
+key billing to bypass the quota-layer.
+
 ---
 <!-- Add new entries below this line. Don't edit anything above. -->
