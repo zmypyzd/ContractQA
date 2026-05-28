@@ -73,6 +73,7 @@ describe('discoverByInteraction integration', () => {
       llmClient: llm,
       signal: new AbortController().signal,
       concurrency: 1,  // deterministic ordering for callIdx assertions
+      enableReflexion: false,  // test counts Stage 2 outputs exactly
     });
 
     expect(result.interactionsFound).toBe(3);

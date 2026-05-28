@@ -144,6 +144,10 @@ export interface DiscoverByInteractionOptions {
   signal: AbortSignal;
   concurrency?: number;
   maxContracts?: number;
+  // When true (default), run a one-shot Reflexion pass after Stage 2 that
+  // targets the content class (cross-view consistency, data preservation).
+  // Disable for unit tests that count Stage-2 outputs exactly.
+  enableReflexion?: boolean;
   onEvent?: (event: DiscoveryEvent) => void;
 }
 
@@ -708,6 +712,110 @@ export async function runPool<T, R>(
   return results;
 }
 
+// ─── Reflexion: single-call pass to fill content-class gaps ─────────────────
+//
+// Tuning v1 (class-targeted CoT) lifted constraint/interaction coverage from
+// 0% to 100% on the apps where it ran. content class remained 0% across
+// every entry — agents can't infer cross-view consistency from a single
+// interaction walk. Reflexion takes stock of what was generated and asks
+// the LLM to fill the gap explicitly. ONE call per app (not per interaction),
+// generally < 5s; cheap compared to the 60-120 Stage 2 calls.
+
+function buildReflexionSystemPrompt(): string {
+  return [
+    'You are a QA reviewer performing a final pass on a contract suite.',
+    'A test agent has already generated contracts for individual user-triggerable',
+    'interactions (functionality, constraint, and interaction class invariants).',
+    'Your job: generate 3-5 ADDITIONAL contracts targeting CONTENT-CLASS invariants',
+    'the per-interaction pass cannot easily reach.',
+    '',
+    'CONTENT-CLASS invariants are about data accuracy and cross-view consistency:',
+    '  - Same entity displayed on multiple pages shows the same data',
+    '    (list page card matches detail page header)',
+    '  - No truncation or data loss between views',
+    '  - Categorization/tagging is accurate (correct items in correct categories)',
+    '  - Counts/totals match across views (cart count = items in cart)',
+    '  - Persisted state is restored on reload (search filters, scroll position,',
+    '    form drafts) — same data after reload',
+    '',
+    'Output strictly a JSON array of ContractProposal objects. No prose.',
+    '',
+    'ContractProposal shape:',
+    '  { yaml: string, confidence: "high"|"medium"|"low", module: "content-reflexion",',
+    '    evidence: { sourceFiles: string[], rationale: string } }',
+    '',
+    'YAML contract must conform to the schema. Use multi-step actions',
+    '(goto → click → goto) to cross views, and dom.element_text_equals /',
+    'dom.contains_text / url.matches to assert consistency. Avoid vacuous',
+    'needles — every assertion must reference a specific element value that',
+    'would CHANGE if the invariant broke.',
+  ].join('\n');
+}
+
+function buildReflexionUserPrompt(framework: string, alreadyCovered: string[]): string {
+  // Show titles only — keeps the call cheap and forces the LLM to reason
+  // about gaps semantically rather than nitpick exact wording.
+  const titlesBlock = alreadyCovered.slice(0, 200).map((t) => `  - ${t}`).join('\n');
+  return [
+    `Framework: ${framework}`,
+    '',
+    `Already covered (${alreadyCovered.length} contracts, titles only):`,
+    titlesBlock,
+    '',
+    'Generate 3-5 NEW content-class contracts that test:',
+    '  • cross-view consistency for entities surfaced in the titles above',
+    '  • data preservation through reload / navigation',
+    '  • count/total consistency between summary and detail views',
+    '',
+    'Skip any invariant whose intent is already covered by an existing title.',
+  ].join('\n');
+}
+
+export interface ReflexionResult {
+  proposals: ContractProposal[];
+  error?: string;
+}
+
+export async function reflexionContentPass(opts: {
+  llmClient: LLMClient;
+  framework: string;
+  alreadyCovered: string[];
+  signal?: AbortSignal;
+  maxTokens?: number;
+}): Promise<ReflexionResult> {
+  if (opts.alreadyCovered.length === 0) {
+    return { proposals: [], error: 'no prior contracts — reflexion has no signal to work from' };
+  }
+  const system = buildReflexionSystemPrompt();
+  const user = buildReflexionUserPrompt(opts.framework, opts.alreadyCovered);
+
+  let content: string;
+  try {
+    const r = await generateWithBackoff(opts.llmClient, {
+      system,
+      messages: [{ role: 'user', content: user }],
+      temperature: 0.3,
+      signal: opts.signal,
+    });
+    content = r.content;
+  } catch (err) {
+    return { proposals: [], error: `reflexion LLM call failed: ${(err as Error).message}` };
+  }
+
+  const cleaned = extractJsonFromLlmResponse(content);
+  let json: unknown;
+  try {
+    json = JSON.parse(cleaned);
+  } catch {
+    return { proposals: [], error: 'reflexion response is not valid JSON' };
+  }
+  const parsed = ProposalsSchema.safeParse(json);
+  if (!parsed.success) {
+    return { proposals: [], error: `reflexion zod failed: ${parsed.error.message}` };
+  }
+  return { proposals: parsed.data as ContractProposal[] };
+}
+
 // ─── Stage 3: buildExistingIndex + mergeContracts ────────────────────────────
 
 export interface ParsedContract {
@@ -1023,6 +1131,49 @@ export async function discoverByInteraction(
     if (!r) continue;
     for (const p of r.proposals) {
       flatProposals.push({ interaction: interactions[i]!, proposal: p });
+    }
+  }
+
+  // Reflexion: one-shot content-class fill. Runs only if Stage 2 produced
+  // contracts — empty pool = no signal to reason about gaps. Synthesizes a
+  // pseudo-Interaction so the reflexion proposals flow through Stage 3's
+  // mergeContracts dedup unchanged.
+  if ((opts.enableReflexion ?? true) && flatProposals.length > 0) {
+    emit({ type: 'log', level: 'info', message: '[deep] reflexion content-class pass: start' });
+    const { assembleTargetContext: _assembleCtx } = await import('./bootstrap.js');
+    const _ctx = await _assembleCtx(opts.cwd);
+    const alreadyCovered: string[] = [];
+    for (const { proposal } of flatProposals) {
+      try {
+        const c = parseContract(proposal.yaml);
+        if (c?.title) alreadyCovered.push(String(c.title));
+      } catch {
+        /* skip malformed */
+      }
+    }
+    const ref = await reflexionContentPass({
+      llmClient: opts.llmClient,
+      framework: _ctx.framework,
+      alreadyCovered,
+      signal: opts.signal,
+    });
+    if (ref.error) {
+      emit({ type: 'log', level: 'warn', message: `[deep] reflexion: ${ref.error}` });
+    } else {
+      emit({
+        type: 'log',
+        level: 'info',
+        message: `[deep] reflexion content-class pass: done, ${ref.proposals.length} proposals`,
+      });
+      const refInteraction: Interaction = {
+        id: 'reflexion-content',
+        type: 'submit-handler',
+        file: 'reflexion://synthetic',
+        name: 'Reflexion content-class pass',
+        module: 'reflexion',
+        rationale: 'Final pass targeting content-class invariants (cross-view consistency)',
+      };
+      for (const p of ref.proposals) flatProposals.push({ interaction: refInteraction, proposal: p });
     }
   }
 

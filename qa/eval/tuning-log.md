@@ -432,4 +432,71 @@ backoff in the batch script.
   entries).
 
 ---
+
+## Entry 5 — Route 3 locked in + Reflexion content-class sub-phase (impl, untested)
+
+**Date:** 2026-05-28
+**Commit:** (this commit)
+**Hypothesis:** Content class has been 0/N on every prior entry (baseline,
+tuning v1, Haiku, Sonnet hybrid) — including app 0001's 72.2%-coverage
+Sonnet run where it was still 0/3 content. A per-interaction Stage 2 pass
+can't infer cross-view consistency from a single component's source.
+**ONE extra LLM call** after Stage 2 that takes stock of generated contract
+titles and asks for content-class gap-fillers should be enough to break
+through.
+
+**Decision recorded:** Route 3 (per Entry 4 recommendation) is the
+practical default — Haiku for both autopilot and scorer. Sonnet hybrid
+is documented as the higher-quality option for `--deep-concurrency 1`
+or `ANTHROPIC_API_KEY` setups (memory recipes updated accordingly).
+Reflexion layers on top of the default.
+
+**Change:**
+- `packages/cli/src/autopilot/interaction-discovery.ts` adds
+  `reflexionContentPass()` + wires it between Stage 2 and Stage 3 of
+  `discoverByInteraction`. Synthesizes a `reflexion-content` pseudo-
+  Interaction so its proposals flow through the existing mergeContracts
+  dedup/cap logic.
+- Single LLM call per app. Prompt shows titles only (cheap, forces
+  semantic reasoning about gaps over wording). Asks for 3-5 content
+  contracts (cross-view consistency, persisted state on reload,
+  count/total matching).
+- New `enableReflexion?: boolean` option (default true). The existing
+  integration test passes `enableReflexion: false` so its exact-count
+  assertions still hold.
+- 259 cli tests pass.
+
+**Setup intended:**
+- Apps 1-10, Haiku 4.5, tuning v1 prompt + Reflexion enabled.
+- Same budget/concurrency as Entry 3.
+
+**Result: untested — Claude Code SDK upstream broken at validation time.**
+
+After committing the implementation, attempted single-app test on 0001:
+Stage 1 enumerateSurface dies in 14s with "Claude Code process exited
+with code 1" + fallback modules also fails. Direct probe (trivial Haiku
+prompt via pickClient) also fails in 1.9s with the same SDK exit-1. The
+SDK subprocess is hard-down right now — every model, every prompt,
+every fresh probe gets the same exit-1.
+
+This is the same class of failure that hit Entry 4's Sonnet batch
+(rate-limit-ish) but now spread across ALL models, NOT just Sonnet.
+Either the upstream Anthropic API is degraded today or this account
+has hit a daily-limit-style threshold.
+
+**Verdict:** Code ships clean (tests pass, no regression to in-scope
+Entry 3 behavior). Empirical measurement deferred to next session when
+SDK recovers. Reflexion is **a small additive change** — if it doesn't
+help content class, it costs ~$0.05/app (one Haiku call); if it does,
+expected lift is **+5-15pp on content** which would translate to
+**+3-9pp on overall coverage** + small bug-detection bump.
+
+**Next:**
+1. When SDK recovers, run apps 1-10 with Reflexion enabled (Haiku +
+   tuning v1 + Reflexion). Compare against Entry 3 directly.
+2. If content class budget moves from 0% to >0%, lock it in as default.
+3. If not, the next tuning lever is RAG over poker GT contracts as
+   few-shot examples (per the original survey's Tier 1C recommendation).
+
+---
 <!-- Add new entries below this line. Don't edit anything above. -->
