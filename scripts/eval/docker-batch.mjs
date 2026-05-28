@@ -34,11 +34,27 @@ import { existsSync, mkdirSync, cpSync, writeFileSync, readFileSync, rmSync } fr
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { createRequire } from 'node:module';
 
-const require_ = createRequire(import.meta.url);
-const pLimitModule = require_('p-limit');
-const pLimit = pLimitModule.default ?? pLimitModule;
+// Minimal in-file concurrency limiter — avoids depending on p-limit from a
+// non-workspace script directory (pnpm hoists it but scripts/eval/ isn't a
+// package, so `require('p-limit')` from here doesn't resolve).
+function pLimit(concurrency) {
+  let active = 0;
+  const queue = [];
+  const tryNext = () => {
+    if (active >= concurrency || queue.length === 0) return;
+    active++;
+    const { fn, resolve, reject } = queue.shift();
+    Promise.resolve()
+      .then(fn)
+      .then((v) => { active--; resolve(v); tryNext(); })
+      .catch((e) => { active--; reject(e); tryNext(); });
+  };
+  return (fn) => new Promise((resolve, reject) => {
+    queue.push({ fn, resolve, reject });
+    tryNext();
+  });
+}
 
 const FIXTURE_ROOT = '/Users/zmy/intership/qa-eval-fixtures/WebTestBench';
 const QA_AGENT_ROOT = '/Users/zmy/intership/5.10+/qa-agent';
