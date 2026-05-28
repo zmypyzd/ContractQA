@@ -391,6 +391,34 @@ export function buildGenerateSystemPrompt(): string {
     'array of 0-3 ContractProposal objects describing user-visible invariants',
     'of that interaction. No prose, no markdown fences.',
     '',
+    // ─── BEGIN class-targeted CoT (tuning v1, 2026-05-28) ───
+    // Before generating, think about each of the four invariant classes
+    // and ask whether THIS interaction has invariants in that class.
+    // Most agents over-generate `functionality` invariants and miss the
+    // other three. Force breadth.
+    'Before writing contracts, mentally enumerate invariants in each of',
+    'these four classes for THIS interaction (skip the class if none apply):',
+    '',
+    '  1. FUNCTIONALITY — does the interaction enable a user action with a',
+    '     visible outcome? (creating, editing, deleting, navigating, etc.)',
+    '  2. CONSTRAINT — are there limits, allowed sets, or invariants that',
+    '     MUST hold? (only N items allowed, role-restricted, value bounds,',
+    '     uniqueness, etc.) These are often phrased as "X is limited to Y"',
+    '     or "users cannot do Z twice".',
+    '  3. INTERACTION — does state change DURING the flow? (UI updates in',
+    '     real time after a filter change, list refreshes on event, dialog',
+    '     toggles, dropdown closes on outside click, debounced search,',
+    '     loading states). Often phrased as "after X, Y happens".',
+    '  4. CONTENT — is the content displayed accurate and consistent across',
+    '     views? (the detail page shows the same data as the list, no',
+    '     truncation, no mislabeling, prices match, etc.)',
+    '',
+    'For EACH class that applies, write a contract that would FAIL if the',
+    'invariant is broken. Prefer scoped Stream 5 assertions (element_text_equals,',
+    'attribute_equals, input_value, class_contains) over `dom.contains_text`',
+    'needles — the latter silent-pass on most pages.',
+    '',
+    // ─── END class-targeted CoT ───
     'ContractProposal:',
     '  {',
     '    yaml: string,              // YAML for one contract',
