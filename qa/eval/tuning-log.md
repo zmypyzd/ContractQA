@@ -722,4 +722,122 @@ driving CC agent and the SDK subprocesses, and tuning batches routinely
 exceed it.**
 
 ---
+
+## Entry 7 — root cause correction: SDK 403 is option-validation, not quota
+
+**Date:** 2026-05-28
+**Commit:** (this commit)
+**Hypothesis being tested:** Entry 6 + addendum diagnosed the 403 as "OAuth
+session-quota exhaustion shared between driving CC agent and SDK
+subprocesses." User pushed back: "could it be that turning off the
+scaffolding (harness constraints) is what makes it fail?" This entry
+runs a differential probe to find out.
+
+**Method:** With the same OAuth auth that was 403'ing in Entry 6, probe
+the SDK's `query()` directly with progressively-added option keys. If
+quota is exhausted, every shape fails. If a specific option triggers
+rejection, only shapes containing that option fail.
+
+**Result — option-by-option bisect:**
+
+| Probe shape                              | Result | Latency |
+|------------------------------------------|--------|---------|
+| A. raw — model only                      | OK     | 8120ms  |
+| B. + maxTurns:1                          | OK     | 6595ms  |
+| C. + permissionMode:bypassPermissions    | OK     | 5870ms  |
+| D. + disallowedTools (any value, even [])| **FAIL** | 1347ms |
+| M. + cwd                                 | **FAIL** | 1472ms |
+| N. + systemPrompt                        | **FAIL** | 2061ms |
+| E/F. combinations of D/M/N               | FAIL   | ~1.3s   |
+
+OK shapes take 5-8s (full inference roundtrip). FAIL shapes return in
+~1.3s (rejected at request validation, never reach inference). The
+distinction proves this is **server-side option-validation rejection**,
+not quota exhaustion: a quota-locked account would fail shape A too.
+
+The three forbidden options — `cwd`, `systemPrompt`, `disallowedTools`
+— are exactly the ones that **customize the inner agent's context**
+away from default Claude Code behavior. The three allowed options —
+`model`, `maxTurns`, `permissionMode` — adjust the request without
+overriding the Claude Code-shaped harness.
+
+**Most plausible service-side rule (working hypothesis):** OAuth
+subscription auth (Pro/Max plans) is gated to "use the Agent SDK as
+Claude Code." Any option that overrides the default agent context
+(custom cwd / custom systemPrompt / custom tool restrictions) returns
+403 with `{"error":{"type":"forbidden","message":"Request not allowed"}}`.
+This is a product gate: Anthropic doesn't want subscription quota
+consumed by arbitrary custom-automation use of the SDK. Customization
+requires API key billing.
+
+**Entries 2 / 4 / 5 / 6 retroactively re-explained:**
+
+The "transient SDK crash" / "Sonnet rate-limit ceiling" / "OAuth
+session-pool exhaustion" framings in prior entries were all wrong
+diagnoses of the same underlying mechanism: **the SDK harness fix in
+`efaf3b6` (Entry 4) added `disallowedTools` + `cwd` + `systemPrompt` to
+the `query()` call**, and that's the exact set of options that returns
+403 under OAuth auth. Entry 4's first app (0001) succeeded because the
+service-side rule appears to have rolled out *between* that app and
+the rest of the batch, or because of probabilistic deployment. Entries
+5 / 6 ran with the same harness code and all failed identically.
+
+Entry 6's framing wasn't accidentally close to right — it was wrong on
+mechanism. The shared-OAuth-pool intuition was wrong because:
+- Driving-CC agent activity doesn't burn quota that the SDK then can't
+  use; raw SDK probe (shape A) works fine even with the agent active.
+- `claude --print` doesn't avoid 403 because it's "queued under
+  different quota"; it works because it doesn't pass `cwd` /
+  `systemPrompt` / `disallowedTools`, so it's not on the forbidden-
+  options path.
+
+**Implications for ContractQA:**
+
+Removing the harness customization is **not viable**:
+- Without `cwd`, the inner agent reads the calling repo's CLAUDE.md /
+  DESIGN.md / memory state and contaminates JSON outputs.
+- Without `disallowedTools`, the agent will reach for tools mid-call
+  on Sonnet (Entry 4's 240s+ hang was specifically this).
+- Without `systemPrompt`, the agent treats discovery prompts as agentic
+  work and spawns sub-tasks instead of answering.
+
+The harness is load-bearing. The only viable path is **switching the
+auth tier**:
+
+| Path                                  | OAuth (Pro/Max) | API key (AnthropicSDKClient) |
+|---------------------------------------|-----------------|------------------------------|
+| Harness customization allowed?        | NO (403)        | YES                          |
+| Subprocess overhead?                  | YES (cli.js)    | NO (direct HTTPS)            |
+| Billing                               | flat sub + ?    | per-token                    |
+| Path in pickClient                    | ClaudeAgentSDKClient | AnthropicSDKClient      |
+| ContractQA usable?                    | NO              | YES                          |
+
+**Verdict on the broader Reflexion question:** still untested for the
+3rd consecutive session (Entry 5 / Entry 6 / Entry 7). Reflexion code
+is committed (`0c0f0c9`), tests pass, but empirical measurement keeps
+getting blocked. The blocker is now precisely characterized.
+
+**Next:**
+
+1. **Get `ANTHROPIC_API_KEY` from console.anthropic.com.** This is no
+   longer a "nice to have" — it's the only path. Subscription auth
+   cannot run ContractQA at all as of the service-side change observed
+   ~2026-05-28.
+2. Re-run Reflexion batch via AnthropicSDKClient. Entry 8 reports
+   measurement.
+3. Optional code cleanup: since OAuth path is dead for our use case,
+   simplify `pickClient` to fail fast with a clearer message ("OAuth
+   credentials present but SDK rejects ContractQA's harness — set
+   ANTHROPIC_API_KEY") instead of letting `ClaudeAgentSDKClient` try
+   and surface generic "exited with code 1" errors.
+
+**Methodological note:** Entry 6's wrong diagnosis stuck for ~half a
+session because I didn't run a differential probe — only re-tested the
+full failure shape, which is consistent with both "quota" and
+"validation rejection." The bisect added in this entry would have been
+~5 minutes of work in Entry 4 and saved Entries 5 / 6's misdirection.
+**For future SDK debugging: when an option-bag call fails, bisect the
+option bag before theorizing about state.**
+
+---
 <!-- Add new entries below this line. Don't edit anything above. -->
