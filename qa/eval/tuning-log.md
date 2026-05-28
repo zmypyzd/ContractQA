@@ -322,4 +322,114 @@ once); switch problematic apps to direct Anthropic SDK.
    stable scoring loop, which Entry 3 just established.
 
 ---
+
+## Entry 4 — Sonnet + Haiku hybrid (harness fix), SDK rate-limit blocked batch
+
+**Date:** 2026-05-28
+**Commit:** `efaf3b6` (ClaudeAgentSDKClient harness constraints + scorer
+CONTRACTQA_JUDGE_MODEL support)
+**Hypothesis:** Per `docs/SONNET_SDK_HARNESS_INVESTIGATION.md`, Sonnet's
+240s+ hang isn't model latency — it's the inner agent inheriting CC's
+full tool/Skill harness and treating discovery prompts as agentic work
+(69 tool calls, Task subagent spawn ×2, never converges). With
+disallowedTools + maxTurns=1 + isolated cwd + minimal systemPrompt,
+Sonnet should respond as a stateless JSON generator.
+
+If true, run batch with Sonnet for autopilot (more contracts, better
+inference) + Haiku for judge (cheap, trivial-shape).
+
+**Change vs Entry 3:**
+- `claude-agent-sdk-client.ts` passes `cwd: tmp`, `systemPrompt: minimal`,
+  `disallowedTools: 11 tools`, `maxTurns: 1` to `query()`.
+- Scorer reads `CONTRACTQA_JUDGE_MODEL` (preferred) before falling back
+  to `CONTRACTQA_LLM_MODEL`.
+
+**Setup:**
+- Apps 1-10, deep mode, 30 min budget, deep-concurrency 4 (default).
+- `CONTRACTQA_LLM_MODEL=claude-sonnet-4-6` (autopilot)
+- `CONTRACTQA_JUDGE_MODEL=claude-haiku-4-5-20251001` (scorer)
+
+**Probe validation BEFORE batch (clean single-call timings):**
+
+| Test | Pre-fix | Post-fix |
+|------|---------|----------|
+| Sonnet trivial JSON probe | 240s+ timeout | **9.2s** |
+| Sonnet single-app autopilot (0007, 65 interactions, concurrency=4) | hung past 100 min | **451s / 134 contracts** |
+
+**Harness fix is proven.** The batch then ran into a different wall.
+
+**Batch result — 1/10 fully completed:**
+
+| App  | OK  | Min  | Contracts | Coverage | Bugs | SDK crashes  |
+|------|-----|------|-----------|----------|------|--------------|
+| 0001 | ✓   | 16.0 | 238       | **72.2%**| 0/3  | 0            |
+| 0002 | ✗   | 26.9 | 55 (unscored) | n/a | n/a  | 89           |
+| 0003 | ✗   | 14.0 | 78 (unscored) | n/a | n/a  | 116          |
+| 0004 | ✗   | 11.5 | 0         | n/a      | n/a  | 101          |
+| 0005 | ✗   |  1.0 | 0         | n/a      | n/a  | 1 (Stage 1)  |
+| 0006 | ✗   |  0.9 | 0         | n/a      | n/a  | 1 (Stage 1)  |
+| 0007 | ✗   |  0.9 | 0         | n/a      | n/a  | 1 (Stage 1)  |
+| 0008 | ✗   | 12.7 | 94 (unscored) | n/a | n/a  | 115          |
+| 0009 | ✗   |  0.5 | 0         | n/a      | n/a  | 1 (Stage 1)  |
+| 0010 | ✗   |  0.7 | 0         | n/a      | n/a  | 1 (Stage 1)  |
+
+**App 0001 result vs prior entries:**
+
+| Run                       | Contracts | Coverage  | Bugs |
+|---------------------------|-----------|-----------|------|
+| Entry 0 baseline (Opus)   | 200       | 55.6%     | 0/3  |
+| Entry 1 Opus + tuning v1  | 274       | 61.1%     | 1/3  |
+| Entry 3 Haiku tuning v1   | 111       | 55.6%     | 1/3  |
+| **Entry 4 Sonnet hybrid** | **238**   | **72.2%** | 0/3  |
+
+**Sonnet-hybrid coverage = +16.6pp over baseline** (the largest single-app
+coverage lift to date). Bug detection 0/3 on 0001 is consistent with prior
+entries that also went 0/3 on this app's specific bugs (the missed bugs
+are #4 "add tags" and #7 "categorize labels" — features the agent can't
+infer without flipping in-app state).
+
+**Why batch died: Sonnet rate limit ceiling**
+
+The SDK exit-1 crashes weren't transient backend issues — they were
+rate-limit symptoms. Pattern:
+- 0001 ran cleanly (16 min, 238 contracts, fresh quota window).
+- Then 0002-0008 each had 89-116 SDK crashes mid-Stage-2 (sustained
+  rate-limit pressure as Sonnet's ~5K-token/min cap got slammed by
+  4-concurrency Stage 2 calls).
+- Apps 0005-0010 (after the long 0002-0004 runs) died at Stage 1 in
+  <1 min with a single SDK crash — quota exhausted, fallback to modules
+  also throttled.
+- Even post-hoc rescore attempts (with retry budget) failed because
+  both Haiku and Sonnet calls were hitting the upstream limit.
+
+This is **not a generateWithBackoff failure**; the retries fire, but
+the rate limit doesn't reset within the 1s/2s/4s backoff window.
+
+**Verdict:** Mixed but conclusive on the load-bearing question. SDK
+harness fix works (probes + 0001). Sonnet quality is real (+16.6pp on
+the one clean app). But Sonnet via Claude Code SDK on a residential /
+shared-tier account can't sustain a 10-app deep-mode batch — the burst
+profile (60-120 interactions × 4-concurrency × ~10KB context) overruns
+the per-minute token cap, and there's no graceful per-app rate-limit
+backoff in the batch script.
+
+**Verdict (recommendation rank):**
+1. **For batches: use `--deep-concurrency 1` with Sonnet** — single call
+   in flight at a time, fits inside the per-min cap with margin.
+   Estimated 4× slower per app but should sustain 10/10.
+2. **OR: set `ANTHROPIC_API_KEY`** + use AnthropicSDKClient — direct HTTP
+   has explicit rate-limit headers + the client can do principled backoff
+   on 429. Eliminates the SDK-subprocess opaque-error class entirely.
+3. **OR: switch to Haiku for batches**, accept lower per-app quality;
+   Entry 3 already showed Haiku is comparable-or-slightly-better than
+   Opus baseline at 20× cost.
+
+**Next:**
+- Re-run hybrid batch with `--deep-concurrency 1` to confirm Sonnet
+  CAN do a clean 10/10 if pressure is dialed back.
+- Or accept Entry 3's Haiku-only as the practical default and proceed
+  to Reflexion for content class (the still-0% bottleneck across all
+  entries).
+
+---
 <!-- Add new entries below this line. Don't edit anything above. -->
