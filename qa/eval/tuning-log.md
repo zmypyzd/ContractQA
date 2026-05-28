@@ -893,4 +893,110 @@ in `claude-agent-sdk-client.test.ts` — confirms cwd / systemPrompt /
 disallowedTools / maxTurns all undefined when `disableHarness:true`).
 
 ---
+
+## Entry 8 — harness default flipped off, partial Haiku recovery, Reflexion still untested
+
+**Date:** 2026-05-28
+**Commit:** `932f974` (flip ClaudeAgentSDKClient harness default to OFF)
+**Hypothesis:** User observation: pre-`efaf3b6` (Entry 4) Haiku batches
+were 10/10 OK (Entry 3). The Sonnet-targeted harness fix (cwd /
+systemPrompt / disallowedTools / maxTurns) was the proximate cause of
+the OAuth 403 since Entry 4 (per Entry 7 bisect). Reverting that default
+should restore Entry 3-shape autopilot behavior for Haiku.
+
+**Change:** `claude-agent-sdk-client.ts` now defaults to OFF for the
+harness. New env / ctor opt `CONTRACTQA_ENABLE_SDK_HARNESS=1` /
+`enableHarness:true` re-enables for callers that explicitly need it
+(Sonnet on API-key auth). Legacy `CONTRACTQA_DISABLE_SDK_HARNESS=1` env
+kept for backward compat. 62/62 orchestrator + 260/260 cli tests pass.
+
+**Setup:**
+- Apps 1-10, Haiku 4.5, deep mode, 30 min/app budget, Reflexion enabled.
+- Same as Entry 6 except harness default flipped.
+- Pre-batch probe: 3/3 OK at 6-7s each (real inference).
+
+**Result — partial recovery, then burst-throttled:**
+
+| App  | autopilot ms | exit | scorer ms | scorer exit | contracts in scratch | notes |
+|------|--------------|------|-----------|-------------|----------------------|-------|
+| 0001 | 369,469      | 0    | 13,596    | 1           | **34**               | real work — 4-6 min of generateContractFor calls, many per-call 403s, Reflexion call also 403'd. Scorer dies on 1st judge call. |
+| 0002 | 356,160      | 0    | 15,976    | 1           | (similar)            | similar to 0001 |
+| 0003 | 30,166       | 0    | 13,692    | 1           | (low/0)              | fast-fail at Stage 1, fallback to modules |
+| 0004 | 19,331       | 0    | 13,110    | 1           | (low/0)              | fast-fail |
+| 0005 | 354,907      | 0    | 13,181    | 1           | (similar to 0001)    | real work |
+| 0006 | 28,013       | 0    | 15,237    | 1           | (low/0)              | fast-fail |
+| 0007 | 21,976       | 0    | 33,854    | 1           | (low/0)              | fast-fail |
+| 0008 | …            | 0    | …         | 1           | (low/0)              | fast-fail |
+| 0009 | …            | 0    | …         | 1           | (low/0)              | fast-fail |
+| 0010 | …            | 0    | …         | 1           | (low/0)              | fast-fail |
+
+3/10 apps got real autopilot work; 7/10 fast-failed at Stage 1. Of the
+3 that worked, all 3 had their Reflexion call 403'd. **No content-class
+contracts written** (verified by titles audit on 0001 — all functionality
+and interaction class).
+
+**What this tells us:**
+
+1. **The harness flip is the primary unblock.** Entry 6 batch with the
+   harness was 0 contracts across 10 apps. Entry 8 batch without the
+   harness is real per-interaction work on 3 apps. Confirms Entry 7
+   bisect + user's diagnosis that `efaf3b6` was the proximate breakage.
+2. **A separate burst-rate-limit layer is also real** (this time
+   with evidence, unlike Entry 7's retracted "quota" claim): after
+   ~6 minutes of dense generateContractFor calls, the post-autopilot
+   probe is 3/3 FAIL, and the scorer's 3-retry/7s-backoff budget can't
+   survive. The pre-batch probe was 3/3 OK at 6-7s each, then probes
+   immediately after the batch are 3/3 instant 403. That's burst, not
+   option, not quota-wide (CLI still works).
+3. **Reflexion's single-shot call is unreliable under burst pressure.**
+   It runs at the end of Stage 2, exactly when the burst window is
+   hottest. All 3 well-behaved apps had Reflexion 403'd. The 4th-3rd
+   consecutive session where Reflexion remains empirically untested.
+
+**Per-class breakdown for 0001 (manual titles audit, 34 contracts):**
+
+| Class          | Count | Notes |
+|----------------|-------|-------|
+| functionality  | ~19   | "X button navigates to Y" style |
+| interaction    | ~7    | "form submits with non-empty query", "cancel resets fields" |
+| constraint     | ~3    | "spec labels filtered out", "tags trimmed" |
+| content        | **0** | **same as every prior entry** — Reflexion would have addressed this but its call failed |
+| smoke (Phase A)| 5     | password-in-URL, 404, 401, etc. |
+
+**Verdict:** Mixed. The harness flip is correct and committed. ContractQA
+under OAuth+Haiku is back to *partial* function (Entry 3-shape on a good
+day; degraded by burst rate-limit when bursts are tight). Reflexion still
+needs measurement. **API key remains the only path to a clean run** —
+not because of "OAuth quota", but because:
+
+- Per-app autopilot bursts (50-100 contract gen calls in 5 min) trigger
+  rate-limit ceilings that the 3-retry budget can't survive.
+- Scorer fires immediately post-autopilot when the rate window is hottest.
+- Reflexion is a single-shot call with no per-call retry beyond
+  `generateWithBackoff`'s 3 tries — so any burst hit kills it.
+
+API-key billing routes through `AnthropicSDKClient` (direct HTTPS, no
+OAuth pool, much higher per-key rate limits, no subprocess overhead).
+
+**Next:**
+
+1. Get `ANTHROPIC_API_KEY` from console.anthropic.com. Pre-budget: Haiku
+   10-app batch ~$1-3.
+2. Re-run apps 1-10 with API key. Expected: 10/10 complete with
+   Reflexion measurable. This becomes Entry 9 — the first clean
+   Reflexion data.
+3. If Reflexion produces content-class contracts (currently 0/N across
+   8 entries), lock it in as default. If not, fall back to Tier 1C
+   (few-shot retrieval over poker GT contracts).
+
+**Concrete actions taken this session:**
+
+- `932f974`: flip harness default to OFF (revert Entry 4 default)
+- `3fa2413`: add CONTRACTQA_FORCE_SDK_CLIENT + CONTRACTQA_ENABLE_SDK_HARNESS
+  switches for Entry 9's 3-arm A/B
+- `3112107`: retract Entry 7 tail's unsupported "OAuth pool quota" claim
+- Entry 8 batch results documented above (no contracts committed; scratch
+  dirs hold the 34 from 0001 and similar partials from 0002/0005)
+
+---
 <!-- Add new entries below this line. Don't edit anything above. -->
