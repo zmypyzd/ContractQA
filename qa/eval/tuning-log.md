@@ -2004,3 +2004,64 @@ specificity. Step b as originally scoped (widen discovery) is shelved.
 **Next:** characterize the assertion-weakness fingerprints across the
 weak_assertion + off_target + the 26 false-negative contracts (what do they assert
 vs what the bug needs?), and design an assertion-specificity generation pass.
+
+---
+
+## Entry 20 — Assertion-gap fingerprints: 3 patterns = 87% of the misses; assertion-specificity pass design
+
+**Date:** 2026-05-29
+**Commit:** post-`2945207` (assertion-gap-fingerprints.mjs + this entry)
+**Goal:** Entry 19 located the bottleneck at assertion specificity. Characterize HOW
+contracts are weak (they reach the bug's surface but don't catch it) into a fixed
+taxonomy → design a generation pass that fixes it.
+
+**Method:** `scripts/eval/assertion-gap-fingerprints.mjs` — for each pass:false bug
+with a surface contract (55 bugs; 3 true discovery gaps excluded), a grounded LLM
+picks the closest contract, states what it asserts vs what assertion WOULD catch the
+bug, and classifies the gap into 7 codes.
+
+**Result (32 diagnosable; 23 were judge punts — empty diagnosis, a limitation of the
+one-shot big-prompt judge, not a real "other"):**
+
+| fingerprint | n | % of diagnosable | meaning |
+|-------------|---|------------------|---------|
+| **F2 happy_path_not_violation** | 11 | 34% | requirement has a constraint/limit/validation/ordering; contract tests the normal flow, never exercises the VIOLATION |
+| **F6 missing_interaction** | 9 | 28% | bug manifests only after an action (click/submit/switch); contract asserts static presence, never performs it |
+| **F1 presence_not_value** | 8 | 25% | asserts an element/text EXISTS, not that its VALUE is correct — bug is a wrong/stale value |
+| F5 single_view_not_consistency | 2 | 6% | bug is cross-view; contract checks one view |
+| F3 wrong_element | 2 | 6% | asserts a different element than where the bug shows |
+
+**F1+F2+F6 = 87%** of diagnosable assertion gaps. Examples:
+- F2: bug "can't select >10 tickets" — contract asserts the +button disables at 10,
+  never tries to exceed it. Needed: attempt 11 and assert it's blocked.
+- F6: bug "clicking View Details doesn't redirect" — contract asserts the link
+  exists, never clicks it. Needed: click, then assert the URL changed.
+- F1: bug "product category not validated" — contract asserts the dropdown renders
+  with category text. Needed: submit, then assert the persisted category VALUE.
+
+**Design — assertion-specificity generation pass (the data-grounded Reflexion
+redesign, blind-legal: source + the contract's own draft, never the checklist):**
+For each generated contract, a second LLM pass asks three targeted questions and
+strengthens the `expected`/`actions` accordingly:
+1. **(F1) Value check:** "Does this assert a VALUE, or only existence? If the
+   feature has a concrete correct value (count, text, persisted field), add an
+   `element_text_equals` / `role_count` / post-reload value assertion."
+2. **(F2) Violation check:** "Does the feature have a constraint (max/min, required,
+   uniqueness, ordering, validation)? If so, add an action that VIOLATES it and
+   assert the violation is blocked/handled — not just the happy path."
+3. **(F6) Interaction check:** "Does the invariant only hold AFTER an action? If so,
+   ensure the contract performs the click/submit/switch, then asserts the post-action
+   state (URL/DOM/storage), not static presence."
+This targets 87% of the observed gaps with concrete, checkable rules — and unlike the
+Entry 11–13 Reflexion (which dedup'd to ~0 and was judged on a coverage metric),
+it's aimed at the execution-detection metric we now trust.
+
+**Verdict:** Diagnosis complete end-to-end. The pipeline's 0% true detection is an
+ASSERTION-SPECIFICITY failure (F1/F2/F6), not discovery, not reachability. Design
+above is the fix.
+
+**Next:** implement the assertion-specificity pass in interaction-discovery generation
+(F1/F2/F6 rules), re-run autopilot on 1–10, and re-measure with exec-detection —
+true_detection should move off 0 if the diagnosis is right. (Caveat: also harden the
+fingerprint judge / coverage judge; 23/55 punts show the one-shot big-prompt judge
+needs per-contract framing or k-vote.)
