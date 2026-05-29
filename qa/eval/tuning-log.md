@@ -1646,3 +1646,77 @@ a powered batch to interpret. Per-bug attribution > aggregate Δ for this questi
 ON for now pending the user's call on flip-OFF; the evidence now points clearly to
 "no demonstrated value," so flipping OFF (one-liner) is the supported move whenever
 the user wants it. Stale Entry 11/12 docker images (~15GB) removed this session.
+
+---
+
+## Entry 14 — Execution-grounded detection pilot: `bug_detection_coverage` measures topical COVERAGE, not detection (overstates ~2-4×)
+
+**Date:** 2026-05-29
+**Commit:** `3047148`
+**Hypothesis (user):** "Reflexion didn't help" might be the wrong frame — maybe
+the *metric* is wrong. Specifically: is a missed bug a discovery gap (no contract
+aimed at it) or an assertion gap (a contract is aimed at it but is too weak / asserts
+the buggy behavior, so it never actually catches the bug)? The scorer can't tell,
+because it **never executes contracts** — `bug_detection_coverage = coveredPassFalse
+/ totalPassFalse` where `covered` is just an LLM judge deciding a contract is
+*aimed at* a requirement (the code comment literally says "tried to test").
+
+**Method:** Took app 0008 Arm A, which the scorer rated **4/4 bugs detected
+(100%)**. Rebuilt the 0008 container, assembled the 6 contracts the judge had
+matched to those 4 bugs into a temp dir, and actually **ran them** against the
+live buggy SUT via `contractqa run` (Playwright/chromium). A contract that *fails*
+on the buggy app caught a real discrepancy; one that *passes* is blind to the bug.
+
+**Result — 6 contracts: 4 fail, 2 pass — but "fail" ≠ "caught the planted bug":**
+
+| Bug (ground truth) | matched contract(s) | run result | true verdict |
+|--------------------|---------------------|-----------|--------------|
+| #6 "can only view leaderboards, can't switch by **time**" | leaderboard-displays-…-points; leaderboard-page-navigation | **both PASS** | **COVERED-BUT-NOT-CAUGHT** — both only assert the leaderboard page renders; neither mentions the missing time-switch. Judge counted topical relevance as coverage. |
+| #2 "can't prevent duplicate username/email registration" | register-form-submission-redirect | FAIL | **spurious** — fails on a Playwright strict-mode selector crash (`getByRole('textbox')` → 3 elements), a *contract defect*; and it tests happy-path redirect, not dup-prevention |
+| #1 "can't view code content in submission history" | dashboard-recent-submissions-reverse-chronological | FAIL | **off-target** — asserts reverse-chronological *ordering*, not the "can't view code" bug |
+| #3 "can't verify difficulty-categorized completion stats" | dashboard-user-stats-display; content-user-statistics(reflexion) | FAIL | **plausibly caught** — real DOM mismatch (missing "Total Points"/"Challenges Solved" headings); closest to the planted bug |
+
+**Conclusion — the headline metric is coverage wearing a detection costume.**
+- Scorer: 0008 = 4/4 bugs "detected." Execution: 1 covered-but-not-caught (#6),
+  1 spurious selector-crash (#2), 1 off-target fail (#1), 1 plausible catch (#3).
+  **True execution-grounded detection ≈ 1/4, generously 1-2/4 — vs the reported
+  4/4.** The metric overstates real detection by ~2-4× on this app.
+- This is the answer to "checklist 找到了但 bug 没找到": bug #6 is *covered*
+  (judge matched contracts) yet *not caught* (contracts pass on the buggy app).
+  The current pipeline literally cannot see this gap because it never runs anything.
+- Reframes Entries 0-13 wholesale: every "bug detection %" in this log is
+  **bug-requirement topical coverage**, not detection. Reflexion (and any
+  contract-quantity lever) was being optimized against a number that doesn't
+  measure catching bugs. Quantity isn't the bottleneck; **assertion specificity**
+  (does the contract assert the exact invariant the bug violates?) is, and it's
+  unmeasured.
+
+**Caveats:** n=1 app, 6 contracts — a pilot, not a batch. "Fail" conflates real
+catches with contract defects (the #2 selector crash); a rigorous version needs a
+failure-reason↔bug-text judge to separate "caught the planted bug" from "failed for
+an unrelated reason." Direction is unambiguous even so: ≥1 clean covered-but-not-
+caught and ≥1 spurious fail out of 4 is already fatal to the metric's validity.
+
+**Blind-only note:** the user's instinct to "feed Reflexion which checklist items
+were missed / which contracts contradict the checklist" is blocked — that leaks the
+checklist into the agent loop and breaks the blind-only rule. Closed-loop feedback
+must come from blind-legal signal: (a) source-code coverage gaps, (b) contract
+EXECUTION results against the SUT (fail/pass/error) — never the checklist.
+
+**Verdict:** Kept as methodology finding. The eval needs an execution-based
+detection metric before any contract-quality lever (Reflexion or otherwise) can be
+judged. Coverage-by-judge is a useful *upper bound* but must stop being reported as
+"bug detection."
+
+**Next:**
+
+1. **Execution-detection scorer.** Add a metric that runs each bug-covering contract
+   against the SUT and counts a bug "detected" only if a matched contract *fails*
+   AND a failure-reason judge confirms the failure corresponds to the planted bug
+   (the `bug` field). Report alongside (not replacing) coverage-by-judge.
+2. **Scale the pilot.** Re-run this on all 10 Arm-A apps' covered bugs to get a real
+   detection rate vs the reported coverage rate. Likely collapses the 47.7% headline.
+3. **Re-aim contract quality at assertion specificity**, not quantity. The covered-
+   but-not-caught (#6) and off-target (#1) cases are weak-assertion fingerprints
+   (cf. the Phase B drift-patterns reference) — that's the lever Reflexion *could*
+   target if redesigned around blind-legal execution feedback.
