@@ -2119,3 +2119,67 @@ make its assertion bug-specific.
 **Next (step 1):** implement the generation pass with F1/F2/F6 rules + an aim check
 ("does this contract assert on THIS requirement's specific behavior?"), re-run
 autopilot 1–10, re-measure with exec-detection (now judged by the hardened judge).
+
+---
+
+## Entry 22 — Assertion-specificity prompt FAILED to move detection; the wall is blind-from-buggy-source (NEGATIVE result)
+
+**Date:** 2026-05-29
+**Commit:** `a94dc97` (assertion-specificity generation rules) + this entry
+**Hypothesis:** injecting VALUE/VIOLATION/INTERACTION/AIM rules into Stage-2
+generation (Entry 20/21 design) would raise true detection off 0.
+
+**Setup:** identical to the reflexion-on baseline except the new generation rules.
+`docker-batch --range 1-10 --concurrency 3 --label asrt-v1` (Haiku, Reflexion on),
+then exec-detection-batch with the hardened judge.
+
+**Result — no improvement, slight aim regression:**
+
+| metric | baseline (reflexion-on) | asrt-v1 |
+|--------|-------------------------|---------|
+| coverage aim | 50.0% (29/58) | 41.4% (24/58) |
+| **TRUE detection** | **0/58** | **0/58** |
+| not_covered | 29 | 34 |
+| execution_defect | 13 | 11 |
+| auth_unreached | 9 | 11 |
+| weak_assertion + off_target | 3 + 4 | 2 + 0 |
+
+The prompt rules did NOT produce a single true detection. Aim dropped (within the
+~28pp run-to-run noise, so not necessarily real) and not_covered rose — if anything
+the longer prompt diluted requirement-aim without buying detection.
+
+**Root-cause diagnosis (the real wall):** Stage-2 generates contracts by reasoning
+from the SUT's **source code** — which, in WebTestBench, *contains the planted bug*.
+A blind agent reading a buggy implementation infers "this is how it works" and writes
+a contract whose `expected` matches the buggy behavior → the contract PASSES on the
+buggy app. **You cannot detect a bug by asserting consistency with the buggy
+implementation you read.** Telling the agent to "assert the value / exercise the
+violation / perform the interaction" doesn't help when its notion of the *correct*
+value/outcome is itself derived from the buggy source. Detection requires an
+INDEPENDENT reference for correct behavior, which blind-from-source lacks.
+
+**Implication:** the 0% true detection is not (only) an assertion-phrasing problem —
+it's epistemic. Levers that could supply an independent "correct" reference, ranked:
+1. **Common-sense priors:** universal invariants the agent can assert without reading
+   the buggy code (duplicate email/username rejected; deleting N leaves N−1; a count
+   badge equals rendered items; clicking a link navigates). These encode EXPECTED
+   behavior from priors, so they fail when the app violates them. (Blind-legal — it's
+   priors, not the checklist.) F2/F1/F6 rules only help IF anchored to priors.
+2. **Cross-consistency contracts:** same datum across two views must match — catches
+   inconsistency bugs without needing an absolute correct value.
+3. **Stronger generator model** (Sonnet/Opus): may apply priors + the rules where
+   Haiku doesn't. Cheap to test.
+4. Reason from the source's STATED intent (types, validation code, comments) and flag
+   where runtime diverges — harder.
+
+**Verdict:** step-1 prompt injection rejected (no detection lift, aim regressed). The
+calibrated eval did its job — it caught a plausible-sounding fix that doesn't work,
+which the old coverage-only metric would have scored as "fine" (asrt-v1 aim 41% looks
+like normal coverage). The instrument is the win; the generator needs an epistemic
+fix, not a phrasing one.
+
+**Next:** test the cheapest independent-reference lever — prior-anchored generation
+(rule: "assert universal expectations the app SHOULD meet, independent of what the
+code currently does") and/or a Sonnet generator on a 3-app pilot, measured by
+exec-detection. If priors move true detection off 0, scale; if not, blind detection
+has a hard ceiling worth documenting.
