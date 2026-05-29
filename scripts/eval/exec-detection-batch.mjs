@@ -8,7 +8,7 @@
 //
 // Usage: node scripts/eval/exec-detection-batch.mjs [--range 1-10] [--arm reflexion-on]
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
@@ -43,7 +43,9 @@ for (let i = a; i <= b; i++) {
     stdio: 'inherit',
     env: { ...process.env, CONTRACTQA_LLM_MODEL: process.env.CONTRACTQA_LLM_MODEL || 'claude-haiku-4-5-20251001' },
   });
-  const outPath = path.join(SNAP, `${idx}-2026-05-29-${arm}-docker`, 'exec-detection.json');
+  const re = new RegExp(`^${idx}-\\d{4}-\\d\\d-\\d\\d-${arm}-docker$`);
+  const matches = readdirSync(SNAP).filter((d) => re.test(d)).sort();
+  const outPath = matches.length ? path.join(SNAP, matches[matches.length - 1], 'exec-detection.json') : path.join(SNAP, `${idx}-2026-05-29-${arm}-docker`, 'exec-detection.json');
   if (r.status === 0 && existsSync(outPath)) {
     results.push(JSON.parse(readFileSync(outPath, 'utf8')));
   } else {

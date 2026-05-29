@@ -186,7 +186,11 @@ async function main() {
   const idx = args.idx;
   if (!idx || !/^\d{4}$/.test(idx)) { console.error('usage: --idx NNNN [--arm reflexion-on] [--base-url URL] [--keep-up] [--out path]'); process.exit(1); }
   const arm = typeof args.arm === 'string' ? args.arm : 'reflexion-on';
-  const snapDir = path.join(SNAP, `${idx}-2026-05-29-${arm}-docker`);
+  // Resolve the snapshot dir by glob (date-robust — don't hardcode 2026-05-29; a
+  // batch run across a date rollover writes a different date). Pick the latest match.
+  const re = new RegExp(`^${idx}-\\d{4}-\\d\\d-\\d\\d-${arm}-docker$`);
+  const matches = readdirSync(SNAP).filter((d) => re.test(d)).sort();
+  const snapDir = matches.length ? path.join(SNAP, matches[matches.length - 1]) : path.join(SNAP, `${idx}-2026-05-29-${arm}-docker`);
   const contractsDir = path.join(snapDir, 'qa', 'contracts');
   const coveragePath = path.join(snapDir, 'score.json');
   if (!existsSync(contractsDir)) throw new Error(`no contracts at ${contractsDir}`);
