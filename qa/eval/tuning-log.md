@@ -1720,3 +1720,62 @@ judged. Coverage-by-judge is a useful *upper bound* but must stop being reported
    but-not-caught (#6) and off-target (#1) cases are weak-assertion fingerprints
    (cf. the Phase B drift-patterns reference) — that's the lever Reflexion *could*
    target if redesigned around blind-legal execution feedback.
+
+---
+
+## Entry 15 — Whole-pipeline eval audit + stage-attribution redesign (built exec-detection scorer)
+
+**Date:** 2026-05-29
+**Commit:** `3dad62f` (exec-detection-score.mjs) + this entry
+**Hypothesis (user):** if `bug_detection_coverage` is coverage-not-detection
+(Entry 14), the whole eval likely has analogous "measures X, reports Y" / silent-
+loss defects. Goal: a rigorous eval complete enough to back-trace a missed bug to
+the exact pipeline stage.
+
+**Method:** Built `scripts/eval/exec-detection-score.mjs` (Entry 14 Next #1) —
+runs coverage-matched contracts against the live buggy SUT and classifies each bug
+into the stage where detection broke (validated on 0008: coverage 4/4 →
+true-detection **0/4**; auth_unreached:2, execution_defect:1, weak_assertion:1).
+Then ran a 4-way parallel audit of the pipeline (coverage scorer / runner+oracle /
+discovery+generation / batch+aggregation).
+
+**Result — the coverage≠detection gap is the pipeline's pervasive pattern, not a
+one-off.** Full write-up: `qa/eval/EVAL-AUDIT-AND-REDESIGN.md`. Headlines:
+- 🔴 **PASS-only oracle** (`qa-runner.test.mts:151`): the canonical run asserts
+  every contract must PASS, so a bug-catching contract (should FAIL on buggy SUT)
+  and a broken one score identically — the scored path *cannot represent detection*.
+- 🔴 **Blind-pass oracle**: runOracle matches the contract's own `expected`, never
+  ground truth → a contract asserting the buggy behavior PASSes.
+- 🔴 **All cross-entry comparisons confounded** (model+concurrency+runner+scorer+
+  day+OAuth co-vary; run-to-run sd ≈ 22–28pp > most claimed deltas). Only Entry 13's
+  same-day paired design is valid. Every prior causal delta (model/harness/docker/
+  Reflexion lift) is unidentifiable — extends Entry 13's retraction to the whole table.
+- 🟠 scorer corpus ≠ runner corpus (counts `.yaml`/schema-invalid the runner can't
+  run); loader silently drops ~18%; dedup drops stronger contracts positionally by
+  id; Stage-1 `routes=['/']` makes dynamic/auth-gated/API surfaces undiscoverable;
+  `mean bug detection` drops zero-bug apps; `--score-limit` reported as full coverage;
+  `ok` = exit code not quality. (~20 defects total, by stage, in the doc.)
+
+**Meta-finding:** no executable stage knows ground truth, and every boundary
+(discovery→gen→merge→load→run→score) drops/miscounts silently. Coverage is an upper
+bound over a survivable subset.
+
+**Redesign (doc §1, §3):** an 8-stage back-trace model (S1 discovery · S2 generation ·
+S3 merge/dedup · S4 loadability · S5 reachability · S6 execution · S7 assertion/oracle ·
+S8 scoring). Every bug exits with exactly one stage label + evidence; aggregate is a
+stage histogram, not one inflated %. New metrics: `true_detection_rate` + `stage_
+attribution`, rename `bug_detection_coverage → bug_aim_coverage`. Gold-standard S7:
+run each contract on clean AND buggy build — detected iff PASS-clean ∧ FAIL-buggy
+(eliminates blind-pass + false-alarm, no judge needed). exec-detection-score = S5–S7.
+
+**Verdict:** Methodology + design locked. The reported "bug detection %" across all
+prior entries is an aim/coverage upper bound; real detection is unmeasured and (0008
+pilot) much lower.
+
+**Next (roadmap, doc §4):**
+1. S4 + S8-corpus reconciliation — scorer uses the runner's loader; emit unloadable/
+   excluded/limited counts; rename the metric; report `true_detection_rate` beside it.
+2. Auth bootstrap for fixtures (without it auth-gated detection is structurally 0;
+   2/4 on 0008), then scale exec-detection to all 10 apps.
+3. S3/S1 instrumentation (surface dedup + discovery losses; real route manifest).
+4. Gold-standard clean-vs-buggy oracle if clean builds are obtainable.
