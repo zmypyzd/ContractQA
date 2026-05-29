@@ -1779,3 +1779,68 @@ pilot) much lower.
    2/4 on 0008), then scale exec-detection to all 10 apps.
 3. S3/S1 instrumentation (surface dedup + discovery losses; real route manifest).
 4. Gold-standard clean-vs-buggy oracle if clean builds are obtainable.
+
+---
+
+## Entry 16 — Suite execution-detection: coverage-aim 52.4% → TRUE detection 0.0% (8/10 apps)
+
+**Date:** 2026-05-29
+**Commit:** post-`ff62ef5` (exec-detection-batch.mjs + this entry)
+**Goal:** roadmap step 2 — scale the execution-detection scorer (S5–S7) across the
+suite to get the real true-detection rate vs the reported coverage "aim" rate.
+
+**Method:** `scripts/eval/exec-detection-batch.mjs --range 1-10 --arm reflexion-on`
+— per app: build container, run the coverage-matched contracts against the live
+buggy SUT, classify each bug into the stage where detection broke. 8/10 apps ran
+(0007, 0009 hit a 60s vite-boot timeout — infra, not logic).
+
+**Result:**
+
+| | bugs | aim (coverage judge) | TRUE execution detection |
+|---|------|----------------------|--------------------------|
+| 8-app total | 42 | **22 (52.4%)** | **0 (0.0%)** |
+
+**Stage histogram (42 bugs — where detection broke):**
+
+| stage | count | % | meaning |
+|-------|-------|---|---------|
+| `not_covered` | 20 | 48% | no contract aimed at the bug (discovery/generation gap) |
+| `execution_defect` | 9 | 21% | matched contract throws at runtime (brittle selector/nav) |
+| `auth_unreached` | 9 | 21% | contract needs logged_in; eval has no auth bootstrap → login wall |
+| `off_target_fail` | 2 | 5% | contract FAILs but for an unrelated reason |
+| `weak_assertion` | 2 | 5% | contract reached & PASSed on buggy SUT (covered-but-not-caught) |
+| `true_detection` | **0** | **0%** | — |
+
+**Conclusion — the headline "bug detection" is ~0% real.** The reported ~47–52%
+is topical aim; by execution, the pipeline catches **0/42** planted bugs in this
+run. Bugs are lost across MULTIPLE stages, with discovery (`not_covered`, 48%) the
+single largest, then reachability and execution-defects tied (21% each). Only 4/42
+bugs even reached a clean assertion evaluation, and none caught the bug. This is
+the definitive "倒推到具体环节": the pipeline isn't failing at one place — it leaks
+at discovery, reachability, execution, AND assertion.
+
+**Caveats (honest scope):**
+- `auth_unreached` (21%) is an EVAL-HARNESS gap, not proof those bugs are
+  undetectable — an auth bootstrap could unblock up to 9 bugs for real evaluation.
+  So 0% is the floor among reachable+runnable+covered bugs, not a proven ceiling.
+- Batch read the legacy (un-reconciled) score.json, so `aim` here is slightly
+  higher than the step-1 reconciled number (0008: 4 vs reconciled 3); `true=0` is
+  unaffected.
+- `execution_defect` mixes genuine contract brittleness with harness strictness
+  (Playwright strict-mode); some may be salvageable with locator hardening.
+- 0007/0009 not measured (vite 60s timeout) — re-run with a longer boot wait.
+
+**Verdict:** Confirms Entry 14/15 at suite scale. "Coverage" and "detection" are
+different metrics and the gap is ~52pp → 0. The eval must report
+`true_detection_rate` + the stage histogram, never coverage-as-detection.
+
+**Next:**
+1. **Auth bootstrap** (the largest *unblockable* bucket): add a scorer-side
+   `auth.config.mjs` (allowed to see app + creds — blind rule covers GENERATION
+   only, not scoring/reflection) so the 9 `auth_unreached` bugs become evaluable;
+   re-run to see if true detection moves off 0.
+2. **Discovery (`not_covered` 48%)** is the biggest leak — instrument S1 (route
+   manifest, persist enumerated surfaces) to confirm these are discovery gaps vs
+   judge false-negatives, then widen enumeration.
+3. **Locator hardening** to shrink `execution_defect`.
+4. Bump container boot wait; re-measure 0007/0009.
