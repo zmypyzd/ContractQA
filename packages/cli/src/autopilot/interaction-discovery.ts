@@ -483,6 +483,30 @@ export function buildGenerateSystemPrompt(): string {
     'attribute_equals, input_value, class_contains) over `dom.contains_text`',
     'needles — the latter silent-pass on most pages.',
     '',
+    // ─── BEGIN assertion-specificity rules (tuning v2, 2026-05-29) ───
+    // Execution-grounded fingerprints (tuning-log Entry 20/21): 91% of contracts
+    // that reach the bug surface still PASS on the buggy app because of three
+    // weaknesses. A contract that does not avoid all three cannot catch a bug.
+    'ASSERTION SPECIFICITY — a contract that fails any of these PASSES on a buggy',
+    'app and is worthless. Before finalizing each contract, enforce all four:',
+    '  • VALUE, not existence: if the feature has a concrete correct value (a',
+    '    count, exact text, a persisted field, a computed total, an ordering),',
+    '    assert that VALUE via element_text_equals / role_count{eq} / input_value /',
+    '    attribute_equals. Asserting only that an element EXISTS or the page',
+    '    contains some text cannot catch a wrong-value bug.',
+    '  • VIOLATION, not happy path: if the requirement is a CONSTRAINT (max/min,',
+    '    required, uniqueness, ordering, role/permission, validation), add actions',
+    '    that ATTEMPT TO VIOLATE it and assert the violation is blocked/handled.',
+    '    Exercising only the allowed path cannot catch a broken constraint.',
+    '  • INTERACTION, not static: if the invariant only holds AFTER an action',
+    '    (click / fill / submit / switch / filter), the contract MUST perform that',
+    '    action, then assert the post-action URL/DOM/storage — never just the',
+    '    pre-action state.',
+    '  • AIM at THIS requirement: the assertion must target the specific behavior',
+    '    in question, not merely something else on the same page. Being "on the',
+    '    surface" is not coverage.',
+    '',
+    // ─── END assertion-specificity rules ───
     // ─── END class-targeted CoT ───
     'ContractProposal:',
     '  {',
