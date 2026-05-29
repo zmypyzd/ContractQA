@@ -2183,3 +2183,37 @@ fix, not a phrasing one.
 code currently does") and/or a Sonnet generator on a 3-app pilot, measured by
 exec-detection. If priors move true detection off 0, scale; if not, blind detection
 has a hard ceiling worth documenting.
+
+---
+
+## Entry 23 — priors-vs-Sonnet experiment BUILT but OAuth died mid-run (INVALID, pending re-run)
+
+**Date:** 2026-05-29
+**Commit:** `c1a1b29` (variant-selectable generation prompt + 'priors' variant)
+**Goal:** test the oracle-problem fix the user proposed — derive `expected` from what
+the product SHOULD do (human-user priors + metamorphic relations + active suspicion)
+rather than from the buggy source (Entry 22 wall). Two ISOLATED arms vs the Haiku
+baseline (apps 2-4): Exp-A priors-prompt+Haiku, Exp-B baseline-prompt+Sonnet (judge
+pinned to Haiku for both).
+
+**What shipped:** `CONTRACTQA_GEN_PROMPT` switch (baseline/asrt/priors); the 'priors'
+block encodes domain priors + metamorphic relations (filter⊆all, cross-view
+consistency, reversibility, round-trip) + active-suspicion, grounded in the test-
+oracle-problem literature (metamorphic testing, agentic property-based testing,
+LLM-as-oracle). asrt-v1 reverted from default.
+
+**Outcome: INVALID — infrastructure failure, no result.** Pre-batch probe passed, but
+mid-batch the OAuth Claude-Agent-SDK path collapsed: "Claude Code process exited with
+code 1" on nearly every interaction; a fresh 4× probe returned 0/4. Both arms produced
+no score.json (Sonnet did generate ~133 contracts before the scorer died; Haiku
+near-total failure). This is the OAuth burst/exhaustion mode (cf. Entry 9) after a
+full day of heavy LLM usage — NOT a signal about priors or Sonnet. Invalid snapshots/
+images cleaned.
+
+**Verdict:** experiment is fully set up and re-runnable as-is once OAuth recovers
+(or via ANTHROPIC_API_KEY / MiniMax-compat to bypass OAuth). Do NOT interpret the
+aborted run. No conclusion about the oracle-problem fix yet.
+
+**Next:** when OAuth is healthy, re-run the exact two arms (commands in
+qa/eval/entry13-logs/exp-A-B.log header) + exec-detection; compare true_detection to
+the apps-2-4 baseline (0/15). If priors moves it off 0, scale + write it up.
