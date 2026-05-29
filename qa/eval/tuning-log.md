@@ -1514,3 +1514,92 @@ Opus baseline by every metric, on Haiku, in a third the time.
 
 ---
 <!-- Add new entries below this line. Don't edit anything above. -->
+
+## Entry 13 — Reflexion paired A/B (ON vs OFF), same-day controlled — no significant effect; retracts the +17.6pp claim
+
+**Date:** 2026-05-29
+**Commit:** `3a93024` (`--no-reflexion` flag `69a9f02` + `--label` isolation
+`3a93024`; harness OFF from `932f974`; Reflexion code `0c0f0c9`)
+
+**Hypothesis:** Entry 11/12 credited Reflexion with a **+17.6pp bug-detection
+lift**. But that number compared Entry 12 (Reflexion ON, 2026-05-29, Haiku,
+new code) against Entry 3 (no Reflexion, different day, different code,
+different OAuth window) — a cross-entry confound, not a controlled contrast.
+A clean same-day paired run with the *only* difference being Reflexion on/off
+should isolate the true effect.
+
+**Change:**
+- `--no-reflexion` CLI flag + `CONTRACTQA_DISABLE_REFLEXION=1` env (threads
+  `enableReflexion:false` → `discoverByInteraction`). End-to-end verified:
+  Arm A logged `reflexion content-class pass: start` ×1 on **10/10** apps;
+  Arm B logged it on **0/10** (positive + negative control both clean).
+- `--label` on `docker-batch.mjs` so the two same-day arms write to isolated
+  snapshot dirs / image tags / container names (no overwrite).
+
+**Setup:**
+- Identical to Entry 12 except the single Reflexion toggle.
+- `CONTRACTQA_LLM_MODEL=claude-haiku-4-5-20251001`, OAuth path (no
+  `ANTHROPIC_API_KEY`), harness OFF, `--range 1-10 --concurrency 3`, 30-min
+  budget/app, docker-isolated.
+- Arm A (ON): `batch-2026-05-29-reflexion-on-docker`, 05:27→06:05 UTC.
+- Arm B (OFF): `batch-2026-05-29-reflexion-off-docker`, 06:05→~06:43 UTC.
+- Pre-batch OAuth Haiku probe healthy (pong 5.6s, discovery-shape `[]` 6.5s).
+
+**Result — both arms 10/10 OK:**
+
+| App  | cov ON | cov OFF | Δcov  | bug ON | bug OFF | Δbug  | bugs ON/OFF /tot | con ON/OFF |
+|------|--------|---------|-------|--------|---------|-------|------------------|------------|
+| 0001 | 44.4   | 61.1    | -16.7 |  0.0   | 33.3    | -33.3 | 0 / 1  /3        | 87 / 164   |
+| 0002 | 57.9   | 42.1    | +15.8 | 60.0   | 80.0    | -20.0 | 3 / 4  /5        | 76 / 90    |
+| 0003 | 76.5   | 41.2    | +35.3 | 33.3   | 33.3    |  0.0  | 1 / 1  /3        | 91 / 86    |
+| 0004 | 66.7   | 44.4    | +22.2 | 57.1   | 28.6    | +28.6 | 4 / 2  /7        | 103 / 99   |
+| 0005 | 55.6   | 61.1    | -5.6  | 66.7   | 83.3    | -16.7 | 4 / 5  /6        | 100 / 110  |
+| 0006 | 66.7   | 42.9    | +23.8 | 50.0   | 16.7    | +33.3 | 3 / 1  /6        | 128 / 95   |
+| 0007 | 66.7   | 50.0    | +16.7 | 50.0   | 25.0    | +25.0 | 4 / 2  /8        | 40 / 49    |
+| 0008 | 78.9   | 84.2    | -5.3  | 100.0  | 75.0    | +25.0 | 4 / 3  /4        | 102 / 113  |
+| 0009 | 29.4   | 64.7    | -35.3 | 37.5   | 62.5    | -25.0 | 3 / 5  /8        | 85 / 99    |
+| 0010 | 50.0   | 56.3    | -6.3  | 37.5   | 75.0    | -37.5 | 3 / 6  /8        | 94 / 106   |
+| **MEAN** | **59.3** | **54.8** | **+4.5** | **49.2** | **51.3** | **-2.1** | **29 / 30 /58** | **906 / 1011** |
+
+**Paired significance (n=10, t_crit(9)≈2.262 at p=.05):**
+
+| Metric         | mean Δ (ON-OFF) | sd     | t(9)  | 95% CI         | verdict          |
+|----------------|-----------------|--------|-------|----------------|------------------|
+| Coverage       | +4.5pp          | 21.7   | 0.65  | [-11.1, +20.0] | crosses 0 — n.s. |
+| Bug detection  | -2.1pp          | 27.8   | -0.23 | [-21.9, +17.8] | crosses 0 — n.s. |
+
+Per-app Δbug ranges -37.5 → +33.3pp. The run-to-run variance (sd ~22-28pp)
+dwarfs the mean difference on both metrics.
+
+**Verdict — the +17.6pp Reflexion lift does NOT survive a controlled test.**
+- Neither coverage nor bug detection shows a statistically significant
+  Reflexion effect. Both CIs comfortably cross zero.
+- Reflexion OFF actually produced **more** contracts (1011 vs 906) and covered
+  **one more** bug net (30 vs 29) — the opposite direction from the Entry 11/12
+  narrative, though also within noise.
+- The Entry 11/12 "+17.6pp" was an artifact of comparing across entries (Entry
+  12 ON vs Entry 3 OFF: different day/code/OAuth). Like the retracted Entry 7
+  "OAuth pool quota" framing, it was a confounded comparison dressed as a
+  causal effect. **Retract the Reflexion-bug-detection-lift claim.**
+- This does NOT prove Reflexion is harmful — n=10 with sd~28pp cannot resolve a
+  ±5pp effect. It proves the *prior evidence for benefit was invalid* and the
+  effect, if any, is smaller than this design can detect.
+
+**Recommendation:** Reflexion costs one extra LLM call per app for no
+demonstrated quality gain. Either (a) flip default OFF pending evidence, or
+(b) keep ON but stop citing the bug-detection lift. The `--no-reflexion` flag
+now makes (a) a one-line change. Holding default ON for now — change is the
+user's call, not a tuning auto-decision.
+
+**Next:**
+
+1. **Power the test.** To resolve a ~5pp effect against sd~28pp needs roughly
+   n≥250 paired apps (n ≈ (2.26·28/5)² ≈ 160 just for that point estimate, more
+   for power) — i.e. run the full WebTestBench 1-100 ×2, or repeat 1-10 paired
+   across several days and pool. A single 10-app pair can't settle it.
+2. **Per-bug attribution instead of aggregate.** Title-audit which Arm-A bugs
+   were caught *only* by a Reflexion-origin contract (pseudo-interaction
+   `reflexion://synthetic`). If that set is empty, Reflexion adds no unique
+   coverage regardless of aggregate noise — a cleaner signal than mean Δ.
+3. **Decide the default** with the user given (1)/(2). If flipping OFF, also
+   drop the Reflexion code from the hot path or gate it behind an opt-in.
