@@ -1891,3 +1891,63 @@ the next investment to the higher-value levers, not more auth configs.
    current single-shot Haiku judge produces evidence-contradicting verdicts.
 2. **(b) Discovery gap** (`not_covered` 48%, the largest leak): instrument S1.
 3. Extend auth registry opportunistically when an app is already being debugged.
+
+---
+
+## Entry 18 — Judge hardened (step 1 done): credible suite result, 10/10 apps, 58 bugs → aim 50.0%, TRUE detection 0.0%
+
+**Date:** 2026-05-29
+**Commit:** `01f34db` (judge hardening) + this entry
+**Goal:** roadmap step 1 (user: "先走 1") — the failure↔bug judge proved unreliable
+(Entry 17: it labeled bug#1 "login page" while the evidence got-text was the
+dashboard). Fix it so the true-detection number is trustworthy before measuring more.
+
+**Change (`exec-detection-score.mjs` judge):**
+- **Grounded:** decide ONLY from the violation's expected-vs-got; do not assume any
+  page/route/login state not present in the got text; quote the got text in the reason.
+- **Feature-alignment rubric** (judge the feature the assertion tests vs the bug's
+  feature, not phrasing) instead of vague "plausibly caused by".
+- **k=3 majority vote** to damp single-shot hallucination; pass the contract title.
+
+**Validation (0008):** judge now grounded + unanimous (3/3). Exemplar — bug#3:
+*"the failed assertion checks for missing 'demo' text in the leaderboard, but the got
+text shows the leaderboard displaying user points and challenge counts (charlie_algo:
+7 challenges/110 points…), which contradicts the bug claim that only scores and
+question counts are available"* → off-target, 0/3. The judge now catches that the
+contract tests the wrong thing. The earlier "login page" hallucination is gone.
+
+**Result — full suite, 10/10 apps (0007/0009 booted this time), hardened judge:**
+
+| | bugs | aim (coverage judge) | TRUE execution detection |
+|---|------|----------------------|--------------------------|
+| 10-app total | 58 | **29 (50.0%)** | **0 (0.0%)** |
+
+**Stage histogram (58 bugs):**
+
+| stage | count | % |
+|-------|-------|---|
+| `not_covered` | 29 | 50% |
+| `execution_defect` | 13 | 22% |
+| `auth_unreached` | 9 | 16% |
+| `off_target_fail` | 4 | 7% |
+| `weak_assertion` | 3 | 5% |
+| `true_detection` | **0** | **0%** |
+
+**Conclusion (supersedes Entry 16's number — that used the unreliable single-shot
+judge; same verdict, now CREDIBLE):** across 58 planted bugs the pipeline's TRUE
+execution detection is **0%** vs the reported ~50% coverage "aim". The instrument is
+now calibrated end-to-end: corpus reconciled (S4), auth bootstrap (S5, 0008), grounded
+k-vote judge (S8). The 0 survives a trustworthy judge.
+
+**Caveats:** 9 `auth_unreached` remain (only 0008 has an auth-registry entry; the
+mechanism works but the other apps' bespoke auth wasn't wired — low marginal value
+per Entry 17). `execution_defect` (22%) mixes genuine contract brittleness with
+Playwright strict-mode strictness.
+
+**Verdict:** Step 1 complete. Headline metric across the whole tuning log should be
+read as coverage/aim, not detection; real detection is 0% on this suite. The biggest
+leak is **discovery** (`not_covered` 50%).
+
+**Next:** step b — instrument S1 discovery: persist enumerated surfaces + a real route
+manifest, and check whether the 29 `not_covered` bugs are true discovery gaps (surface
+never enumerated) vs coverage-judge false-negatives (contract exists but judge missed it).
