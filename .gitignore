@@ -19,3 +19,5 @@ apps/dashboard/next-env.d.ts
 .gstack/
 # Git worktrees created under .claude/ are working copies, never commit them
 .claude/worktrees/
+# transient host-side batch stdout (Entry 13 paired run)
+qa/eval/entry13-logs/

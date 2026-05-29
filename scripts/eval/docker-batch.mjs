@@ -301,7 +301,10 @@ async function main() {
   }
   const concurrency = args.concurrency ? parseInt(args.concurrency, 10) : 3;
   const scoreLimit = args['score-limit'] ? parseInt(args['score-limit'], 10) : null;
-  const batchDate = new Date().toISOString().slice(0, 10);
+  // --label suffixes every batchDate-derived name (snapshot dirs, image tags,
+  // container names) so paired A/B arms run the same day don't overwrite each
+  // other. Without it, two same-day batches collide on snapshots/summary.json.
+  const batchDate = new Date().toISOString().slice(0, 10) + (typeof args.label === 'string' ? `-${args.label}` : '');
   const batchDir = path.join(FIXTURE_ROOT, 'snapshots', `batch-${batchDate}-docker`);
   mkdirSync(batchDir, { recursive: true });
 
