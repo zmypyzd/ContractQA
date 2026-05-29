@@ -236,12 +236,26 @@ async function main() {
   const limit = args.limit ? parseInt(args.limit, 10) : null;
 
   const entry = loadChecklist(fixtureRoot, idx);
-  const contracts = loadContracts(contractsDir);
+  // S4 corpus reconciliation: judge coverage over the RUNNER-LOADABLE set only.
+  // An unloadable (schema-invalid / .yaml) contract can never execute, so crediting
+  // it for "coverage" inflates the metric. `rawContracts` is the full readdir set
+  // (used only to count + name what the runner drops). See EVAL-AUDIT-AND-REDESIGN.md.
+  const rawContracts = loadContracts(contractsDir); // all .yml + .yaml, raw parseYaml
+  let runnable = rawContracts;
+  try {
+    const { loadContractsFromDir } = await import('../../packages/runner/dist/index.js');
+    runnable = await loadContractsFromDir(contractsDir, { lenient: true });
+  } catch (e) {
+    console.warn(`  WARN: runner loader unavailable (${e.message}); falling back to raw corpus — coverage will NOT be runner-reconciled`);
+  }
+  const runnableIds = new Set(runnable.map((c) => c.id));
+  const unloadable = rawContracts.filter((c) => !runnableIds.has(c.id ?? path.basename(c.file ?? '')));
+  const contracts = runnable;
   const summaries = contracts.map(summarizeContract);
 
   console.log(`webtestbench-score: ${entry.index} (${entry.category})`);
   console.log(`  checklist: ${entry.checklist.length} items`);
-  console.log(`  agent_output: ${contracts.length} contracts from ${contractsDir}`);
+  console.log(`  agent_output: ${rawContracts.length} raw → ${runnable.length} runner-loadable (${unloadable.length} unloadable, judged over loadable)`);
   if (args['dry-run']) console.log('  mode: DRY-RUN (no LLM calls)');
 
   const coverage = [];
@@ -252,6 +266,16 @@ async function main() {
     const it = items[i];
     process.stderr.write(`  [${i + 1}/${items.length}] judging #${it.id} (${it.class})… `);
     const j = await judgeCoverage(it, summaries, judgeOpts);
+    // Resolve the judge's ordinals/ids to stable contract STRING ids so downstream
+    // attribution (exec-detection-score) maps by id, robust to readdir ordering.
+    // Drop ids that aren't members of the judged corpus (S8: hallucinated matches).
+    const keys = [];
+    for (const m of j.matched_contract_ids || []) {
+      const n = Number(m);
+      if (Number.isInteger(n) && n >= 1 && n <= summaries.length) keys.push(summaries[n - 1].id);
+      else if (runnableIds.has(String(m))) keys.push(String(m));
+      // else: non-member id → hallucinated, dropped
+    }
     coverage.push({
       checklist_id: it.id,
       content: it.content,
@@ -259,6 +283,7 @@ async function main() {
       pass: it.pass,
       covered: j.covered,
       matched_contract_ids: j.matched_contract_ids,
+      matched_contract_keys: keys,
       judge_reason: j.reason,
     });
     process.stderr.write(`${j.covered ? '✓' : '✗'}\n`);
@@ -276,8 +301,12 @@ async function main() {
     instruction: entry.instruction,
     category: entry.category,
     counts: {
-      agent_output: contracts.length,
-      checklist_total: coverage.length,
+      agent_output: contracts.length, // runner-loadable contracts judged
+      agent_output_total: rawContracts.length, // raw readdir set (.yml + .yaml)
+      unloadable: unloadable.length, // dropped by the runner's schema loader — can never execute
+      checklist_total: coverage.length, // items actually judged
+      checklist_total_true: entry.checklist.length, // full checklist (differs when --limit set)
+      score_limit: limit ?? null,
       covered,
       missed,
       covered_pass_true: coveredPassTrue,
@@ -285,12 +314,21 @@ async function main() {
       total_pass_true: totalPassTrue,
       total_pass_false: totalPassFalse,
     },
+    // Files the runner's loader rejected (schema-invalid / .yaml) — coverage no
+    // longer credits these. Relative paths for readability.
+    unloadable_files: unloadable.map((c) => path.relative(contractsDir, c.file ?? '')),
+    coverage_corpus: runnable === rawContracts ? 'raw-unreconciled' : 'runner-loadable',
     metrics: {
-      // What fraction of all requirements did the agent at least try to test?
+      // Fraction of all requirements with a contract the judge deems AIMED at it,
+      // judged over the runner-loadable corpus.
       coverage_overall: coverage.length === 0 ? null : covered / coverage.length,
-      // Of the requirements the SUT actually FAILS (pass=false), how many
-      // did the agent try to test? This is the "bug detection" signal —
-      // the paper's headline metric.
+      // RENAMED: this is topical AIM coverage, NOT execution detection. Of the
+      // requirements the SUT actually FAILS (pass=false), how many did the agent
+      // aim a (loadable) contract at? For real detection (does the contract FAIL
+      // on the buggy SUT) see exec-detection-score.mjs → true_detection_rate.
+      bug_aim_coverage: totalPassFalse === 0 ? null : coveredPassFalse / totalPassFalse,
+      // DEPRECATED alias of bug_aim_coverage — kept so existing aggregators
+      // (docker-batch.mjs) keep working. Do NOT report as "detection".
       bug_detection_coverage: totalPassFalse === 0 ? null : coveredPassFalse / totalPassFalse,
     },
     coverage,

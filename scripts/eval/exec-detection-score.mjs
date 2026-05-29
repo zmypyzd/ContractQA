@@ -200,7 +200,15 @@ async function main() {
   try {
     for (const bug of bugItems) {
       const cov = coverage.coverage.find((c) => c.checklist_id === bug.id);
-      const matched = (cov?.matched_contract_ids || []).map(Number).filter((n) => Number.isFinite(n));
+      // Prefer stable string ids (reconciled scores have matched_contract_keys);
+      // fall back to numeric ordinals into scorer order (legacy score.json).
+      let matched;
+      if (Array.isArray(cov?.matched_contract_keys)) {
+        const idToIx = new Map(scorerOrder.map((c, i) => [c.id, i + 1]));
+        matched = cov.matched_contract_keys.map((k) => idToIx.get(k)).filter((n) => Number.isInteger(n));
+      } else {
+        matched = (cov?.matched_contract_ids || []).map(Number).filter((n) => Number.isFinite(n));
+      }
       if (!cov?.covered || matched.length === 0) {
         bugResults.push({ bug_id: bug.id, bug: bug.bug, covered: !!cov?.covered, matched: [], stage: 'not_covered', detail: 'coverage judge matched no contract' });
         continue;
