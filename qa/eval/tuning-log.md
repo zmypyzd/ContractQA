@@ -1951,3 +1951,56 @@ leak is **discovery** (`not_covered` 50%).
 **Next:** step b — instrument S1 discovery: persist enumerated surfaces + a real route
 manifest, and check whether the 29 `not_covered` bugs are true discovery gaps (surface
 never enumerated) vs coverage-judge false-negatives (contract exists but judge missed it).
+
+---
+
+## Entry 19 — Discovery-gap analysis FLIPS the diagnosis: `not_covered` is 90% coverage-judge false-negative, not a discovery gap
+
+**Date:** 2026-05-29
+**Commit:** post-`6505a13` (discovery-gap-analysis.mjs + this entry)
+**Goal:** step b — Entry 18's largest bucket was `not_covered` (29/58, 50%). Before
+widening discovery, split it: true discovery/generation gap (no contract for the
+surface) vs coverage-judge false-negative (a contract targets the surface but the
+judge didn't match it). Retrospective, no autopilot re-run.
+
+**Method:** `scripts/eval/discovery-gap-analysis.mjs` — for each `not_covered` bug,
+a grounded k=3 judge decides whether ANY generated contract targets the bug's
+page/feature/surface (overlap, not detection). Surface-exists → coverage false-
+negative; none → discovery/generation gap.
+
+**Result (29 not_covered bugs, 10 apps):**
+
+| root cause | count | % |
+|------------|-------|---|
+| `coverage_false_negative` (contract for surface exists, coverage judge missed it) | **26** | **90%** |
+| `discovery_or_generation_gap` (no contract on the surface at all) | 3 | 10% |
+
+Most calls 3/3 unanimous. True gaps: 0007#6, 0009#16, 0010#16.
+
+**This flips the Entry 18 read.** The full detection funnel:
+- **~95% of bug surfaces HAVE a contract** (only 3/58 = 5% true discovery gaps).
+- Coverage judge credits only ~50% ("aim") — it **under-matches half** the
+  surface-targeting contracts (S8 false-negatives), even as it **over-credits**
+  non-detecting ones (Entry 14). The coverage judge is noisy in BOTH directions.
+- Of contracts that DO reach the surface, **0% actually catch the bug** (weak/
+  off-target/exec-defect/auth).
+
+**Conclusion — discovery is NOT the bottleneck; assertion quality is.** The agent
+explores ~all the right surfaces; it fails by asserting the wrong/weak things there,
+so contracts neither get credited by the strict coverage judge nor fail on the bug
+in execution. Widening Stage 1 discovery (the original step-b plan) would not move
+true detection. The levers, in order:
+1. **Assertion specificity (S2 generation):** make contracts assert the exact
+   invariant the bug violates, not just "the page renders / contains text X". This
+   is where a redesigned Reflexion (blind-legal, execution-feedback-driven) could
+   finally help — it loops back to Entries 11–13.
+2. **Coverage judge (S8):** fix the under-matching (the 26 false-negatives) and the
+   over-crediting together — or retire coverage-by-judge in favour of execution.
+3. **Execution-defect (22%) + auth (16%):** locator hardening + more auth entries.
+
+**Verdict:** Premise corrected (discovery ≠ the leak). Real target is assertion
+specificity. Step b as originally scoped (widen discovery) is shelved.
+
+**Next:** characterize the assertion-weakness fingerprints across the
+weak_assertion + off_target + the 26 false-negative contracts (what do they assert
+vs what the bug needs?), and design an assertion-specificity generation pass.
