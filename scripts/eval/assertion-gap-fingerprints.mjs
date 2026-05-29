@@ -46,13 +46,23 @@ async function judgeFingerprint(bug, content, lines, pickClient) {
     TAXONOMY,
     'Output STRICTLY one JSON object: {"closest_contract": "<id-or-title>", "asserts": "<short>", "needed": "<short>", "fingerprint": "F1_presence_not_value|F2_happy_path_not_violation|F3_wrong_element|F4_generic_render|F5_single_view_not_consistency|F6_missing_interaction|F7_other"}.',
   ].join('\n');
-  const user = [`PLANTED BUG: ${bug}`, `REQUIREMENT: ${content}`, `CONTRACTS (area | title | expected):`, ...lines, 'Diagnose the assertion gap.'].join('\n');
-  try {
-    const r = await client.generate({ system: sys, messages: [{ role: 'user', content: user }] });
-    const m = String(r.content).match(/\{[\s\S]*\}/);
-    if (!m) return { fingerprint: 'F7_other', asserts: '', needed: '', closest_contract: '', reason: 'non-JSON' };
-    return JSON.parse(m[0]);
-  } catch (e) { return { fingerprint: 'F7_other', asserts: '', needed: '', closest_contract: '', reason: String(e.message || e).slice(0, 80) }; }
+  const user = [`PLANTED BUG: ${bug}`, `REQUIREMENT: ${content}`, `CONTRACTS (area | title | expected):`, ...lines,
+    'Diagnose the assertion gap. You MUST pick a closest contract and fill asserts+needed — do not return blanks. If truly no contract is near the surface, set fingerprint F7_other and explain in reason.'].join('\n');
+  // Retry on "punt" (empty asserts AND needed) — the one-shot big-prompt judge
+  // sometimes gives up; a retry usually recovers a real diagnosis (Entry 20: 23/55
+  // punts). Up to 3 attempts.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const r = await client.generate({ system: sys, messages: [{ role: 'user', content: user }] });
+      const m = String(r.content).match(/\{[\s\S]*\}/);
+      if (m) {
+        const j = JSON.parse(m[0]);
+        if (j.asserts || j.needed) return j; // real diagnosis
+        if (attempt === 2) return { ...j, reason: (j.reason || '') + ' [punt after 3 tries]' };
+      }
+    } catch (e) { if (attempt === 2) return { fingerprint: 'F7_other', asserts: '', needed: '', closest_contract: '', reason: String(e.message || e).slice(0, 80) }; }
+  }
+  return { fingerprint: 'F7_other', asserts: '', needed: '', closest_contract: '', reason: 'punt' };
 }
 
 async function main() {

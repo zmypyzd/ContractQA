@@ -188,8 +188,11 @@ async function judgeCoverage(checklistItem, contractSummaries, opts) {
         return await opts._client.generate({
           system: sys,
           messages: [{ role: 'user', content: user }],
-          temperature: 0.2,
-          maxTokens: 400,
+          // Hardened (Entry 21): temp 0 for determinism (Entry 18 saw pass_true/
+          // pass_false drift between runs); maxTokens 600 so matched_ids + reason
+          // don't truncate into a silent not-covered (audit S8 finding).
+          temperature: 0,
+          maxTokens: 600,
         });
       } catch (err) {
         lastErr = err;
@@ -204,23 +207,40 @@ async function judgeCoverage(checklistItem, contractSummaries, opts) {
     }
     throw lastErr;
   };
-  const resp = await callWithBackoff();
-  const text = resp.content.trim();
-  // Strip any wrapping; pull out the first {...} block.
-  const m = text.match(/\{[\s\S]*\}/);
-  if (!m) {
-    return { covered: false, matched_contract_ids: [], reason: `judge returned non-JSON: ${text.slice(0, 80)}` };
+  // k-sample majority vote (Entry 21): damp single-shot noise. parse_fail is
+  // tracked separately so truncation/non-JSON is NOT silently counted as a miss.
+  const k = Number(process.env.CONTRACTQA_JUDGE_VOTES || '3');
+  const votes = [];
+  let parseFails = 0;
+  for (let v = 0; v < k; v++) {
+    const resp = await callWithBackoff();
+    const text = resp.content.trim();
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m) { parseFails++; continue; }
+    try {
+      const parsed = JSON.parse(m[0]);
+      votes.push({
+        covered: !!parsed.covered,
+        ids: Array.isArray(parsed.matched_contract_ids) ? parsed.matched_contract_ids : [],
+        reason: typeof parsed.reason === 'string' ? parsed.reason : '',
+      });
+    } catch { parseFails++; }
   }
-  try {
-    const parsed = JSON.parse(m[0]);
-    return {
-      covered: !!parsed.covered,
-      matched_contract_ids: Array.isArray(parsed.matched_contract_ids) ? parsed.matched_contract_ids : [],
-      reason: typeof parsed.reason === 'string' ? parsed.reason : '',
-    };
-  } catch {
-    return { covered: false, matched_contract_ids: [], reason: `judge JSON.parse failed: ${m[0].slice(0, 80)}` };
+  if (votes.length === 0) {
+    return { covered: false, matched_contract_ids: [], reason: `judge unparseable (${parseFails} parse fails)`, judge_status: 'parse_fail' };
   }
+  const coveredVotes = votes.filter((v) => v.covered);
+  const covered = coveredVotes.length * 2 > votes.length; // strict majority
+  // union of matched ids from the votes that agree with the majority
+  const agree = covered ? coveredVotes : votes.filter((v) => !v.covered);
+  const ids = [...new Set(agree.flatMap((v) => v.ids))];
+  return {
+    covered,
+    matched_contract_ids: ids,
+    reason: (agree[0] || votes[0]).reason,
+    judge_status: 'ok',
+    judge_votes: `${coveredVotes.length}/${votes.length} covered${parseFails ? `, ${parseFails} parse-fail` : ''}`,
+  };
 }
 
 async function main() {
@@ -285,6 +305,8 @@ async function main() {
       matched_contract_ids: j.matched_contract_ids,
       matched_contract_keys: keys,
       judge_reason: j.reason,
+      judge_status: j.judge_status ?? 'ok',
+      judge_votes: j.judge_votes,
     });
     process.stderr.write(`${j.covered ? '✓' : '✗'}\n`);
   }

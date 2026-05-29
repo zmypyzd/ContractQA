@@ -2065,3 +2065,57 @@ above is the fix.
 true_detection should move off 0 if the diagnosis is right. (Caveat: also harden the
 fingerprint judge / coverage judge; 23/55 punts show the one-shot big-prompt judge
 needs per-contract framing or k-vote.)
+
+---
+
+## Entry 21 — Both judges hardened (step 2): coverage judge corrects Entry 19; fingerprints confirmed F1/F2/F6=91%
+
+**Date:** 2026-05-29
+**Commit:** post-`ba1f6c2` (judge hardening + this entry)
+**Goal:** step 2 (user: "先 2 再 1") — fix both judges before implementing the
+assertion-specificity pass, so its effect is measured cleanly.
+
+**Coverage judge (`webtestbench-score.mjs`):** temp 0 (was 0.2; Entry 18 saw
+pass_true/false drift), maxTokens 400→600 (truncation was a silent not-covered),
+k=3 majority vote, parse-fail surfaced as `judge_status` (no longer counted as a
+silent miss). Validated on 0001 (3 not_covered bugs):
+- Deterministic, 0/3-covered unanimous, `parse_fail: 0`, coverage_overall unchanged
+  (0.444) — the judge wasn't broken on 0001, but is now provably stable.
+- **CORRECTS Entry 19:** those 3 bugs were labeled "coverage_false_negative" by
+  Entry 19's *looser* `surface_exists` judge. The hardened coverage judge
+  unanimously holds them not-covered. So the 26 `not_covered` are NOT judge errors
+  — they're a real **aim-gap**: a contract is on the bug's surface but is not
+  *aimed at the specific requirement*. "On the page" (95%) ≠ "aimed at the
+  requirement" (50%); the gap is genuine, not noise. (Validated on 1 app/3 bugs; a
+  full re-score would confirm suite-wide.)
+
+**Fingerprint judge (`assertion-gap-fingerprints.mjs`):** retry-on-punt (the
+one-shot big-prompt judge gave up on 23/55). Punts dropped **23 → 1**. Full
+distribution (54 diagnosable):
+
+| fingerprint | n | % |
+|-------------|---|---|
+| F2 happy_path_not_violation | 21 | 38% |
+| F6 missing_interaction | 15 | 27% |
+| F1 presence_not_value | 14 | 25% |
+| F5 single_view_not_consistency | 3 | 5% |
+| F3 wrong_element / F7 | 2 | 4% |
+
+The 22 recovered punts fell into the same three buckets → **F1+F2+F6 = 91%**,
+confirming the Entry 20 design target on a near-complete sample.
+
+**Refined model — TWO generation-side gaps (both feed the 0% detection):**
+1. **Aim-gap (~45%):** contracts reach the surface but don't target the specific
+   bug requirement (Entry 19's 26 `not_covered`, now correctly attributed to
+   generation, not the judge).
+2. **Assertion-gap (F1/F2/F6, 91% of surface-reaching):** even aimed contracts
+   assert existence-not-value / happy-path-not-violation / no-interaction.
+
+**Verdict:** step 2 done — both judges reliable; the coverage judge fix reattributed
+the biggest bucket from "judge defect" to "generation aim-gap". The assertion-
+specificity pass (step 1) must address BOTH: aim a contract at the requirement AND
+make its assertion bug-specific.
+
+**Next (step 1):** implement the generation pass with F1/F2/F6 rules + an aim check
+("does this contract assert on THIS requirement's specific behavior?"), re-run
+autopilot 1–10, re-measure with exec-detection (now judged by the hardened judge).
