@@ -1603,3 +1603,46 @@ user's call, not a tuning auto-decision.
    coverage regardless of aggregate noise — a cleaner signal than mean Δ.
 3. **Decide the default** with the user given (1)/(2). If flipping OFF, also
    drop the Reflexion code from the hot path or gate it behind an opt-in.
+
+### Addendum (same session) — per-bug attribution executed (Next #2)
+
+Ran the per-bug attribution on Arm A's snapshots (no new batch — pure analysis).
+Method: replicate the scorer's `loadContracts` recursive-readdir order (verified:
+my load yields exactly 102 contracts for 0008, matching scorer `agent_output=102`,
+so the 1-based `matched_contract_ids` indices map correctly), flag Reflexion-origin
+contracts by their `# interaction: reflexion-content` frontmatter, then check every
+*covered* checklist item: were all its matched contracts Reflexion-origin?
+
+| App  | novel Reflexion contracts | covered bugs | Reflexion-UNIQUE bug catches | any-item Reflexion-unique |
+|------|---------------------------|--------------|------------------------------|---------------------------|
+| 0001 | 0 | 0 | 0 | 0 |
+| 0002 | 0 | 3 | 0 | 0 |
+| 0003 | 0 | 1 | 0 | 0 |
+| 0004 | 0 | 4 | 0 | 0 |
+| 0005 | 0 | 4 | 0 | 0 |
+| 0006 | 0 | 3 | 0 | 0 |
+| 0007 | 0 | 4 | 0 | 0 |
+| 0008 | **5** | 4 | 0 | 0 |
+| 0009 | 0 | 3 | 0 | 0 |
+| 0010 | 0 | 3 | 0 | 0 |
+| **TOT** | **5 / 906 (0.55%)** | 29 | **0** | **0** |
+
+**Findings:**
+- Reflexion's 5 proposals/app produced **novel** (non-deduped) contracts in only
+  **1/10 apps** (0008, 5 contracts). In the other 9, all 5 proposals duplicated
+  existing Stage-2 contracts and were merged away — 0 net new.
+- Across all 10 apps, Reflexion-origin contracts uniquely caught **0 bugs** and
+  uniquely covered **0** checklist items of any class. In 0008 the one bug a
+  Reflexion contract touched (bug#3, user-stats consistency) was *also* caught by
+  a non-Reflexion contract (`dashboard-user-stats-display`).
+
+**Mechanistic conclusion (corroborates the statistical one):** removing Reflexion
+would have lost nothing the scorer measured in this paired run. The aggregate
+noise (Entry 13 body) and the attribution (this addendum) agree: **Reflexion adds
+no unique coverage.** This is the cleaner signal Next #2 sought — it does not need
+a powered batch to interpret. Per-bug attribution > aggregate Δ for this question.
+
+**Decision (user, 2026-05-29):** pursue attribution (done, above). Default stays
+ON for now pending the user's call on flip-OFF; the evidence now points clearly to
+"no demonstrated value," so flipping OFF (one-liner) is the supported move whenever
+the user wants it. Stale Entry 11/12 docker images (~15GB) removed this session.
