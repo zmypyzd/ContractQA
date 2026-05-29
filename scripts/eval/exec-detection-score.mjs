@@ -146,25 +146,39 @@ async function runOne(contract, baseUrl, browser, deps, authEntry) {
   }
 }
 
-// LLM judge: does this contract failure correspond to the planted bug?
-async function judgeOnTarget(bug, violations, pickClient) {
+// LLM judge: does the failed assertion test the same feature/behavior as the bug?
+// Hardened (Entry 17 → 18): (a) grounded — decide ONLY from the violation's
+// expected-vs-got, no assuming unshown page state (bug#1 was mislabeled "login page"
+// while the got text was the dashboard); (b) feature-alignment rubric, not vibe;
+// (c) k-sample majority vote to damp single-shot hallucination.
+async function judgeOnTarget(bug, contractTitle, violations, pickClient, k = 3) {
   const client = await pickClient();
-  const sys = 'You decide whether a failing UI test caught a SPECIFIC planted bug. Output STRICTLY one JSON object: {"on_target": true|false, "reason": "one short sentence"}. on_target=true only if the test\'s failure is plausibly caused by the described bug (not an unrelated layout/selector/text mismatch).';
+  const sys = [
+    'You decide whether a failing UI contract caught a SPECIFIC planted bug.',
+    'Decide ONLY from the evidence below. Each violation line shows the EXPECTED value and the ACTUAL "got" value — reason strictly from those strings; do NOT assume any page/route/login state that is not present in the got text.',
+    'on_target=true iff the assertion that FAILED tests the same feature/behavior the bug describes (different wording is fine — judge the feature, not the phrasing). on_target=false if the failed assertion is about an unrelated element/text/layout, or if the got text shows the contract never reached the bug\'s surface.',
+    'Output STRICTLY one JSON object: {"on_target": true|false, "reason": "one short sentence that quotes the got text"}.',
+  ].join(' ');
   const user = [
     `PLANTED BUG: ${bug}`,
-    `TEST FAILURE (oracle violations):`,
+    `CONTRACT (what it tests): ${contractTitle || '(unknown)'}`,
+    `FAILED ASSERTIONS (expected vs got):`,
     ...violations.map((v) => `  - ${v}`),
-    'Does this failure correspond to the planted bug?',
+    'Does the failed assertion test the same feature/behavior as the planted bug?',
   ].join('\n');
-  try {
-    const r = await client.generate({ system: sys, messages: [{ role: 'user', content: user }] });
-    const m = String(r.content).match(/\{[\s\S]*\}/);
-    if (!m) return { on_target: false, reason: 'judge non-JSON' };
-    const j = JSON.parse(m[0]);
-    return { on_target: !!j.on_target, reason: j.reason || '' };
-  } catch (e) {
-    return { on_target: false, reason: `judge error: ${String(e.message || e).slice(0, 80)}` };
+  const votes = [];
+  for (let i = 0; i < k; i++) {
+    try {
+      const r = await client.generate({ system: sys, messages: [{ role: 'user', content: user }] });
+      const m = String(r.content).match(/\{[\s\S]*\}/);
+      if (m) { const j = JSON.parse(m[0]); votes.push({ on: !!j.on_target, reason: j.reason || '' }); }
+    } catch { /* skip this vote */ }
   }
+  if (votes.length === 0) return { on_target: false, reason: 'no judge votes (all errored)', votes: '0/0' };
+  const onCount = votes.filter((v) => v.on).length;
+  const on_target = onCount * 2 > votes.length; // strict majority
+  const reason = (votes.find((v) => v.on === on_target) || votes[0]).reason;
+  return { on_target, reason, votes: `${onCount}/${votes.length} on-target` };
 }
 
 async function main() {
@@ -239,7 +253,7 @@ async function main() {
           }
         }
         const r = ranCache.get(ix);
-        runs.push({ ix, id: meta.id, auth_state: meta.preconditions?.auth_state ?? 'anonymous', authed: !!r.authed, verdict: r.verdict, threw: r.threw, error: r.error, violations: r.violations });
+        runs.push({ ix, id: meta.id, title: meta.title, auth_state: meta.preconditions?.auth_state ?? 'anonymous', authed: !!r.authed, verdict: r.verdict, threw: r.threw, error: r.error, violations: r.violations });
       }
       // classify — separate the pipeline stage where detection broke.
       // A contract whose precondition is auth_state:logged_in but ran without an
@@ -258,12 +272,12 @@ async function main() {
         // judge whether ANY reachable fail is on-target for the bug
         let onTarget = null;
         for (const f of reachFails) {
-          const j = await judgeOnTarget(bug.bug, f.violations, pickClient);
+          const j = await judgeOnTarget(bug.bug, f.title, f.violations, pickClient);
           if (j.on_target) { onTarget = { ...j, contract: f.id }; break; }
           onTarget = onTarget || { ...j, contract: f.id };
         }
-        if (onTarget?.on_target) { stage = 'true_detection'; detail = `${onTarget.contract}: ${onTarget.reason}`; }
-        else { stage = 'off_target_fail'; detail = `failed but unrelated to bug: ${onTarget?.reason || ''}`; }
+        if (onTarget?.on_target) { stage = 'true_detection'; detail = `${onTarget.contract} [${onTarget.votes}]: ${onTarget.reason}`; }
+        else { stage = 'off_target_fail'; detail = `failed but unrelated to bug [${onTarget?.votes}]: ${onTarget?.reason || ''}`; }
       } else if (reachPass.length > 0) {
         stage = 'weak_assertion'; detail = 'reachable contract(s) PASS on buggy SUT (covered-but-not-caught)';
       } else if (reachThrew.length > 0) {
