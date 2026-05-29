@@ -1,0 +1,35 @@
+id: werewolf-agent-picker-requires-login
+title: Agent picker shows login required state for unauthenticated users
+area: auth
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: http
+    method: GET
+    path: /me/agents
+expected:
+  auth_state:
+    fully_logged_out: true
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.773Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: >-
+    strong-pass: runner exercised + runOracle confirmed real assertion held.
+    PENDING verified_in_product flip after product spot-check.
+
+    user-review 2026-05-27: DROP confirmed (user review). no dom/url assertion.
+    [no replace needed: Overlaps with
+    werewolf-agent-picker-login-{navigation,link}; reorganize cluster instead.]

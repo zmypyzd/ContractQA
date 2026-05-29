@@ -1,0 +1,34 @@
+id: werewolf-create-game-empty-name
+title: Creating a werewolf game without name still navigates to game page
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /werewolf
+  - type: click
+    target:
+      role: button
+      name_regex: "[Cc]reate"
+expected:
+  url:
+    matches: ^/werewolf/[a-zA-Z0-9-]+$
+category:
+  - auth-boundary
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.816Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.816Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but path "/werewolf" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

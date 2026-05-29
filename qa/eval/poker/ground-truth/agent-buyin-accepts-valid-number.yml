@@ -1,0 +1,36 @@
+id: agent-buyin-accepts-valid-number
+title: Agent buy-in input accepts valid numeric chip amounts
+area: core
+severity: P2
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /simulate
+  - type: fill
+    target:
+      role: spinbutton
+      name_regex: "[Bb]uy.?[Ii]n"
+      first: true
+    value: "5000"
+expected:
+  dom:
+    contains_text:
+      - "5000"
+category:
+  - error-state
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:01.375Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:01.375Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but path "/simulate" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

@@ -1,0 +1,40 @@
+id: werewolf-agent-picker-login-navigation
+title: Clicking login link from agent picker navigates to login page
+area: auth
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: click
+    target:
+      test_id: agent-picker-trigger
+  - type: wait
+    ms: 500
+  - type: click
+    target:
+      role: link
+      name_regex: "[Ll]ogin"
+expected:
+  url:
+    matches: /login
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:01.354Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: >-
+    FAIL with no SUT source evidence: paths=[] texts=["ogin"]. Likely
+    hallucination.
+
+    user-review 2026-05-27: Clean KEEP. OK: url.matches "/login" — substring
+    server-truthful.

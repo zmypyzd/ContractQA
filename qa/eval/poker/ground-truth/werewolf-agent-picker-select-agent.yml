@@ -1,0 +1,35 @@
+id: werewolf-agent-picker-select-agent
+title: Selecting an agent from picker invites agent to seat
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: GET
+    path: /me/agents
+  - type: click
+    target:
+      role: button
+      name_regex: "[Ss]elect"
+expected:
+  dom:
+    not_contains_text:
+      - Failed to load agents
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.797Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.797Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/me/agents" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

@@ -1,0 +1,33 @@
+id: invite-http-agent-api-failure-shows-error
+title: API failure when generating HTTP invite shows error toast
+area: api
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: POST
+    path: /agents/invites
+    body:
+      ttlSec: 86400
+expected:
+  dom:
+    contains_text:
+      - 邀请生成失败
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.679Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.679Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: Chinese-locale selector or text (needle) on English SUT — likely i18n
+    hallucination.

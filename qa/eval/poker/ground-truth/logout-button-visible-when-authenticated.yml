@@ -1,0 +1,32 @@
+id: logout-button-visible-when-authenticated
+title: Logout button is visible only when user is authenticated
+area: auth
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /
+expected:
+  dom:
+    role_count:
+      - role: button
+        name_regex: ^登出$
+        eq: 1
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:01.216Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:01.216Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/" exists in SUT source — intent likely valid, failure is
+    state/selector. PENDING verified_in_product flip.

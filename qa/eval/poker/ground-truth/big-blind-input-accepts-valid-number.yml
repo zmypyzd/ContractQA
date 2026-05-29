@@ -1,0 +1,33 @@
+id: big-blind-input-accepts-valid-number
+title: Big blind input accepts valid numeric value
+area: core
+severity: P2
+actions:
+  - type: goto
+    path: /simulate
+  - type: fill
+    target:
+      role: spinbutton
+      name_regex: "[Bb]ig [Bb]lind"
+    value: "100"
+expected:
+  dom:
+    contains_text:
+      - "100"
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:02.377Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:02.377Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but path "/simulate" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

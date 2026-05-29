@@ -1,0 +1,30 @@
+id: api-docs-werewolf-guide-public-access
+title: Werewolf agent guide is accessible without authentication
+area: api
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: http
+    method: GET
+    path: /docs/werewolf-agent-guide
+expected:
+  url:
+    matches: /docs/werewolf-agent-guide
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:47:59.759Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:47:59.759Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/docs/werewolf-agent-guide" exists in SUT source — intent
+    likely valid, failure is state/selector. PENDING verified_in_product flip.

@@ -1,0 +1,39 @@
+id: werewolf-create-game-shows-error-on-failure
+title: Failed game creation displays error message
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /werewolf
+  - type: click
+    target:
+      role: button
+      name_regex: "[Cc]reate"
+  - type: wait
+    ms: 1000
+expected:
+  dom:
+    contains_text:
+      - failed
+      - error
+      - Failed
+category:
+  - auth-boundary
+  - error-state
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.858Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.858Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but path "/werewolf" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

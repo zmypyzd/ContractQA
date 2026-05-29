@@ -1,0 +1,30 @@
+id: api-tables-remove-agent-success
+title: DELETE /tables/:tableId/agents/:agentId returns removed confirmation for owner
+area: api
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: DELETE
+    path: /tables/{tableId}/agents/{agentId}
+expected:
+  auth_state:
+    fully_logged_out: false
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.655Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.655Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: "strong-pass: runner exercised + runOracle confirmed real assertion held.
+    PENDING verified_in_product flip after product spot-check."

@@ -1,0 +1,38 @@
+id: table-sit-human-button-triggers-callback
+title: Clicking Sit here invokes onSitHuman with seat index and buy-in
+area: core
+severity: P0
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: fill
+    target:
+      role: spinbutton
+      name_regex: Buy-in chips
+    value: "500"
+  - type: click
+    target:
+      role: button
+      name_regex: Sit here
+      first: true
+expected:
+  dom:
+    contains_text:
+      - Open Seats
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.738Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.738Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P0
+  severity_final: P0
+  notes: FAIL but selector text exists in SUT web source — UI element probably
+    real, contract may need richer state. PENDING verified_in_product flip.

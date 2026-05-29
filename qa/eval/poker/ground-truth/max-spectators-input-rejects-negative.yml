@@ -1,0 +1,39 @@
+id: max-spectators-input-rejects-negative
+title: Max spectators rejects negative values
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /lobby
+  - type: fill
+    target:
+      role: spinbutton
+      name_regex: Max spectators
+    value: "-1"
+  - type: click
+    target:
+      role: button
+      name_regex: Create table
+expected:
+  dom:
+    contains_text:
+      - Max spectators must be between 0 and 1000.
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.047Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.047Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but path "/lobby" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

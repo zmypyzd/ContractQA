@@ -1,0 +1,33 @@
+id: match-analysis-tab-switch
+title: Clicking analysis tab switches to analysis dashboard view
+area: core
+severity: P2
+actions:
+  - type: goto
+    path: /matches/test-match-id/replay
+  - type: click
+    target:
+      role: tab
+      name_regex: "[Aa]nalysis"
+expected:
+  dom:
+    contains_text:
+      - decisions
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:02.930Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:02.930Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: 'FAIL with no SUT source evidence:
+    paths=["/matches/test-match-id/replay","/matches/[^/]\\+/replay"]
+    texts=["nalysis"]. Likely hallucination.'

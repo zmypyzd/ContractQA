@@ -1,0 +1,35 @@
+id: login-email-input-accepts-text
+title: Login email input accepts user-entered text
+area: auth
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /login
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Ee]mail"
+    value: test@example.com
+expected:
+  dom:
+    contains_text:
+      - test@example.com
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:01.119Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:01.119Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/login" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

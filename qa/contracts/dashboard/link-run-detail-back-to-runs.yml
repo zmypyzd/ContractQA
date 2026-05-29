@@ -1,0 +1,17 @@
+# generated-by: deep-discovery v1
+# interaction: link-run-detail-to-runs (link)
+# rationale: User can click to go back to runs list
+id: link-run-detail-back-to-runs
+title: Back to runs link navigates to runs list
+area: dashboard
+severity: P2
+preconditions:
+  auth_state: logged_in
+  route: /runs/[id]
+actions:
+  - type: click
+    target:
+      role: link
+      name_regex: "←.*recent runs"
+expected:
+  url: /runs

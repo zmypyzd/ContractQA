@@ -1,0 +1,30 @@
+id: simulate-name-has-default-value
+title: Simulation name input has default value
+area: core
+severity: P3
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /simulate
+expected:
+  dom:
+    contains_text:
+      - Research simulation
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.449Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.449Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P3
+  severity_final: P3
+  notes: FAIL but path "/simulate" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

@@ -1,0 +1,29 @@
+id: simulate-route-requires-auth-when-enabled
+title: Simulate page requires authentication when legacy modules enabled
+area: auth
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /simulate
+expected:
+  url:
+    matches: ^/login\?next=%2Fsimulate$
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.762Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.762Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: expected redirect to /login but got something else — could still be valid
+    auth-boundary intent, just SUT behavior differs. Reviewer to confirm.

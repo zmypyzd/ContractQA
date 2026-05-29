@@ -1,0 +1,29 @@
+id: werewolf-wait-requires-bearer-token
+title: GET /werewolf/wait rejects requests without Bearer token
+area: api
+severity: P0
+actions:
+  - type: http
+    method: GET
+    path: /api/v1/werewolf/wait
+expected:
+  dom:
+    contains_text:
+      - "missing Authorization: Bearer <token> header"
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:01.015Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:01.015Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P0
+  severity_final: P0
+  notes: FAIL but path "/werewolf/wait" exists in SUT source — intent likely
+    valid, failure is state/selector. PENDING verified_in_product flip.

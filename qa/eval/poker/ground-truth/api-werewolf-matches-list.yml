@@ -1,0 +1,29 @@
+id: api-werewolf-matches-list
+title: GET /werewolf-matches returns array of match artifacts
+area: api
+severity: P1
+actions:
+  - type: http
+    method: GET
+    path: /werewolf-matches
+expected:
+  dom:
+    contains_text:
+      - "["
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:00.662Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:00.662Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/werewolf-matches" exists in SUT source — intent likely
+    valid, failure is state/selector. PENDING verified_in_product flip.

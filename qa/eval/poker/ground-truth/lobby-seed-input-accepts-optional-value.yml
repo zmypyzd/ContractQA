@@ -1,0 +1,38 @@
+id: lobby-seed-input-accepts-optional-value
+title: Seed input accepts optional string for reproducibility
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /lobby
+  - type: fill
+    target:
+      name_regex: "[Ss]eed"
+    value: test-seed-12345
+expected:
+  dom:
+    contains_text: []
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.852Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: >-
+    strong-pass: runner exercised + runOracle confirmed real assertion held.
+    PENDING verified_in_product flip after product spot-check.
+
+    user-review 2026-05-27: DROP confirmed (user review).
+    expected.dom.contains_text is empty array. [REPLACE-NEEDED: Assert
+    input.value after fill action.]

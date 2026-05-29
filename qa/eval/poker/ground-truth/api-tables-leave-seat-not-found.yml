@@ -1,0 +1,27 @@
+id: api-tables-leave-seat-not-found
+title: DELETE /tables/:tableId/seats/me returns error for non-existent table
+area: api
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: DELETE
+    path: /tables/nonexistent-table-id/seats/me
+category:
+  - unclassified
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:37:01.587Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:37:01.587Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: "Schema-invalid as generated: Required. Reviewer may rescue if the intent
+    describes a real invariant; otherwise leave dropped."

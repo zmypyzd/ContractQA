@@ -1,0 +1,42 @@
+id: agent-edit-cancel-does-not-submit-form
+title: Cancel link does not trigger form submission or save changes
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /agents/123/edit
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Nn]ame"
+    value: Modified Agent Name
+  - type: click
+    target:
+      role: link
+      name_regex: "[Cc]ancel"
+expected:
+  url:
+    matches: /agents$
+  dom:
+    not_contains_text:
+      - Modified Agent Name
+category:
+  - auth-boundary
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:01.492Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:01.492Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but selector text exists in SUT web source — UI element probably
+    real, contract may need richer state. PENDING verified_in_product flip.

@@ -1,0 +1,33 @@
+id: api-werewolf-games-create-success
+title: Authenticated user can create a werewolf game lobby
+area: api
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: POST
+    path: /werewolf-games
+    body:
+      name: Test Game
+expected:
+  dom:
+    contains_text:
+      - Test Game
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:00.585Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:00.585Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/werewolf-games" exists in SUT source — intent likely
+    valid, failure is state/selector. PENDING verified_in_product flip.

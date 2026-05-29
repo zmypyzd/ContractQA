@@ -1,0 +1,38 @@
+id: simulate-seed-input-accepts-empty
+title: Seed input accepts empty value for random simulation
+area: core
+severity: P2
+actions:
+  - type: goto
+    path: /simulate
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Ss]eed"
+    value: ""
+  - type: click
+    target:
+      role: button
+      name_regex: "[Ss]imulate|[Ss]tart|[Rr]un"
+expected:
+  dom:
+    not_contains_text:
+      - seed is required
+      - Seed is required
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.545Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.545Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but path "/simulate" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

@@ -1,0 +1,22 @@
+# generated-by: deep-discovery v1
+# interaction: api-runs-create (api-endpoint)
+# rationale: External CLI can create run records via this endpoint
+id: api-runs-create-returns-id
+title: Create run API returns run id on success
+area: api
+severity: P0
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: api_call
+    method: POST
+    path: /api/runs
+    body:
+      cwd: /project/path
+      branch: main
+expected:
+  http_status: 200
+  response_body_schema:
+    type: object
+    required:
+      - id

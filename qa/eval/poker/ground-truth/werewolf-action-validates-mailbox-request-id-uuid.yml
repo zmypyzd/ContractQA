@@ -1,0 +1,39 @@
+id: werewolf-action-validates-mailbox-request-id-uuid
+title: POST /werewolf/action requires valid UUID for mailboxRequestId
+area: api
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: http
+    method: POST
+    path: /api/v1/werewolf/action
+    body:
+      mailboxRequestId: not-a-valid-uuid
+      action:
+        type: vote
+        target: player1
+    headers:
+      Content-Type: application/json
+      Authorization: Bearer test-token
+expected:
+  dom:
+    contains_text:
+      - mailboxRequestId
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:00.922Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:00.922Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/werewolf/action" exists in SUT source — intent likely
+    valid, failure is state/selector. PENDING verified_in_product flip.

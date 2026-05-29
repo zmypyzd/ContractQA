@@ -1,0 +1,33 @@
+id: api-me-agents-create-requires-auth
+title: POST /me/agents requires authentication
+area: api
+severity: P0
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: http
+    method: POST
+    path: /me/agents
+    body:
+      agentName: test-agent
+      endpointUrl: https://example.com/callback
+expected:
+  auth_state:
+    fully_logged_out: true
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.635Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.635Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P0
+  severity_final: P0
+  notes: "strong-pass: runner exercised + runOracle confirmed real assertion held.
+    PENDING verified_in_product flip after product spot-check."

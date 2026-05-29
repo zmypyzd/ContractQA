@@ -1,0 +1,33 @@
+id: api-tables-get-state-not-found
+title: GET /tables/:tableId/state returns error for non-existent table
+area: api
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: GET
+    path: /tables/non-existent-table-id/state
+expected:
+  dom:
+    contains_text:
+      - TABLE_NOT_FOUND
+category:
+  - auth-boundary
+  - error-state
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:00.357Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:00.357Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: 'FAIL with no SUT source evidence:
+    paths=["/tables/non-existent-table-id/state","/tables/[^/]\\+/state"]
+    texts=[]. Likely hallucination.'

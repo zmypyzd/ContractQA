@@ -1,0 +1,15 @@
+# generated-by: deep-discovery v1
+# interaction: link-issue-open-trace (link)
+# rationale: User can open trace file in new tab
+id: artifact-path-traversal-returns-403
+title: Path traversal attempt returns 403 Forbidden
+area: core
+severity: P0
+preconditions:
+  auth_state: anonymous
+  valid_issue_id: true
+actions:
+  - type: goto
+    path: /artifacts/{issueId}/../../../etc/passwd
+expected:
+  http_status: 403

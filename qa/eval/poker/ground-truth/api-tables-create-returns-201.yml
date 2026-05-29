@@ -1,0 +1,33 @@
+id: api-tables-create-returns-201
+title: POST /tables returns 201 with table data on success
+area: api
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: POST
+    path: /tables
+    body:
+      name: Test Table
+      maxSeats: 6
+      blindConfig:
+        smallBlind: 10
+        bigBlind: 20
+category:
+  - unclassified
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:37:01.587Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:37:01.587Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: "Schema-invalid as generated: Required. Reviewer may rescue if the intent
+    describes a real invariant; otherwise leave dropped."

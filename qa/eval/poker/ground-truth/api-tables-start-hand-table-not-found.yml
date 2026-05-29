@@ -1,0 +1,33 @@
+id: api-tables-start-hand-table-not-found
+title: Starting hand on non-existent table returns TABLE_NOT_FOUND error
+area: api
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: POST
+    path: /tables/nonexistent-table-id/hands/start
+expected:
+  dom:
+    contains_text:
+      - TABLE_NOT_FOUND
+category:
+  - auth-boundary
+  - error-state
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:00.564Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:00.564Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: 'FAIL with no SUT source evidence:
+    paths=["/tables/nonexistent-table-id/hands/start","/tables/[^/]\\+/hands/start"]
+    texts=[]. Likely hallucination.'

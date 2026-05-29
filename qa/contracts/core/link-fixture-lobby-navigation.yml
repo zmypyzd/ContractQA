@@ -1,0 +1,18 @@
+# generated-by: deep-discovery v1
+# interaction: link-fixture-lobby (link)
+# rationale: Navigation link to lobby page
+id: link-fixture-lobby-navigation
+title: Lobby link navigates to /lobby
+area: core
+severity: P2
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /
+  - type: click
+    target:
+      role: link
+      name_regex: /lobby
+expected:
+  url: /lobby

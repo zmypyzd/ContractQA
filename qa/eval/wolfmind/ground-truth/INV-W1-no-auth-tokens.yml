@@ -1,0 +1,47 @@
+id: INV-W1
+title: Anonymous landing page exposes no auth-shaped tokens
+area: privacy
+severity: P2
+owner: dogfood
+risk_tags: [privacy, fresh-session]
+
+preconditions:
+  auth_state: anonymous
+  role: visitor
+
+actions:
+  - { type: goto, path: / }
+  - { type: wait, ms: 800 }
+
+expected:
+  url: { matches: "^/$" }
+  localStorage: { no_key_matches: "^(authjs|next-auth|sb-|apk_sid|access_token)" }
+  cookies: { no_name_matches: "^(authjs|next-auth|sb-access-token|apk_sid)" }
+
+verification:
+  wait_ms: 500
+  retries: 1
+  evidence_required: [state_diff]
+
+# --- eval-only fields ---
+category: [happy-path, security]
+
+provenance:
+  source: human-explore
+  generated_at: 2026-05-14T00:00:00Z
+  reviewed_by: marchettireeva
+  reviewed_at: 2026-05-21T00:00:00Z
+  status: approved
+  duplicates_of: []
+
+review:
+  validity: tp
+  validity_verified_in_product: true
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: |
+    Pre-existing hand-written invariant from dogfood/wolfmind/contracts/.
+    WolfMind is a no-auth Vue 3 SPA, so this is the only Phase-1-schema-expressible
+    invariant on the landing flow. Seeded into the eval set as a known-good GT
+    entry so we can measure whether autopilot re-discovers it.

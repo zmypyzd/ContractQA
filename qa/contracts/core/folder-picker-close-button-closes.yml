@@ -1,0 +1,17 @@
+# generated-by: deep-discovery v1
+# interaction: modal-folder-picker (form)
+# rationale: User can interact with folder picker dialog
+id: folder-picker-close-button-closes
+title: Clicking the close button closes the folder picker modal
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+  modal_open: true
+actions:
+  - type: click
+    target:
+      role: button
+      name_regex: "Close"
+expected:
+  modal_visible: false

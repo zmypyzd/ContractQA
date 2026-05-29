@@ -1,0 +1,32 @@
+id: api-tables-start-hand-owner-only
+title: Only table owner can start a new hand
+area: api
+severity: P0
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: POST
+    path: /tables/{tableId}/hands/start
+expected:
+  dom:
+    contains_text:
+      - not owned by
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:00.511Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:00.511Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P0
+  severity_final: P0
+  notes: 'FAIL with no SUT source evidence:
+    paths=["/tables/\\{tableId\\}/hands/start","/tables/\\{tableId\\}/hands/start"]
+    texts=[]. Likely hallucination.'

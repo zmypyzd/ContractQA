@@ -1,0 +1,28 @@
+id: agents-new-redirects-when-legacy-disabled
+title: /agents/new redirects to home when legacy modules disabled
+area: core
+severity: P2
+preconditions: {}
+actions:
+  - type: goto
+    path: /agents/new
+expected:
+  url:
+    matches: ^/$
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:02.028Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:02.028Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but path "/agents/new" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

@@ -1,0 +1,42 @@
+id: audience-react-clap-multiple-clicks
+title: Clap button count increments on successive clicks
+area: core
+severity: P3
+actions:
+  - type: click
+    target:
+      role: button
+      name_regex: React 👏
+  - type: click
+    target:
+      role: button
+      name_regex: React 👏
+  - type: click
+    target:
+      role: button
+      name_regex: React 👏
+expected:
+  dom:
+    contains_text:
+      - "3"
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:02.204Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P3
+  severity_final: P3
+  notes: >-
+    FAIL with no SUT source evidence: paths=[] texts=["React 👏","React
+    👏","React 👏"]. Likely hallucination.
+
+    user-review 2026-05-27: FLIPPED to DROP (vacuous assertion). contains_text
+    "3" — single char.

@@ -1,0 +1,32 @@
+id: appshell-login-button-visible-when-anonymous
+title: Login button is visible only when user is not authenticated
+area: auth
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /
+expected:
+  dom:
+    role_count:
+      - role: button
+        name_regex: ^登录$
+        eq: 1
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.727Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.727Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: "strong-pass: runner exercised + runOracle confirmed real assertion held.
+    PENDING verified_in_product flip after product spot-check."

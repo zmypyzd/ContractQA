@@ -1,0 +1,41 @@
+id: werewolf-create-game-navigates-to-lobby
+title: Creating a werewolf game navigates to the new game lobby
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /werewolf
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Nn]ame"
+    value: Test Game
+  - type: click
+    target:
+      role: button
+      name_regex: "[Cc]reate"
+  - type: wait
+    ms: 2000
+expected:
+  url:
+    matches: ^/werewolf/[a-zA-Z0-9-]+$
+category:
+  - auth-boundary
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.834Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.834Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/werewolf" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

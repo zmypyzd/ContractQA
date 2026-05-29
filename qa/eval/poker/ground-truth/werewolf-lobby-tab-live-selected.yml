@@ -1,0 +1,33 @@
+id: werewolf-lobby-tab-live-selected
+title: Clicking ALL LIVE tab sets it as active
+area: core
+severity: P2
+actions:
+  - type: goto
+    path: /werewolf
+  - type: click
+    target:
+      role: tab
+      name_regex: ALL LIVE
+expected:
+  dom:
+    contains_text:
+      - ALL LIVE
+category:
+  - unclassified
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:37:01.587Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:37:01.587Z
+  status: merged
+  duplicates_of:
+    - werewolf-lobby-tab-live-filters-games
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 1
+  severity_original: P2
+  severity_final: P2
+  notes: Body-hash duplicate of werewolf-lobby-tab-live-filters-games (group
+    c30dfbaa8837); actions+expected byte-identical, only title differs.

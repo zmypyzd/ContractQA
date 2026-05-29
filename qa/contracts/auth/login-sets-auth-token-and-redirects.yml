@@ -1,0 +1,33 @@
+# generated-by: deep-discovery v1
+# interaction: btn-fixture-signin (submit-handler)
+# rationale: Submits login form and sets auth token
+id: login-sets-auth-token-and-redirects
+title: Successful login stores auth token and redirects to lobby
+area: auth
+severity: P0
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /login
+  - type: fill
+    target:
+      role: textbox
+      name_regex: email
+    value: test@example.com
+  - type: fill
+    target:
+      role: textbox
+      name_regex: password
+    value: password123
+  - type: click
+    target:
+      role: button
+      name_regex: Sign in
+expected:
+  url: /lobby
+  localStorage:
+    sb-fixture-auth-token:
+      exists: true
+      json_path: $.access_token
+      value: fake

@@ -1,0 +1,32 @@
+id: timeline-tab-audience-switch
+title: Clicking Audience tab activates audience view
+area: core
+severity: P2
+actions:
+  - type: click
+    target:
+      role: tab
+      name_regex: AUDIENCE
+expected:
+  dom:
+    role_count:
+      - role: tab
+        name_regex: AUDIENCE
+        eq: 1
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.763Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.763Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: 'FAIL with no SUT source evidence: paths=[] texts=["AUDIENCE"]. Likely
+    hallucination.'

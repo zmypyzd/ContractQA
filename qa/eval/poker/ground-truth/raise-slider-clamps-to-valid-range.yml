@@ -1,0 +1,34 @@
+id: raise-slider-clamps-to-valid-range
+title: Raise slider value is clamped to valid min/max range
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: fill
+    target:
+      role: slider
+      name_regex: "[Rr]aise|[Bb]et|[Aa]mount"
+    value: "999999999"
+expected:
+  dom:
+    not_contains_text:
+      - Invalid amount
+      - exceeds maximum
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.076Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.076Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but selector text exists in SUT web source — UI element probably
+    real, contract may need richer state. PENDING verified_in_product flip.

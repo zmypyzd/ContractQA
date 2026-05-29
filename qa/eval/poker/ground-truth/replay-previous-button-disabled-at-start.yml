@@ -1,0 +1,34 @@
+id: replay-previous-button-disabled-at-start
+title: Previous button disabled when at first action
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: click
+    target:
+      role: button
+      name_regex: ^Previous$
+expected:
+  dom:
+    role_count:
+      - role: button
+        name_regex: ^Previous$
+        eq: 1
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.094Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.094Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but selector text exists in SUT web source — UI element probably
+    real, contract may need richer state. PENDING verified_in_product flip.

@@ -1,0 +1,46 @@
+id: simulate-form-submit-success
+title: Successful simulation form submission returns match ID
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /simulate
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Nn]ame"
+    value: Test Simulation
+  - type: fill
+    target:
+      role: spinbutton
+      name_regex: "[Hh]ands"
+    value: "5"
+  - type: click
+    target:
+      role: button
+      name_regex: "[Ss]imulate|[Ss]ubmit|[Rr]un"
+expected:
+  dom:
+    contains_text:
+      - match
+    not_contains_text:
+      - error
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.392Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.392Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/simulate" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

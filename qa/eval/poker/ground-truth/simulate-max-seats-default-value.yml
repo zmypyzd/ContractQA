@@ -1,0 +1,28 @@
+id: simulate-max-seats-default-value
+title: Max seats input has default value of 6
+area: core
+severity: P2
+actions:
+  - type: goto
+    path: /simulate
+expected:
+  dom:
+    contains_text:
+      - "6"
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.411Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.411Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but path "/simulate" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

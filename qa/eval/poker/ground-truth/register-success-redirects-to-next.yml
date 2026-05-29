@@ -1,0 +1,50 @@
+id: register-success-redirects-to-next
+title: Successful registration redirects to next page or default
+area: auth
+severity: P0
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /register
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Ee]mail"
+    value: testuser@example.com
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Dd]isplay.*[Nn]ame"
+    value: TestUser
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Pp]assword"
+    value: SecurePass123!
+  - type: click
+    target:
+      role: button
+      name_regex: "[Rr]egister|[Cc]reate|[Ss]ubmit"
+  - type: wait
+    ms: 2000
+expected:
+  url:
+    matches: /werewolf$
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:01.343Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:01.343Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P0
+  severity_final: P0
+  notes: FAIL but path "/register" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

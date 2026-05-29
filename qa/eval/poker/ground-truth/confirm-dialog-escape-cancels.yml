@@ -1,0 +1,30 @@
+id: confirm-dialog-escape-cancels
+title: Pressing Escape key cancels the dialog
+area: core
+severity: P2
+actions:
+  - type: click
+    target:
+      role: dialog
+expected:
+  dom:
+    role_count:
+      - role: dialog
+        eq: 0
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:50:01.200Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:50:01.200Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: Same self-inconsistency as confirm-dialog-escape-closes-dialog — actions
+    don't press Escape; title-body mismatch.

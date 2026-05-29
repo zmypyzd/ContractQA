@@ -1,0 +1,33 @@
+id: replay-play-pause-toggles-playback
+title: Play/pause button toggles automatic replay playback state
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: click
+    target:
+      test_id: replay-play-pause-button
+expected:
+  dom:
+    role_count:
+      - role: button
+        name_regex: "[Pp]ause|[Pp]lay"
+        gte: 1
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.893Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.893Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: "Strict-mode violation: selector matched multiple elements. Intent likely
+    valid; reviewer to add first:true or within: scope."

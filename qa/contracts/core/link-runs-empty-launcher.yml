@@ -1,0 +1,19 @@
+# generated-by: deep-discovery v1
+# interaction: link-runs-empty-launcher (link)
+# rationale: Links to launcher when no runs exist
+id: link-runs-empty-launcher
+title: Empty state launcher link navigates to /launcher
+area: core
+severity: P2
+preconditions:
+  auth_state: anonymous
+  db_state: empty_runs
+actions:
+  - type: goto
+    path: /runs
+  - type: click
+    target:
+      role: link
+      name_regex: /launcher
+expected:
+  url: /launcher

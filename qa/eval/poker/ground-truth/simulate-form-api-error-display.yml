@@ -1,0 +1,32 @@
+id: simulate-form-api-error-display
+title: Simulation form displays API errors to user
+area: core
+severity: P1
+actions:
+  - type: goto
+    path: /simulate
+  - type: click
+    target:
+      role: button
+      name_regex: "[Ss]imulate|[Ss]ubmit|[Rr]un"
+expected:
+  dom:
+    not_contains_text:
+      - submitting
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.374Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.374Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/simulate" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

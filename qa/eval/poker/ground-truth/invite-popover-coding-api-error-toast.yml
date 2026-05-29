@@ -1,0 +1,34 @@
+id: invite-popover-coding-api-error-toast
+title: Coding agent invite shows error toast on API failure
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: click
+    target:
+      text: Invite coding agent
+expected:
+  dom:
+    contains_text:
+      - 邀请生成失败
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.823Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: >-
+    Chinese-locale selector or text (needle) on English SUT — likely i18n
+    hallucination.
+
+    user-review 2026-05-27: Clean KEEP. STRONG: long Chinese needle "邀请生成失败".

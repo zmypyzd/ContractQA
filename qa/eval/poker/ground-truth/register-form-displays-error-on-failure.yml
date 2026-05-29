@@ -1,0 +1,43 @@
+id: register-form-displays-error-on-failure
+title: Registration form displays error message on signup failure
+area: auth
+severity: P2
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /register
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Ee]mail"
+    value: invalid-email
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Dd]isplay.?[Nn]ame"
+    value: TestUser
+  - type: click
+    target:
+      role: button
+      name_regex: "[Rr]egister|[Ss]ubmit|[Cc]reate"
+expected:
+  url:
+    matches: /register
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.748Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.748Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: "strong-pass: runner exercised + runOracle confirmed real assertion held.
+    PENDING verified_in_product flip after product spot-check."

@@ -1,0 +1,32 @@
+id: route-werewolf-lobby-renders
+title: Werewolf lobby page loads and displays directory chrome
+area: werewolf
+severity: P1
+preconditions: {}
+actions:
+  - type: goto
+    path: /werewolf
+expected:
+  url:
+    matches: ^/werewolf$
+  dom:
+    contains_text:
+      - 狼人杀 · Werewolf Live
+      - ALL LIVE
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:31.078Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:31.078Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: "strong-pass: runner exercised + runOracle confirmed real assertion held.
+    PENDING verified_in_product flip after product spot-check."

@@ -1,0 +1,33 @@
+id: match-replay-tab-switch-to-replay
+title: Clicking replay tab activates replay view
+area: poker
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: click
+    target:
+      role: tab
+      name_regex: "[Rr]eplay"
+expected:
+  dom:
+    contains_text:
+      - hands
+      - agents
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:04.047Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:04.047Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but selector text exists in SUT web source — UI element probably
+    real, contract may need richer state. PENDING verified_in_product flip.

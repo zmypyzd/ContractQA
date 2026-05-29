@@ -1,0 +1,29 @@
+id: api-health-get-returns-ok
+title: GET /health returns ok status and uptime
+area: api
+severity: P0
+actions:
+  - type: http
+    method: GET
+    path: /health
+expected:
+  dom:
+    contains_text:
+      - ok
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.630Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.630Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P0
+  severity_final: P0
+  notes: dom.contains_text only matches noise tokens (ok); would silent-pass on
+    most pages.

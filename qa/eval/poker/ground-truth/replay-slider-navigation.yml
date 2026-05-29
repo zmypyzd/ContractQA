@@ -1,0 +1,38 @@
+id: replay-slider-navigation
+title: Action slider navigates to specific action position
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /match-replay
+  - type: click
+    target:
+      role: listitem
+      first: true
+  - type: fill
+    target:
+      role: slider
+    value: "5"
+expected:
+  dom:
+    contains_text:
+      - "5"
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.159Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.159Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: 'FAIL with no SUT source evidence:
+    paths=["/match-replay","/match-replay"] texts=[]. Likely hallucination.'

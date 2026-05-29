@@ -1,0 +1,32 @@
+id: confirm-dialog-confirm-click
+title: Clicking confirm button triggers onConfirm callback
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: click
+    target:
+      role: button
+      name_regex: .*
+expected:
+  dom:
+    not_contains_text:
+      - confirm-dialog
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.808Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.808Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: "Strict-mode violation: selector matched multiple elements. Intent likely
+    valid; reviewer to add first:true or within: scope."

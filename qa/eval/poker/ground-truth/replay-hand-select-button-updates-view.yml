@@ -1,0 +1,36 @@
+id: replay-hand-select-button-updates-view
+title: Selecting a hand updates replay workbench to show that hand
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: click
+    target:
+      role: button
+      name_regex: "[Ss]elect|[Hh]and"
+expected:
+  dom:
+    contains_text: []
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.086Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: >-
+    FAIL but selector text exists in SUT web source — UI element probably real,
+    contract may need richer state. PENDING verified_in_product flip.
+
+    user-review 2026-05-27: DROP confirmed (user review).
+    expected.dom.contains_text empty. [REPLACE-NEEDED: Verify view changed via
+    diff signature or hand id in URL/DOM.]

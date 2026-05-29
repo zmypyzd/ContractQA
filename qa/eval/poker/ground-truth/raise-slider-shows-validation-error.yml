@@ -1,0 +1,43 @@
+id: raise-slider-shows-validation-error
+title: Invalid raise amount displays error message
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Aa]mount|[Rr]aise|[Bb]et"
+    value: "0"
+  - type: click
+    target:
+      role: button
+      name_regex: "[Rr]aise|[Bb]et"
+expected:
+  dom:
+    contains_text:
+      - error
+category:
+  - unclassified
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:37:01.587Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 1
+  severity_original: P1
+  severity_final: P1
+  notes: >-
+    Canonical of true-duplicate body-hash group 93b9087dfe6b (2 members).
+    Absorbs: table-raise-amount-input-validation. PENDING human
+    verified_in_product flip.
+
+    user-review 2026-05-27: DROP confirmed (user review). noise-needle "error" —
+    too generic. [REPLACE-NEEDED: Scope to the validation error element +
+    specific illegal raise scenario.]

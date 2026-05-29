@@ -1,0 +1,33 @@
+id: api-tables-submit-action-table-not-found
+title: Submit action to non-existent table returns error
+area: api
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: POST
+    path: /tables/nonexistent-table/actions
+    body:
+      handId: hand-123
+      actionType: fold
+expected:
+  url:
+    matches: .*
+category:
+  - auth-boundary
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.658Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.658Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: expected.url.matches=".*" is a no-op assertion; trivially passes any URL.

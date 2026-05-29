@@ -1,0 +1,22 @@
+# generated-by: deep-discovery v1
+# interaction: input-fixture-email (form)
+# rationale: Email field in login form
+id: login-form-requires-both-fields
+title: Login form does not submit when fields are empty
+area: auth
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /login
+  - type: click
+    target:
+      role: button
+      name_regex: Sign in
+expected:
+  url: /login
+  localStorage:
+    sb-fixture-auth-token:
+      exists: false
+  auth_state: anonymous

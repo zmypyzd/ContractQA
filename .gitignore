@@ -17,3 +17,5 @@ dist-host*
 # Next.js auto-generated type stub (regenerated on every build)
 apps/dashboard/next-env.d.ts
 .gstack/
+# Git worktrees created under .claude/ are working copies, never commit them
+.claude/worktrees/

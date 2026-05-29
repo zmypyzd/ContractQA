@@ -1,0 +1,33 @@
+id: werewolf-lobby-tab-featured-filters-games
+title: Featured tab filters lobby to show featured games subset
+area: core
+severity: P1
+actions:
+  - type: goto
+    path: /werewolf
+  - type: click
+    target:
+      role: tab
+      name_regex: FEATURED
+expected:
+  dom:
+    contains_text:
+      - FEATURED
+category:
+  - unclassified
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:37:01.587Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:37:01.587Z
+  status: merged
+  duplicates_of:
+    - werewolf-lobby-tab-featured-active-state
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 1
+  severity_original: P1
+  severity_final: P1
+  notes: Body-hash duplicate of werewolf-lobby-tab-featured-active-state (group
+    59ba9b5605ec); actions+expected byte-identical, only title differs.

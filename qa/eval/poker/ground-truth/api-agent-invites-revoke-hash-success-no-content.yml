@@ -1,0 +1,32 @@
+id: api-agent-invites-revoke-hash-success-no-content
+title: Successfully revoking invite returns 204 No Content
+area: api
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: DELETE
+    path: /agents/invites/by-hash/:tokenHash
+expected:
+  dom:
+    not_contains_text:
+      - error
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.626Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.626Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: "weak-pass (flags: dom-after-http). Assertion was schema-ignored or
+    evaluated against wrong page; the PASS was a silent / coincidental match.
+    Phase B drift pattern."

@@ -1,0 +1,40 @@
+id: replay-street-filter-resets-on-hand-change
+title: Street filter resets to 'all' when selecting a different hand
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: click
+    target:
+      role: button
+      name_regex: "[Ff]lop"
+  - type: click
+    target:
+      role: listitem
+      name_regex: "[Hh]and"
+expected:
+  dom:
+    contains_text: []
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:50:01.198Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: >-
+    Street filter / replay UI exists in live-table reducer; needs running replay
+    state.
+
+    user-review 2026-05-27: DROP confirmed (user review).
+    expected.dom.contains_text empty. [REPLACE-NEEDED: Assert filter UI shows
+    "all" after hand change.]

@@ -1,0 +1,31 @@
+id: api-tables-list-hands-returns-data-array
+title: GET /tables/:tableId/hands returns hands in data wrapper
+area: api
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: GET
+    path: /tables/test-table-id/hands
+expected:
+  dom:
+    contains_text:
+      - data
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.652Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.652Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: dom.contains_text only matches noise tokens (data); would silent-pass on
+    most pages.

@@ -1,0 +1,33 @@
+id: table-raise-preset-amount-selection
+title: Preset raise amount buttons update input value
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: click
+    target:
+      role: button
+      name_regex: "[0-9]+|[Pp]ot|[Hh]alf|[Mm]in|[Mm]ax"
+expected:
+  dom:
+    role_count:
+      - role: textbox
+        eq: 1
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.994Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.994Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: "Strict-mode violation: selector matched multiple elements. Intent likely
+    valid; reviewer to add first:true or within: scope."

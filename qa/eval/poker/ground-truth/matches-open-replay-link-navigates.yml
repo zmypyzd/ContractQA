@@ -1,0 +1,40 @@
+id: matches-open-replay-link-navigates
+title: Clicking replay link navigates to match viewer
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /matches
+  - type: click
+    target:
+      role: link
+      name_regex: .*
+      within:
+        role: region
+        name_regex: Match replays
+expected:
+  url:
+    matches: /replay/[^/]+$
+category:
+  - unclassified
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:37:01.587Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: >-
+    Schema-invalid as generated: Expected string, received object. Reviewer may
+    rescue if the intent describes a real invariant; otherwise leave dropped.
+
+    user-review 2026-05-27: Clean KEEP. STRONG: url.matches "/replay/[^/]+$" —
+    path pattern.

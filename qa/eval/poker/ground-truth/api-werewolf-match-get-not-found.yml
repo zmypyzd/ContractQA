@@ -1,0 +1,32 @@
+id: api-werewolf-match-get-not-found
+title: GET /werewolf-matches/:matchId returns error for non-existent match
+area: api
+severity: P2
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: http
+    method: GET
+    path: /werewolf-matches/non-existent-match-id
+expected:
+  dom:
+    contains_text:
+      - not found
+category:
+  - error-state
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:00.642Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:00.642Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: 'FAIL with no SUT source evidence:
+    paths=["/werewolf-matches/non-existent-match-id","/werewolf-matches/[^/]\\+"]
+    texts=[]. Likely hallucination.'

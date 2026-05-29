@@ -1,0 +1,34 @@
+id: agent-edit-cancel-link-navigates-to-agents-list
+title: Cancel link on agent edit page navigates back to agents list
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /agents/123/edit
+  - type: click
+    target:
+      role: link
+      name_regex: "[Cc]ancel"
+expected:
+  url:
+    matches: /agents$
+category:
+  - auth-boundary
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:01.550Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:01.550Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but selector text exists in SUT web source — UI element probably
+    real, contract may need richer state. PENDING verified_in_product flip.

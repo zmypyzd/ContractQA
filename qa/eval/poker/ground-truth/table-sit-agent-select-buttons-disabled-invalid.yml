@@ -1,0 +1,36 @@
+id: table-sit-agent-select-buttons-disabled-invalid
+title: Sit buttons are disabled when buy-in is invalid
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: fill
+    target:
+      role: spinbutton
+      name_regex: "[Bb]uy-in"
+    value: "-5"
+expected:
+  dom:
+    role_count:
+      - role: button
+        name_regex: "[Ss]it here"
+        gte: 0
+category:
+  - unclassified
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:37:01.587Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:37:01.587Z
+  status: merged
+  duplicates_of:
+    - table-buyin-input-disables-sit-button
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 1
+  severity_original: P1
+  severity_final: P1
+  notes: Body-hash duplicate of table-buyin-input-disables-sit-button (group
+    afa6d711da3d); actions+expected byte-identical, only title differs.

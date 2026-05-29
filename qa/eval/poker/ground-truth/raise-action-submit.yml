@@ -1,0 +1,37 @@
+id: raise-action-submit
+title: Raise button submits raise action with specified amount
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: fill
+    target:
+      role: textbox
+    value: "100"
+  - type: click
+    target:
+      role: button
+      name_regex: "[Rr]aise"
+expected:
+  dom:
+    not_contains_text:
+      - Invalid amount
+      - Error
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.879Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.879Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: "Strict-mode violation: selector matched multiple elements. Intent likely
+    valid; reviewer to add first:true or within: scope."

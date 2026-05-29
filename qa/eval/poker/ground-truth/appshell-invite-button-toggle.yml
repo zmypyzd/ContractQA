@@ -1,0 +1,33 @@
+id: appshell-invite-button-toggle
+title: Invite button toggles popover visibility
+area: core
+severity: P2
+actions:
+  - type: goto
+    path: /
+  - type: click
+    target:
+      role: button
+      name_regex: 邀请
+expected:
+  dom:
+    role_count:
+      - role: dialog
+        gte: 1
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.785Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.785Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: "strong-pass: runner exercised + runOracle confirmed real assertion held.
+    PENDING verified_in_product flip after product spot-check."

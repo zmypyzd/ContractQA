@@ -1,0 +1,34 @@
+id: agents-new-link-navigation
+title: New agent link navigates to agent creation form
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /agents
+  - type: click
+    target:
+      role: link
+      name_regex: "[Nn]ew"
+expected:
+  url:
+    matches: /agents/new
+category:
+  - auth-boundary
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:02.009Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:02.009Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/agents" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

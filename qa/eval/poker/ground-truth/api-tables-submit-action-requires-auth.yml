@@ -1,0 +1,32 @@
+id: api-tables-submit-action-requires-auth
+title: Submit player action requires authentication
+area: api
+severity: P0
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: http
+    method: POST
+    path: /tables/test-table-id/actions
+    body:
+      handId: hand-123
+      actionType: call
+expected:
+  url:
+    matches: .*
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.658Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.658Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P0
+  severity_final: P0
+  notes: expected.url.matches=".*" is a no-op assertion; trivially passes any URL.

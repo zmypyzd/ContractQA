@@ -1,0 +1,32 @@
+id: table-watch-button-registers-spectator
+title: Watch table button registers user as spectator
+area: poker
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: click
+    target:
+      role: button
+      name_regex: "[Ww]atch"
+expected:
+  dom:
+    contains_text:
+      - Watching
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:04.174Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:04.174Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but selector text exists in SUT web source — UI element probably
+    real, contract may need richer state. PENDING verified_in_product flip.

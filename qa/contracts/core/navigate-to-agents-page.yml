@@ -1,0 +1,18 @@
+# generated-by: deep-discovery v1
+# interaction: link-fixture-to-agents (link)
+# rationale: User can click to navigate to agents
+id: navigate-to-agents-page
+title: Navigate to agents page from home
+area: core
+severity: P2
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /
+  - type: click
+    target:
+      role: link
+      name_regex: /agents
+expected:
+  url: /agents

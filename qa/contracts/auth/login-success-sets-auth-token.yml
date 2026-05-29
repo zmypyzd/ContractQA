@@ -1,0 +1,30 @@
+# generated-by: deep-discovery v1
+# interaction: route-fixture-login (route)
+# rationale: User can navigate to login page
+id: login-success-sets-auth-token
+title: Successful login stores auth token in localStorage
+area: auth
+severity: P0
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /login
+  - type: fill
+    target:
+      role: textbox
+      name_regex: email
+    value: test@example.com
+  - type: fill
+    target:
+      role: textbox
+      name_regex: password
+    value: password123
+  - type: click
+    target:
+      role: button
+      name_regex: Sign in
+expected:
+  localStorage:
+    sb-fixture-auth-token:
+      exists: true

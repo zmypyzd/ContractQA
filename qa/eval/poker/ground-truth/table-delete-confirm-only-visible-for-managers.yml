@@ -1,0 +1,31 @@
+id: table-delete-confirm-only-visible-for-managers
+title: Delete table confirmation only shown for table managers
+area: poker
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /tables/test-table-123
+expected:
+  dom:
+    role_count:
+      - role: button
+        name_regex: "[Cc]lose table"
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:31.067Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:31.067Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: "strong-pass: runner exercised + runOracle confirmed real assertion held.
+    PENDING verified_in_product flip after product spot-check."

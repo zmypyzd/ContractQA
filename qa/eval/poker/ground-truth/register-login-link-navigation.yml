@@ -1,0 +1,33 @@
+id: register-login-link-navigation
+title: Login link on register page navigates to login
+area: auth
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /register
+  - type: click
+    target:
+      role: link
+      name_regex: "[Ll]og [Ii]n"
+expected:
+  url:
+    matches: ^/login$
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.748Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.748Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: "strong-pass: runner exercised + runOracle confirmed real assertion held.
+    PENDING verified_in_product flip after product spot-check."

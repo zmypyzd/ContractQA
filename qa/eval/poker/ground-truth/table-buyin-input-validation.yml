@@ -1,0 +1,33 @@
+id: table-buyin-input-validation
+title: Buy-in input rejects non-positive integers
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: fill
+    target:
+      role: spinbutton
+      name_regex: "[Bb]uy-in"
+    value: "0"
+expected:
+  dom:
+    contains_text:
+      - Enter a positive chip buy-in.
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.682Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.682Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but selector text exists in SUT web source — UI element probably
+    real, contract may need richer state. PENDING verified_in_product flip.

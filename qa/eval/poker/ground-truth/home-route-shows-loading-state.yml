@@ -1,0 +1,32 @@
+id: home-route-shows-loading-state
+title: Home route displays loading indicator while resolving
+area: core
+severity: P2
+actions:
+  - type: goto
+    path: /
+expected:
+  dom:
+    contains_text:
+      - 加载中…
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.817Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: >-
+    Chinese-locale selector or text (needle) on English SUT — likely i18n
+    hallucination.
+
+    user-review 2026-05-27: Clean KEEP. STRONG: Chinese needle "加载中…" — SUT is
+    Chinese product; i18n hallucination alarm voided.

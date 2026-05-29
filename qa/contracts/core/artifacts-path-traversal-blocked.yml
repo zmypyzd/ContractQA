@@ -1,0 +1,15 @@
+# generated-by: deep-discovery v1
+# interaction: api-artifacts-get (api-endpoint)
+# rationale: Serves evidence files for issues
+id: artifacts-path-traversal-blocked
+title: Path traversal attempts return 404
+area: core
+severity: P0
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: http
+    method: GET
+    path: /artifacts/{issueId}/../../../etc/passwd
+expected:
+  http_status: 404

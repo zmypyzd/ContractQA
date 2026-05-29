@@ -1,0 +1,41 @@
+id: agents-delete-cancel-preserves-agent
+title: Cancelling agent deletion does not remove the agent from list
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: click
+    target:
+      role: button
+      name_regex: "[Dd]elete"
+  - type: wait
+    ms: 300
+  - type: click
+    target:
+      role: button
+      name_regex: "[Cc]ancel"
+  - type: wait
+    ms: 300
+expected:
+  dom:
+    role_count:
+      - role: listitem
+        gte: 1
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:01.905Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:01.905Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but selector text exists in SUT web source — UI element probably
+    real, contract may need richer state. PENDING verified_in_product flip.

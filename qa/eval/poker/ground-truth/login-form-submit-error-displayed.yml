@@ -1,0 +1,49 @@
+id: login-form-submit-error-displayed
+title: Failed login displays error message
+area: auth
+severity: P0
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /login
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Ee]mail"
+    value: invalid@example.com
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Pp]assword"
+    value: wrongpassword
+  - type: click
+    target:
+      role: button
+      name_regex: "[Ss]ign [Ii]n|[Ll]og [Ii]n"
+  - type: wait
+    ms: 500
+expected:
+  url:
+    matches: ^/login
+  dom:
+    contains_text:
+      - error
+category:
+  - happy-path
+  - error-state
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.737Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.737Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P0
+  severity_final: P0
+  notes: dom.contains_text only matches noise tokens (error); would silent-pass on
+    most pages.

@@ -1,0 +1,30 @@
+id: ws-subscribe-lobby-anonymous
+title: Anonymous clients can subscribe to lobby topic
+area: api
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /
+expected:
+  dom:
+    contains_text:
+      - lobby
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:01.035Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:01.035Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/" exists in SUT source — intent likely valid, failure is
+    state/selector. PENDING verified_in_product flip.

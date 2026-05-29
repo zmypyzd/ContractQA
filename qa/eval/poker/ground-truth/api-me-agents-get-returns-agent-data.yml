@@ -1,0 +1,34 @@
+id: api-me-agents-get-returns-agent-data
+title: GET /me/agents/:agentId returns agent config for owner
+area: api
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: GET
+    path: /me/agents/{agentId}
+expected:
+  dom:
+    contains_text:
+      - agentConfigId
+      - agentName
+      - endpointUrl
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:00.073Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:00.073Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: 'FAIL with no SUT source evidence:
+    paths=["/me/agents/\\{agentId\\}","/me/agents/\\{agentId\\}"] texts=[].
+    Likely hallucination.'

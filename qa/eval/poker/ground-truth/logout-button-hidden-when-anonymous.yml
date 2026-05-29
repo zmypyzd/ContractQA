@@ -1,0 +1,32 @@
+id: logout-button-hidden-when-anonymous
+title: Logout button is hidden for anonymous users
+area: auth
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /
+expected:
+  dom:
+    role_count:
+      - role: button
+        name_regex: ^登出$
+        eq: 0
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.741Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.741Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: "strong-pass: runner exercised + runOracle confirmed real assertion held.
+    PENDING verified_in_product flip after product spot-check."

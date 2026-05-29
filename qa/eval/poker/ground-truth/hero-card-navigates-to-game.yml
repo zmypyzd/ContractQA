@@ -1,0 +1,33 @@
+id: hero-card-navigates-to-game
+title: Clicking featured game hero card navigates to game page
+area: core
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /
+  - type: click
+    target:
+      role: link
+      name_regex: "^Watch "
+expected:
+  url:
+    matches: ^/werewolf/[a-zA-Z0-9-]+$
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:02.472Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:02.472Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/" exists in SUT source — intent likely valid, failure is
+    state/selector. PENDING verified_in_product flip.

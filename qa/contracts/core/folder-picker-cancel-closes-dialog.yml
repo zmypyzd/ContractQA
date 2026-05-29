@@ -1,0 +1,18 @@
+# generated-by: deep-discovery v1
+# interaction: btn-picker-cancel (button)
+# rationale: Closes picker without selection
+id: folder-picker-cancel-closes-dialog
+title: Cancel button closes folder picker without selection
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+  context: folder_picker_open
+actions:
+  - type: click
+    target:
+      role: button
+      name_regex: "^Close$"
+expected:
+  dialog_closed: true
+  selection_made: false

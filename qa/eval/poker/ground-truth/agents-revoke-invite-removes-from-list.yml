@@ -1,0 +1,39 @@
+id: agents-revoke-invite-removes-from-list
+title: Revoking a pending agent invite removes it from the invites list
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /agents
+  - type: click
+    target:
+      role: button
+      name_regex: "[Rr]evoke"
+      first: true
+  - type: click
+    target:
+      role: button
+      name_regex: "[Cc]onfirm|[Yy]es|[Rr]evoke"
+expected:
+  dom:
+    not_contains_text:
+      - pending
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:02.046Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:02.046Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/agents" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

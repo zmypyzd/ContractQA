@@ -1,0 +1,42 @@
+id: table-raise-amount-clears-error-on-input
+title: Raise amount input clears error when user types
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Aa]mount|[Rr]aise|[Bb]et"
+    value: "0"
+  - type: click
+    target:
+      role: button
+      name_regex: "[Rr]aise|[Bb]et"
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Aa]mount|[Rr]aise|[Bb]et"
+    value: "100"
+expected:
+  dom:
+    not_contains_text:
+      - error
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.704Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.704Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but selector text exists in SUT web source — UI element probably
+    real, contract may need richer state. PENDING verified_in_product flip.

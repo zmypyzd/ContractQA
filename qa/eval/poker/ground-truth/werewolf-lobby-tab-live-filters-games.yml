@@ -1,0 +1,39 @@
+id: werewolf-lobby-tab-live-filters-games
+title: ALL LIVE tab filters lobby to show live games
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /werewolf
+  - type: click
+    target:
+      role: tab
+      name_regex: ALL LIVE
+expected:
+  dom:
+    contains_text:
+      - ALL LIVE
+category:
+  - unclassified
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:37:01.587Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 1
+  severity_original: P2
+  severity_final: P2
+  notes: >-
+    Canonical of true-duplicate body-hash group c30dfbaa8837 (2 members).
+    Absorbs: werewolf-lobby-tab-live-selected. PENDING human verified_in_product
+    flip.
+
+    user-review 2026-05-27: DROP confirmed (user review). mirror assertion
+    variant. [REPLACE-NEEDED: Assert list content changed (live games only).]

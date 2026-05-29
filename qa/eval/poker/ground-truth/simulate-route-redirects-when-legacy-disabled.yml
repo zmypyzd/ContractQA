@@ -1,0 +1,30 @@
+id: simulate-route-redirects-when-legacy-disabled
+title: Simulate page redirects to home when legacy modules disabled
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /simulate
+expected:
+  url:
+    matches: ^/$
+category:
+  - auth-boundary
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.525Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.525Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but path "/simulate" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

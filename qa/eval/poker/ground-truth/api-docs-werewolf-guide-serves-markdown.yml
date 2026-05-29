@@ -1,0 +1,32 @@
+id: api-docs-werewolf-guide-serves-markdown
+title: GET /docs/werewolf-agent-guide returns markdown documentation
+area: api
+severity: P2
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /docs/werewolf-agent-guide
+expected:
+  url:
+    matches: /docs/werewolf-agent-guide$
+  dom:
+    contains_text:
+      - werewolf
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:47:59.780Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:47:59.780Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but path "/docs/werewolf-agent-guide" exists in SUT source — intent
+    likely valid, failure is state/selector. PENDING verified_in_product flip.

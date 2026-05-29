@@ -1,0 +1,38 @@
+id: werewolf-create-game-with-name
+title: Creating a werewolf game with optional name navigates to game page
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /werewolf
+  - type: fill
+    target:
+      test_id: werewolf-create-name-input
+    value: My Test Game
+  - type: click
+    target:
+      role: button
+      name_regex: "[Cc]reate"
+expected:
+  url:
+    matches: ^/werewolf/[a-zA-Z0-9-]+$
+category:
+  - auth-boundary
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:31.040Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:31.040Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: "Strict-mode violation: selector matched multiple elements. Intent likely
+    valid; reviewer to add first:true or within: scope."

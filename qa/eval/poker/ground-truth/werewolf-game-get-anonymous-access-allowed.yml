@@ -1,0 +1,32 @@
+id: werewolf-game-get-anonymous-access-allowed
+title: GET /werewolf-games/:gameId is accessible without authentication
+area: api
+severity: P2
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: http
+    method: GET
+    path: /werewolf-games/test-game-id
+expected:
+  dom:
+    not_contains_text:
+      - unauthorized
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.703Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.703Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: "weak-pass (flags: dom-after-http). Assertion was schema-ignored or
+    evaluated against wrong page; the PASS was a silent / coincidental match.
+    Phase B drift pattern."

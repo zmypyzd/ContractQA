@@ -1,0 +1,45 @@
+id: simulate-success-matches-link
+title: Match replays link navigates to matches list after simulation success
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /simulate
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Nn]ame"
+    value: Test Simulation
+  - type: click
+    target:
+      role: button
+      name_regex: "[Ss]imulate|[Ss]ubmit|[Rr]un"
+  - type: wait
+    ms: 3000
+  - type: click
+    target:
+      role: link
+      name_regex: "[Mm]atch|[Rr]eplay"
+expected:
+  url:
+    matches: /matches
+category:
+  - auth-boundary
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.619Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.619Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but path "/simulate" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

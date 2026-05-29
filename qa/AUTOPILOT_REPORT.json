@@ -1,0 +1,25 @@
+{
+  "phaseA": {
+    "passed": 0,
+    "failed": 0,
+    "deferred": 4,
+    "failures": []
+  },
+  "phaseB": {
+    "generated": 35,
+    "failed": 0,
+    "deferred": 0,
+    "userConfirmed": 0,
+    "userRejected": 0
+  },
+  "phaseC": {
+    "attempted": 0,
+    "fixed": 0,
+    "givenUp": 0,
+    "skipped": 0,
+    "diffs": []
+  },
+  "budgetTriggered": null,
+  "durationMs": 368226,
+  "issuesWritten": []
+}

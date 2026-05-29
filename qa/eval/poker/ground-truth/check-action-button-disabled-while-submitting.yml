@@ -1,0 +1,37 @@
+id: check-action-button-disabled-while-submitting
+title: Check button disabled during action submission
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: click
+    target:
+      role: button
+      name_regex: ^Check$
+expected:
+  dom:
+    contains_text:
+      - Check
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:02.385Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: >-
+    FAIL but selector text exists in SUT web source — UI element probably real,
+    contract may need richer state. PENDING verified_in_product flip.
+
+    user-review 2026-05-27: DROP confirmed (user review). title says disabled
+    but asserts presence. [REPLACE-NEEDED: Same shape as all-in.
+    Disabled-attribute assertion on Check button.]

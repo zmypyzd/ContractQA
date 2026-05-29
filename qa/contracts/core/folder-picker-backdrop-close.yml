@@ -1,0 +1,19 @@
+# generated-by: deep-discovery v1
+# interaction: btn-folder-picker-backdrop (button)
+# rationale: User can click backdrop to close modal
+id: folder-picker-backdrop-close
+title: Clicking backdrop closes folder picker modal
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+  modal_open: true
+actions:
+  - type: click
+    target:
+      role: dialog
+      name_regex: Folder picker
+    location: backdrop
+expected:
+  modal_visible: false
+  callback_invoked: onCancel

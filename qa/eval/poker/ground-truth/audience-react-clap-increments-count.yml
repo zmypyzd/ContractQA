@@ -1,0 +1,30 @@
+id: audience-react-clap-increments-count
+title: Clap reaction button increments count on click
+area: core
+severity: P2
+actions:
+  - type: click
+    target:
+      role: button
+      name_regex: React 👏
+expected:
+  dom:
+    contains_text:
+      - "1"
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.788Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.788Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: dom.contains_text only matches noise tokens (1); would silent-pass on
+    most pages.

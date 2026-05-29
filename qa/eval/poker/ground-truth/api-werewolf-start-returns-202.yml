@@ -1,0 +1,31 @@
+id: api-werewolf-start-returns-202
+title: Starting a werewolf game returns 202 Accepted with game entry
+area: api
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: POST
+    path: /werewolf-games/test-game-id/start
+expected:
+  url:
+    matches: .*
+category:
+  - unclassified
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:37:01.587Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:37:01.587Z
+  status: merged
+  duplicates_of:
+    - api-werewolf-start-host-only
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 1
+  severity_original: P1
+  severity_final: P1
+  notes: Body-hash duplicate of api-werewolf-start-host-only (group 52d8bc0c1cc8);
+    actions+expected byte-identical, only title differs.

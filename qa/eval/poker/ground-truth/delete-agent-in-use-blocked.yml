@@ -1,0 +1,32 @@
+id: delete-agent-in-use-blocked
+title: DELETE /me/agents/:agentId blocked when agent is seated in live game
+area: api
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: DELETE
+    path: /me/agents/in-use-agent-id
+expected:
+  dom:
+    contains_text:
+      - in use
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:00.711Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:00.711Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: 'FAIL with no SUT source evidence:
+    paths=["/me/agents/in-use-agent-id","/me/agents/[^/]\\+"] texts=[]. Likely
+    hallucination.'

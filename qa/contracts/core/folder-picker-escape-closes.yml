@@ -1,0 +1,15 @@
+# generated-by: deep-discovery v1
+# interaction: modal-folder-picker (form)
+# rationale: User can interact with folder picker dialog
+id: folder-picker-escape-closes
+title: Pressing Escape closes the folder picker modal
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+  modal_open: true
+actions:
+  - type: keypress
+    key: Escape
+expected:
+  modal_visible: false

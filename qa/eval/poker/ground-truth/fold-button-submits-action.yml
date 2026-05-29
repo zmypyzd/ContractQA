@@ -1,0 +1,32 @@
+id: fold-button-submits-action
+title: Fold button submits fold action to end player turn
+area: core
+severity: P0
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: click
+    target:
+      role: button
+      name_regex: "[Ff]old"
+expected:
+  dom:
+    not_contains_text:
+      - Player action panel
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:50:01.192Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:50:01.192Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P0
+  severity_final: P0
+  notes: PlayerActionPanel.tsx + liveTableTypes have Fold action — intent valid;
+    needs in-progress table state.

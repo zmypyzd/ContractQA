@@ -1,0 +1,35 @@
+id: simulate-remove-agent-decrements-list
+title: Remove agent button decreases agent count in simulation config
+area: core
+severity: P2
+preconditions: {}
+actions:
+  - type: goto
+    path: /simulate
+  - type: click
+    target:
+      text: Remove
+      first: true
+expected:
+  dom:
+    role_count:
+      - role: button
+        name_regex: "[Rr]emove"
+        lte: 1
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.947Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.947Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: "strong-pass: runner exercised + runOracle confirmed real assertion held.
+    PENDING verified_in_product flip after product spot-check."

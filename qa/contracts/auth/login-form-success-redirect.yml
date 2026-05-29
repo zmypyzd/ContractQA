@@ -1,0 +1,26 @@
+# generated-by: deep-discovery v1
+# interaction: form-fixture-login (form)
+# rationale: User can submit login form to authenticate
+id: login-form-success-redirect
+title: Successful login redirects to lobby
+area: auth
+severity: P0
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: fill
+    target:
+      role: textbox
+      name_regex: email
+    value: test@example.com
+  - type: fill
+    target:
+      role: textbox
+      name_regex: password
+    value: password123
+  - type: click
+    target:
+      role: button
+      name_regex: Sign in
+expected:
+  url: /lobby

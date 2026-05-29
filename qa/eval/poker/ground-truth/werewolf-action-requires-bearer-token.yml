@@ -1,0 +1,38 @@
+id: werewolf-action-requires-bearer-token
+title: POST /werewolf/action requires valid Bearer token
+area: api
+severity: P0
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: http
+    method: POST
+    path: /api/v1/werewolf/action
+    body:
+      mailboxRequestId: 00000000-0000-0000-0000-000000000000
+      action:
+        type: vote
+        target: player1
+    headers:
+      Content-Type: application/json
+expected:
+  dom:
+    contains_text:
+      - UNAUTHENTICATED
+category:
+  - error-state
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:00.903Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:00.903Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P0
+  severity_final: P0
+  notes: FAIL but path "/werewolf/action" exists in SUT source — intent likely
+    valid, failure is state/selector. PENDING verified_in_product flip.

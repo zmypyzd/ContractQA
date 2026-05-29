@@ -1,0 +1,35 @@
+id: lobby-join-table-link-navigation
+title: Join table link navigates to table page
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /lobby
+  - type: click
+    target:
+      role: link
+      name_regex: .*
+      first: true
+expected:
+  url:
+    matches: ^/table/[a-zA-Z0-9-]+$
+category:
+  - auth-boundary
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:02.680Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:02.680Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/lobby" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

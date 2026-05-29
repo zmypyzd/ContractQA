@@ -1,0 +1,17 @@
+# generated-by: deep-discovery v1
+# interaction: modal-folder-picker (form)
+# rationale: User can interact with folder picker dialog
+id: folder-picker-backdrop-click-closes
+title: Clicking the backdrop closes the folder picker modal
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+  modal_open: true
+actions:
+  - type: click
+    target:
+      role: dialog
+      name_regex: "Folder picker"
+expected:
+  modal_visible: false

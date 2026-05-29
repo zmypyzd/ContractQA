@@ -1,0 +1,43 @@
+id: login-form-submit-success
+title: Successful login redirects to next page or home
+area: auth
+severity: P0
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /login
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Ee]mail"
+    value: test@example.com
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Pp]assword"
+    value: validpassword123
+  - type: click
+    target:
+      role: button
+      name_regex: "[Ss]ign [Ii]n|[Ll]og [Ii]n"
+expected:
+  url:
+    matches: ^/(?!login)
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:01.142Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:01.142Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P0
+  severity_final: P0
+  notes: FAIL but path "/login" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

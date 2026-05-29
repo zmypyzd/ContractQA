@@ -1,0 +1,30 @@
+id: fill-npcs-host-only
+title: Fill with NPCs endpoint restricted to game host
+area: api
+severity: P0
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: POST
+    path: /werewolf-games/other-users-game-id/fill-with-npcs
+expected:
+  url:
+    matches: .*
+category:
+  - auth-boundary
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.676Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.676Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P0
+  severity_final: P0
+  notes: expected.url.matches=".*" is a no-op assertion; trivially passes any URL.

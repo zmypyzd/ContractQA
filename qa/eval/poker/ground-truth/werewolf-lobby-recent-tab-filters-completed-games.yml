@@ -1,0 +1,39 @@
+id: werewolf-lobby-recent-tab-filters-completed-games
+title: Recent tab filters lobby to show recently completed games
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /werewolf
+  - type: click
+    target:
+      role: tab
+      name_regex: RECENT
+expected:
+  dom:
+    contains_text:
+      - RECENT
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.912Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: >-
+    FAIL but path "/werewolf" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.
+
+    user-review 2026-05-27: DROP confirmed (user review). mirror assertion:
+    click "RECENT" then assert text contains "RECENT" — doesnt test filtering.
+    [REPLACE-NEEDED: Assert list content changed (different games shown).]

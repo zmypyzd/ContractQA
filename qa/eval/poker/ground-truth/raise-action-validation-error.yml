@@ -1,0 +1,37 @@
+id: raise-action-validation-error
+title: Raise action shows validation error for invalid amount
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: fill
+    target:
+      role: textbox
+    value: invalid
+  - type: click
+    target:
+      role: button
+      name_regex: "[Rr]aise"
+expected:
+  dom:
+    contains_text:
+      - error
+category:
+  - auth-boundary
+  - error-state
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.881Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.881Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: dom.contains_text only matches noise tokens (error); would silent-pass on
+    most pages.

@@ -1,0 +1,36 @@
+id: table-preset-amount-clears-error
+title: Clicking preset amount button clears any validation error
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: click
+    target:
+      role: button
+      name_regex: ^(Min|Pot|Mid|Max|[0-9]+)$
+expected:
+  dom:
+    not_contains_text:
+      - Invalid amount
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:50:01.199Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: >-
+    No grep hits for Min|Pot|Mid|Max preset buttons in web src — preset bet
+    shortcut likely doesn't exist; hallucination.
+
+    user-review 2026-05-27: Clean KEEP. MEDIUM: not_contains "Invalid amount" —
+    depends on prior page state. Consider adding baseline capture.

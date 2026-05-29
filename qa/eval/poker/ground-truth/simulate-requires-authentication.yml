@@ -1,0 +1,44 @@
+id: simulate-requires-authentication
+title: POST /simulate requires authentication
+area: api
+severity: P0
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: http
+    method: POST
+    path: /simulate
+    body:
+      name: Test Simulation
+      maxSeats: 6
+      blindConfig:
+        smallBlind: 10
+        bigBlind: 20
+      agents:
+        - name: Agent1
+          strategy: random
+          buyIn: 1000
+        - name: Agent2
+          strategy: always-call
+          buyIn: 1000
+      numHands: 1
+expected:
+  auth_state:
+    fully_logged_out: true
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.679Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.679Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P0
+  severity_final: P0
+  notes: "strong-pass: runner exercised + runOracle confirmed real assertion held.
+    PENDING verified_in_product flip after product spot-check."

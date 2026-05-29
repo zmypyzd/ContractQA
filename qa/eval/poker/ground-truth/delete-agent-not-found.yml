@@ -1,0 +1,33 @@
+id: delete-agent-not-found
+title: DELETE /me/agents/:agentId returns error for non-existent agent
+area: api
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: DELETE
+    path: /me/agents/non-existent-agent-id
+expected:
+  dom:
+    contains_text:
+      - AGENT_NOT_FOUND
+category:
+  - auth-boundary
+  - error-state
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:00.762Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:00.762Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: 'FAIL with no SUT source evidence:
+    paths=["/me/agents/non-existent-agent-id","/me/agents/[^/]\\+"] texts=[].
+    Likely hallucination.'

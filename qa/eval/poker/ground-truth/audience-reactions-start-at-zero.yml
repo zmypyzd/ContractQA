@@ -1,0 +1,33 @@
+id: audience-reactions-start-at-zero
+title: All reaction counts initialize to zero
+area: core
+severity: P3
+actions:
+  - type: goto
+    path: /game
+expected:
+  dom:
+    contains_text:
+      - "0"
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.793Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P3
+  severity_final: P3
+  notes: >-
+    strong-pass: runner exercised + runOracle confirmed real assertion held.
+    PENDING verified_in_product flip after product spot-check.
+
+    user-review 2026-05-27: DROP confirmed (user review). noise-needles
+    "0"/"data"/"error" — would silent-pass on most pages. [REPLACE-NEEDED: Use
+    scoped selector + number-equals on the counter element initial state.]

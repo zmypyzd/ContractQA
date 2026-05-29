@@ -1,0 +1,19 @@
+# generated-by: deep-discovery v1
+# interaction: route-fixture-lobby (route)
+# rationale: User can navigate to lobby page after login
+id: lobby-logout-sets-auth-state-logged-out
+title: Logout button sets auth-state to logged_out in localStorage
+area: auth
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /lobby
+  - type: click
+    target:
+      role: button
+      name_regex: ^Logout$
+expected:
+  localStorage:
+    auth-state: logged_out

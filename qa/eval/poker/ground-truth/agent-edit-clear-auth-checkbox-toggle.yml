@@ -1,0 +1,34 @@
+id: agent-edit-clear-auth-checkbox-toggle
+title: Clear auth header checkbox toggles when clicked
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /agents/test-agent-id/edit
+  - type: click
+    target:
+      role: checkbox
+      name_regex: "[Cc]lear [Aa]uth"
+expected:
+  dom:
+    contains_text:
+      - Clear
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:01.615Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:01.615Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but selector text exists in SUT web source — UI element probably
+    real, contract may need richer state. PENDING verified_in_product flip.

@@ -1,0 +1,33 @@
+id: agents-connect-invalid-token
+title: WebSocket /agents/connect rejects invalid bearer token
+area: api
+severity: P0
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: http
+    method: GET
+    path: /api/v1/agents/connect
+    headers:
+      Authorization: Bearer invalid-token-12345
+expected:
+  dom:
+    contains_text:
+      - invalid or revoked bearer token
+category:
+  - error-state
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:47:59.645Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:47:59.645Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P0
+  severity_final: P0
+  notes: FAIL but path "/agents/connect" exists in SUT source — intent likely
+    valid, failure is state/selector. PENDING verified_in_product flip.

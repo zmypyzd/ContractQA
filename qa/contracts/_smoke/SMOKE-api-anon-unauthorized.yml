@@ -1,0 +1,16 @@
+id: SMOKE-api-anon-unauthorized
+title: Anonymous API request returns 401 or redirect
+area: smoke
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /api/__contractqa_anon_probe__
+expected:
+  http_status:
+    one_of:
+      - 401
+      - 403
+      - 302
+      - 307

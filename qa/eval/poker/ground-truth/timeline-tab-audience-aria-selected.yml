@@ -1,0 +1,30 @@
+id: timeline-tab-audience-aria-selected
+title: Audience tab shows aria-selected true when active
+area: core
+severity: P2
+actions:
+  - type: click
+    target:
+      role: tab
+      name_regex: AUDIENCE
+expected:
+  dom:
+    contains_text:
+      - AUDIENCE
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.755Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.755Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: 'FAIL with no SUT source evidence: paths=[] texts=["AUDIENCE"]. Likely
+    hallucination.'

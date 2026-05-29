@@ -1,0 +1,32 @@
+id: confirm-dialog-escape-closes-dialog
+title: Pressing Escape key closes confirmation dialog
+area: core
+severity: P2
+preconditions: {}
+actions:
+  - type: click
+    target:
+      role: dialog
+expected:
+  dom:
+    role_count:
+      - role: dialog
+        eq: 1
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:50:01.200Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:50:01.200Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: Title says "Escape key closes dialog" but actions are click(role:dialog)
+    — no Escape press. Assertion ROLE_COUNT(dialog)==1 contradicts the title
+    (would expect ==0 after close). Self-inconsistent.

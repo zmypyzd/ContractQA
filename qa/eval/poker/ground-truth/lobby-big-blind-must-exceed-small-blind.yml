@@ -1,0 +1,44 @@
+id: lobby-big-blind-must-exceed-small-blind
+title: Big blind must be greater than or equal to small blind
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /lobby
+  - type: fill
+    target:
+      role: spinbutton
+      name_regex: "[Ss]mall [Bb]lind"
+    value: "100"
+  - type: fill
+    target:
+      role: spinbutton
+      name_regex: "[Bb]ig [Bb]lind"
+    value: "50"
+  - type: click
+    target:
+      role: button
+      name_regex: "[Cc]reate"
+expected:
+  dom:
+    contains_text:
+      - Big blind must be greater than or equal to small blind
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:02.551Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:02.551Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/lobby" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

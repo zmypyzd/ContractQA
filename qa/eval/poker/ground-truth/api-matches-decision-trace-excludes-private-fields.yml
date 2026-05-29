@@ -1,0 +1,31 @@
+id: api-matches-decision-trace-excludes-private-fields
+title: Decision trace endpoint excludes privateStateHash and reasoningSummary
+area: api
+severity: P1
+actions:
+  - type: http
+    method: GET
+    path: /matches/test-match-id/decision-trace
+expected:
+  dom:
+    not_contains_text:
+      - privateStateHash
+      - reasoningSummary
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.630Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.630Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: "weak-pass (flags: dom-after-http). Assertion was schema-ignored or
+    evaluated against wrong page; the PASS was a silent / coincidental match.
+    Phase B drift pattern."

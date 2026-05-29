@@ -1,0 +1,34 @@
+id: api-agent-invites-create-returns-token-once
+title: POST /agents/invites returns raw token with no-store cache headers
+area: api
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: POST
+    path: /agents/invites
+    body:
+      displayName: Test Agent
+      ttlSec: 3600
+expected:
+  dom:
+    contains_text:
+      - token
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:47:59.688Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:47:59.688Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/agents/invites" exists in SUT source — intent likely
+    valid, failure is state/selector. PENDING verified_in_product flip.

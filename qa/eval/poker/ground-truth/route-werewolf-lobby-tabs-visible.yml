@@ -1,0 +1,31 @@
+id: route-werewolf-lobby-tabs-visible
+title: Werewolf lobby displays all four filter tabs
+area: werewolf
+severity: P2
+preconditions: {}
+actions:
+  - type: goto
+    path: /werewolf
+expected:
+  dom:
+    role_count:
+      - role: button
+        name_regex: ^(ALL LIVE|FOLLOWING|FEATURED|RECENT)
+        gte: 4
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:31.078Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:31.078Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: "strong-pass: runner exercised + runOracle confirmed real assertion held.
+    PENDING verified_in_product flip after product spot-check."

@@ -1,0 +1,18 @@
+# generated-by: deep-discovery v1
+# interaction: route-fixture-lobby (route)
+# rationale: User can navigate to lobby page after login
+id: lobby-logout-navigates-to-login-stub
+title: Logout button navigates user to /login-stub
+area: auth
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /lobby
+  - type: click
+    target:
+      role: button
+      name_regex: ^Logout$
+expected:
+  url: /login-stub

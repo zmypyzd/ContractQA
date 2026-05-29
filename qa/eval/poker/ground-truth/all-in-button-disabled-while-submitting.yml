@@ -1,0 +1,40 @@
+id: all-in-button-disabled-while-submitting
+title: All-in button is disabled while action is being submitted
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /table
+  - type: click
+    target:
+      role: button
+      name_regex: "[Aa]ll.?[Ii]n"
+expected:
+  dom:
+    contains_text:
+      - Submitting
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:02.106Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: >-
+    FAIL but path "/table" exists in SUT source — intent likely valid, failure
+    is state/selector. PENDING verified_in_product flip.
+
+    user-review 2026-05-27: DROP confirmed (user review). title says disabled
+    but asserts presence of "Submitting". [REPLACE-NEEDED: Real intent: All-in
+    button is disabled during submission. Need disabled-attribute or
+    aria-disabled assertion + scoped to All-in button.]

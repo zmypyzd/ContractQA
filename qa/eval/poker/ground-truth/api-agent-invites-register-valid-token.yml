@@ -1,0 +1,35 @@
+id: api-agent-invites-register-valid-token
+title: External agent registration succeeds with valid unused invite token
+area: api
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: http
+    method: POST
+    path: /agents/invites/{valid-token}/register
+    body:
+      endpointUrl: https://example.com/agent
+expected:
+  dom:
+    not_contains_text:
+      - Not Found
+      - Unavailable
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.625Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.625Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: "weak-pass (flags: dom-after-http). Assertion was schema-ignored or
+    evaluated against wrong page; the PASS was a silent / coincidental match.
+    Phase B drift pattern."

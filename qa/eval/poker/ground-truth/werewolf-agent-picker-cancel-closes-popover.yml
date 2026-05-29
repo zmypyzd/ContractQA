@@ -1,0 +1,32 @@
+id: werewolf-agent-picker-cancel-closes-popover
+title: Cancel button closes agent picker popover
+area: core
+severity: P2
+actions:
+  - type: click
+    target:
+      text: Cancel
+preconditions:
+  auth_state: logged_in
+expected:
+  dom:
+    not_contains_text:
+      - Invite NPC
+      - Pick an agent
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:31.021Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:31.021Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: "Strict-mode violation: selector matched multiple elements. Intent likely
+    valid; reviewer to add first:true or within: scope."

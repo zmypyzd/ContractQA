@@ -1,0 +1,38 @@
+id: table-action-bet-submit
+title: Bet action button submits bet with valid amount
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Aa]mount|[Bb]et"
+    value: "100"
+  - type: click
+    target:
+      role: button
+      name_regex: "[Bb]et"
+expected:
+  dom:
+    not_contains_text:
+      - error
+      - invalid
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.664Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.664Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but selector text exists in SUT web source — UI element probably
+    real, contract may need richer state. PENDING verified_in_product flip.

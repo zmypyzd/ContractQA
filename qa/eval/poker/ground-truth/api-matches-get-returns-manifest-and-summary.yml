@@ -1,0 +1,32 @@
+id: api-matches-get-returns-manifest-and-summary
+title: GET /matches/:matchId returns match artifact with manifest and summary
+area: api
+severity: P1
+preconditions: {}
+actions:
+  - type: http
+    method: GET
+    path: /matches/test-match-123
+expected:
+  dom:
+    contains_text:
+      - manifest
+      - summary
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:47:59.944Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:47:59.944Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: 'FAIL with no SUT source evidence:
+    paths=["/matches/test-match-123","/matches/test-match-123"] texts=[]. Likely
+    hallucination.'

@@ -1,0 +1,15 @@
+# generated-by: deep-discovery v1
+# interaction: btn-picker-close (button)
+# rationale: Closes the folder picker modal
+id: folder-picker-escape-key-dismisses-modal
+title: Escape key dismisses folder picker modal
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+  modal_state: folder_picker_open
+actions:
+  - type: keypress
+    key: Escape
+expected:
+  modal_state: closed

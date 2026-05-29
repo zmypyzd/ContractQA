@@ -1,0 +1,34 @@
+id: SMOKE-api-anon-unauthorized
+title: Anonymous API request returns 401 or redirect
+area: smoke
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /api/__contractqa_anon_probe__
+expected:
+  http_status:
+    one_of:
+      - 401
+      - 403
+      - 302
+      - 307
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.611Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.611Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: "weak-pass (flags: unknown:http_status). Assertion was schema-ignored or
+    evaluated against wrong page; the PASS was a silent / coincidental match.
+    Phase B drift pattern."

@@ -1,0 +1,34 @@
+id: api-me-agents-create-returns-201
+title: POST /me/agents returns 201 with created agent data
+area: api
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: POST
+    path: /me/agents
+    body:
+      agentName: test-agent
+      endpointUrl: https://example.com/callback
+expected:
+  dom:
+    contains_text:
+      - test-agent
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:47:59.963Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:47:59.963Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/me/agents" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

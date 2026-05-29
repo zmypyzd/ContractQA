@@ -1,0 +1,38 @@
+id: timeline-tab-events-switches-from-audience
+title: Clicking Events tab switches from Audience tab view
+area: core
+severity: P2
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: click
+    target:
+      role: tab
+      name_regex: AUDIENCE
+  - type: click
+    target:
+      role: tab
+      name_regex: EVENTS
+expected:
+  dom:
+    role_count:
+      - role: tab
+        name_regex: EVENTS
+        eq: 1
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.780Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.780Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: 'FAIL with no SUT source evidence: paths=[] texts=["AUDIENCE","EVENTS"].
+    Likely hallucination.'

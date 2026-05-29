@@ -1,0 +1,14 @@
+# generated-by: deep-discovery v1
+# interaction: route-dashboard-root (route)
+# rationale: User can navigate to root which redirects to /runs
+id: dashboard-root-redirects-to-runs
+title: Dashboard root redirects to /runs
+area: core
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /
+expected:
+  url: /runs

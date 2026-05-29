@@ -1,0 +1,37 @@
+id: api-tables-add-agent-table-not-found
+title: Adding agent to non-existent table returns error
+area: api
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: POST
+    path: /tables/non-existent-table/agents
+    body:
+      adapterType: mock
+      name: TestAgent
+      buyIn: 1000
+expected:
+  dom:
+    contains_text:
+      - TABLE_NOT_FOUND
+category:
+  - auth-boundary
+  - error-state
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:00.144Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:00.144Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: 'FAIL with no SUT source evidence:
+    paths=["/tables/non-existent-table/agents","/tables/non-existent-table/agents"]
+    texts=[]. Likely hallucination.'

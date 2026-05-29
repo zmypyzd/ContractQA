@@ -1,0 +1,32 @@
+id: match-replay-back-link-navigates-to-matches
+title: Back to matches link navigates to matches list
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: click
+    target:
+      role: link
+      name_regex: Back to matches
+expected:
+  url:
+    matches: ^/matches$
+category:
+  - auth-boundary
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:02.938Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:02.938Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but selector text exists in SUT web source — UI element probably
+    real, contract may need richer state. PENDING verified_in_product flip.

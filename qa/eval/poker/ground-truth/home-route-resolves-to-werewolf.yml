@@ -1,0 +1,32 @@
+id: home-route-resolves-to-werewolf
+title: Home route resolves to werewolf lobby or active room
+area: core
+severity: P1
+actions:
+  - type: goto
+    path: /
+  - type: wait
+    ms: 6000
+expected:
+  url:
+    matches: ^/werewolf(/[a-zA-Z0-9-]+)?$
+  dom:
+    contains_text:
+      - Agent Arena
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.816Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.816Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: "strong-pass: runner exercised + runOracle confirmed real assertion held.
+    PENDING verified_in_product flip after product spot-check."

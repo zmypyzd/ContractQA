@@ -1,0 +1,34 @@
+id: analysis-sort-select-all-options-available
+title: Agent comparison sort dropdown displays all sort metric options
+area: core
+severity: P2
+actions:
+  - type: click
+    target:
+      role: combobox
+      name_regex: "[Ss]ort"
+expected:
+  dom:
+    contains_text:
+      - Decision count
+      - Average latency
+      - Timeout count
+      - Invalid action count
+      - Fallback count
+      - Missing reasoning count
+category:
+  - error-state
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:50:01.197Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:50:01.197Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: MatchAnalysisDashboard.tsx exists; intent valid (sort options).

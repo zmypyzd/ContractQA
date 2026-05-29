@@ -1,0 +1,18 @@
+# generated-by: deep-discovery v1
+# interaction: btn-picker-close (button)
+# rationale: Closes the folder picker modal
+id: folder-picker-close-button-dismisses-modal
+title: Close button dismisses folder picker modal
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+  modal_state: folder_picker_open
+actions:
+  - type: click
+    target:
+      role: button
+      name_regex: "^Close$"
+expected:
+  modal_state: closed
+  focus_restored: true

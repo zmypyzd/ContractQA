@@ -1,0 +1,40 @@
+id: login-page-renders-form
+title: Login page displays email and password fields with sign-in button
+area: auth
+severity: P0
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /login
+expected:
+  url:
+    matches: ^/login
+  dom:
+    contains_text:
+      - Log in
+      - Email
+      - Password
+    role_count:
+      - role: textbox
+        gte: 1
+      - role: button
+        name_regex: Sign in
+        eq: 1
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.739Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.739Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P0
+  severity_final: P0
+  notes: "strong-pass: runner exercised + runOracle confirmed real assertion held.
+    PENDING verified_in_product flip after product spot-check."

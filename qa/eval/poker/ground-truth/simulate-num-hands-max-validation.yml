@@ -1,0 +1,38 @@
+id: simulate-num-hands-max-validation
+title: Number of hands input enforces maximum of 20 hands
+area: core
+severity: P2
+preconditions: {}
+actions:
+  - type: goto
+    path: /simulate
+  - type: fill
+    target:
+      role: spinbutton
+      name_regex: "[Nn]um.*[Hh]ands|[Hh]ands"
+    value: "25"
+  - type: click
+    target:
+      role: button
+      name_regex: "[Ss]imulate|[Ss]ubmit|[Ss]tart"
+expected:
+  dom:
+    contains_text:
+      - "20"
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.506Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.506Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but path "/simulate" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

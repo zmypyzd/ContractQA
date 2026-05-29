@@ -1,0 +1,32 @@
+id: simulate-ante-default-zero
+title: Ante input defaults to zero
+area: core
+severity: P3
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /simulate
+expected:
+  dom:
+    role_count:
+      - role: spinbutton
+        name_regex: "[Aa]nte"
+        gte: 1
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.331Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.331Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P3
+  severity_final: P3
+  notes: FAIL but path "/simulate" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

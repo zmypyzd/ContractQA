@@ -1,0 +1,32 @@
+id: werewolf-stream-requires-game-id
+title: Werewolf SSE stream returns 400 when gameId is missing or empty
+area: api
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: http
+    method: GET
+    path: /api/v1/werewolf/stream/
+expected:
+  dom:
+    contains_text:
+      - INVALID_CONFIG
+      - gameId required
+category:
+  - error-state
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:00.971Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:00.971Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/werewolf/stream/" exists in SUT source — intent likely
+    valid, failure is state/selector. PENDING verified_in_product flip.

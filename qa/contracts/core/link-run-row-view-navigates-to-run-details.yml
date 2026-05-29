@@ -1,0 +1,19 @@
+# generated-by: deep-discovery v1
+# interaction: link-run-row-view (link)
+# rationale: User can click view arrow to see run details
+id: link-run-row-view-navigates-to-run-details
+title: Clicking view arrow navigates to run details page
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /runs
+  - type: click
+    target:
+      role: link
+      name_regex: ".*"
+    context: run row
+expected:
+  url: /runs/[id]

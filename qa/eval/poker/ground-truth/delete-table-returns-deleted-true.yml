@@ -1,0 +1,32 @@
+id: delete-table-returns-deleted-true
+title: DELETE /tables/:tableId returns deleted confirmation for owner
+area: api
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: DELETE
+    path: /tables/test-table-id
+expected:
+  dom:
+    contains_text:
+      - deleted
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:00.861Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:00.861Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: 'FAIL with no SUT source evidence:
+    paths=["/tables/test-table-id","/tables/[^/]\\+"] texts=[]. Likely
+    hallucination.'

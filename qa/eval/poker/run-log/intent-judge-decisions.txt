@@ -1,0 +1,74 @@
+# Intent-judge recommended decisions — review and edit, then run:
+#   node scripts/eval/apply-intent-judge.mjs --apply
+# Comment out (#) any line you disagree with; the rest will be applied.
+# Format: <id>\t<KEEP|DROP|MERGE:<canonical>>\t<note>
+
+# --- high-confidence disagreements (judge says current GT is wrong) ---
+api-agent-invites-register-invalid-token	KEEP	invariant: input validation
+api-agent-invites-revoke-hash-not-found	KEEP	intent valid (security/error response); expression uses dom on http-only action — runner DSL gap, not intent failure
+api-decision-trace-returns-404-for-missing-match	KEEP	intent valid (security/error response); expression uses dom on http-only action — runner DSL gap, not intent failure
+api-decision-trace-strips-private-fields	KEEP	intent valid (data leak prevention); expression uses dom on http-only action — runner DSL gap, not intent failure
+api-matches-decision-trace-returns-match-not-found	KEEP	intent valid (input validation); expression uses dom on http-only action — runner DSL gap, not intent failure
+api-matches-get-excludes-sensitive-fields	KEEP	intent valid (data leak prevention); expression uses dom on http-only action — runner DSL gap, not intent failure
+api-matches-get-not-found-invalid-id	KEEP	intent valid (input validation); expression uses dom on http-only action — runner DSL gap, not intent failure
+api-matches-list-excludes-seed	KEEP	intent valid (data leak prevention); expression uses dom on http-only action — runner DSL gap, not intent failure
+api-me-werewolf-agents-create-requires-csrf	KEEP	intent valid (auth/csrf boundary); expression uses dom on http-only action — runner DSL gap, not intent failure
+api-me-werewolf-agents-create-validates-body	KEEP	intent valid (input validation); expression uses dom on http-only action — runner DSL gap, not intent failure
+api-tables-add-agent-validates-adapter-type	KEEP	intent valid (security/error response, input validation); expression uses dom on http-only action — runner DSL gap, not intent failure
+api-tables-create-validates-schema	KEEP	invariant: security/error response, input validation
+api-tables-get-hand-validates-hand-belongs-to-table	KEEP	intent valid (input validation); expression uses dom on http-only action — runner DSL gap, not intent failure
+api-tables-get-hand-validates-table-exists	KEEP	intent valid (input validation); expression uses dom on http-only action — runner DSL gap, not intent failure
+api-tables-hand-replay-requires-auth	KEEP	intent valid (auth/csrf boundary); expression uses dom on http-only action — runner DSL gap, not intent failure
+api-tables-remove-agent-requires-auth	KEEP	invariant: auth/csrf boundary
+api-tables-watch-not-found-invalid-table	KEEP	intent valid (input validation); expression uses dom on http-only action — runner DSL gap, not intent failure
+api-werewolf-games-create-validates-name-length	KEEP	invariant: security/error response, input validation
+api-werewolf-invite-npc-requires-csrf	KEEP	intent valid (auth/csrf boundary); expression uses dom on http-only action — runner DSL gap, not intent failure
+api-werewolf-match-get-strips-seed	KEEP	intent valid (data leak prevention); expression uses dom on http-only action — runner DSL gap, not intent failure
+api-werewolf-matches-strips-seed	KEEP	intent valid (data leak prevention); expression uses dom on http-only action — runner DSL gap, not intent failure
+api-werewolf-start-host-only	DROP	sharpness: weak:trivial-url-regex
+delete-agent-requires-auth	KEEP	intent valid (auth/csrf boundary); expression uses dom on http-only action — runner DSL gap, not intent failure
+simulate-requires-csrf-token	KEEP	intent valid (auth/csrf boundary); expression uses dom on http-only action — runner DSL gap, not intent failure
+simulate-validates-request-schema	KEEP	intent valid (security/error response, input validation); expression uses dom on http-only action — runner DSL gap, not intent failure
+api-auth-register-validates-input	KEEP	invariant: security/error response, input validation
+appshell-login-navigates-to-login-page	KEEP	invariant: navigation invariant
+login-page-respects-next-param-redirect	KEEP	default-keep: sharp body + self-consistent + has assertion
+logout-clears-session-and-redirects	KEEP	invariant: navigation invariant
+werewolf-agent-picker-login-link	KEEP	invariant: auth/csrf boundary
+werewolf-agent-picker-login-navigation	KEEP	invariant: navigation invariant
+werewolf-agent-picker-requires-login	DROP	self-consistency: mismatch:title-says-visible-but-no-dom-or-url-assertion
+agent-endpoint-url-persists-on-edit	KEEP	default-keep: sharp body + self-consistent + has assertion
+agent-name-persists-on-edit-load	KEEP	default-keep: sharp body + self-consistent + has assertion
+agents-edit-redirects-when-legacy-disabled	KEEP	invariant: navigation invariant
+all-in-button-disabled-while-submitting	DROP	self-consistency: mismatch:title-says-removal-but-asserts-presence
+appshell-invite-button-close-toggle	KEEP	default-keep: sharp body + weak signal (tab-switching UI (specific to current layout))
+audience-fire-reaction-increment	KEEP	default-keep: sharp body + self-consistent + has assertion
+audience-react-clap-multiple-clicks	KEEP	default-keep: sharp body + self-consistent + has assertion
+audience-react-heart-increments-count	KEEP	default-keep: sharp body + self-consistent + has assertion
+audience-react-heart-independent-counts	KEEP	default-keep: sharp body + self-consistent + has assertion
+audience-reactions-start-at-zero	DROP	sharpness: weak:noise-needles-only
+audience-strip-shows-watching-count	KEEP	default-keep: sharp body + self-consistent + has assertion
+audience-wolf-reaction-increment	KEEP	default-keep: sharp body + self-consistent + has assertion
+audience-wolf-reaction-initial-zero	KEEP	default-keep: sharp body + self-consistent + has assertion
+check-action-button-disabled-while-submitting	DROP	self-consistency: mismatch:title-says-removal-but-asserts-presence
+check-action-button-visible-when-legal	KEEP	default-keep: sharp body + self-consistent + has assertion
+confirm-dialog-cancel-closes-dialog	KEEP	default-keep: sharp body + self-consistent + has assertion
+home-route-shows-loading-state	KEEP	default-keep: sharp body + self-consistent + has assertion
+invite-http-agent-copies-to-clipboard	KEEP	default-keep: sharp body + self-consistent + has assertion
+invite-http-clipboard-fallback-shows-text	KEEP	default-keep: sharp body + self-consistent + has assertion
+invite-popover-coding-api-error-toast	KEEP	default-keep: sharp body + self-consistent + has assertion
+invite-popover-coding-generates-invite	KEEP	default-keep: sharp body + self-consistent + has assertion
+lobby-seed-input-accepts-optional-value	DROP	sharpness: weak:empty-contains-text
+match-replay-redirects-when-legacy-disabled	KEEP	invariant: navigation invariant
+matches-open-replay-link-navigates	KEEP	invariant: navigation invariant
+raise-slider-shows-validation-error	DROP	sharpness: weak:noise-needles-only
+replay-hand-select-button-updates-view	DROP	sharpness: weak:empty-contains-text
+replay-next-button-advances-timeline	DROP	sharpness: weak:empty-contains-text
+replay-street-filter-resets-on-hand-change	DROP	sharpness: weak:empty-contains-text
+route-table-redirect-when-disabled	KEEP	invariant: navigation invariant
+table-preset-amount-clears-error	KEEP	default-keep: sharp body + weak signal (UI affordance (optional feature), tab-switching UI (specific to current layout))
+table-preset-amount-sets-bet-value	KEEP	default-keep: sharp body + weak signal (UI affordance (optional feature), tab-switching UI (specific to current layout))
+werewolf-lobby-recent-tab-filters-completed-games	DROP	self-consistency: mismatch:title-says-keyboard-but-no-key-action
+werewolf-lobby-tab-featured-active-state	DROP	self-consistency: mismatch:title-says-keyboard-but-no-key-action
+werewolf-lobby-tab-live-filters-games	DROP	self-consistency: mismatch:title-says-keyboard-but-no-key-action
+werewolf-room-wrapped-in-app-shell	KEEP	default-keep: sharp body + self-consistent + has assertion
+match-replay-tab-switch-to-replay	DROP	self-consistency: mismatch:title-says-keyboard-but-no-key-action

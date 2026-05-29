@@ -1,0 +1,29 @@
+id: home-route-catch-all-redirect
+title: Unknown routes redirect to home
+area: core
+severity: P2
+actions:
+  - type: goto
+    path: /nonexistent-path-xyz
+  - type: wait
+    ms: 6000
+expected:
+  url:
+    matches: ^/werewolf(/[a-zA-Z0-9-]+)?$
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.816Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.816Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: "strong-pass: runner exercised + runOracle confirmed real assertion held.
+    PENDING verified_in_product flip after product spot-check."

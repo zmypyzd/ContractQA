@@ -1,0 +1,30 @@
+id: login-redirects-authenticated-user
+title: Authenticated users visiting /login are redirected away
+area: auth
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /login
+expected:
+  url:
+    matches: ^/(?!login)
+category:
+  - unclassified
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:37:01.587Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:37:01.587Z
+  status: merged
+  duplicates_of:
+    - login-page-redirects-authenticated-users
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 1
+  severity_original: P1
+  severity_final: P1
+  notes: Body-hash duplicate of login-page-redirects-authenticated-users (group
+    e546cbf9f74c); actions+expected byte-identical, only title differs.

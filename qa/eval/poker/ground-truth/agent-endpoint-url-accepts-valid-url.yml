@@ -1,0 +1,35 @@
+id: agent-endpoint-url-accepts-valid-url
+title: Agent endpoint URL field accepts valid HTTP/HTTPS URLs
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /agents/new
+  - type: fill
+    target:
+      name_regex: "[Ee]ndpoint"
+    value: https://api.example.com/webhook
+expected:
+  dom:
+    not_contains_text:
+      - invalid
+      - Invalid URL
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:01.736Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:01.736Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/agents/new" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

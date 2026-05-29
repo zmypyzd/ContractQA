@@ -1,0 +1,32 @@
+id: agents-delete-confirm-calls-api
+title: Confirming deletion calls the delete API endpoint
+area: api
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: DELETE
+    path: /api/agents/{agentConfigId}
+expected:
+  dom:
+    not_contains_text:
+      - Error
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.620Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.620Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: "weak-pass (flags: dom-after-http). Assertion was schema-ignored or
+    evaluated against wrong page; the PASS was a silent / coincidental match.
+    Phase B drift pattern."

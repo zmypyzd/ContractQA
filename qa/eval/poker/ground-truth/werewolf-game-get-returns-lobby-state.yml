@@ -1,0 +1,29 @@
+id: werewolf-game-get-returns-lobby-state
+title: GET /werewolf-games/:gameId returns full lobby state for valid game
+area: api
+severity: P1
+actions:
+  - type: http
+    method: GET
+    path: /werewolf-games/test-game-id
+expected:
+  dom:
+    contains_text:
+      - data
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.710Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.710Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: dom.contains_text only matches noise tokens (data); would silent-pass on
+    most pages.

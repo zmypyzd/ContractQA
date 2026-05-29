@@ -1,0 +1,18 @@
+# generated-by: deep-discovery v1
+# interaction: link-fixture-to-login (link)
+# rationale: User can click to navigate to login
+id: navigate-to-login-page
+title: Home page login link navigates to login page
+area: core
+severity: P2
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /
+  - type: click
+    target:
+      role: link
+      name_regex: /login
+expected:
+  url: /login

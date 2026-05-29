@@ -1,0 +1,34 @@
+id: api-werewolf-invite-npc-host-only
+title: Only game creator can invite NPC to werewolf seat
+area: api
+severity: P0
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: POST
+    path: /werewolf-games/other-users-game/seats/0/invite-npc
+    body:
+      displayName: TestNPC
+expected:
+  dom:
+    not_contains_text:
+      - TestNPC
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.663Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.663Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P0
+  severity_final: P0
+  notes: "weak-pass (flags: dom-after-http). Assertion was schema-ignored or
+    evaluated against wrong page; the PASS was a silent / coincidental match.
+    Phase B drift pattern."

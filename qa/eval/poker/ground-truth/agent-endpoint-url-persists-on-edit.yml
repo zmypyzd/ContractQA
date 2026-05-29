@@ -1,0 +1,36 @@
+id: agent-endpoint-url-persists-on-edit
+title: Agent endpoint URL is pre-filled when editing existing agent
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /agents/test-agent-id/edit
+expected:
+  dom:
+    contains_text:
+      - Endpoint
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:01.792Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: >-
+    FAIL with no SUT source evidence:
+    paths=["/agents/test-agent-id/edit","/agents/[^/]\\+/edit"] texts=[]. Likely
+    hallucination.
+
+    user-review 2026-05-27: Clean KEEP. WEAK: contains_text "Endpoint" — could
+    be a label. Add input.value assertion (same as
+    agent-name-persists-on-edit-load).

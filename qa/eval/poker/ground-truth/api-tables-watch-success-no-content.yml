@@ -1,0 +1,33 @@
+id: api-tables-watch-success-no-content
+title: POST /tables/:tableId/watch returns 204 on successful spectator registration
+area: api
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: POST
+    path: /tables/valid-table-id/watch
+expected:
+  dom:
+    not_contains_text:
+      - error
+      - Error
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.659Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.659Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: "weak-pass (flags: dom-after-http). Assertion was schema-ignored or
+    evaluated against wrong page; the PASS was a silent / coincidental match.
+    Phase B drift pattern."

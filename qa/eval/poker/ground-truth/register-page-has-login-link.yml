@@ -1,0 +1,34 @@
+id: register-page-has-login-link
+title: Register page provides link to login page
+area: auth
+severity: P2
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /register
+expected:
+  dom:
+    contains_text:
+      - Have an account?
+    role_count:
+      - role: link
+        name_regex: Log in
+        eq: 1
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.748Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.748Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: "strong-pass: runner exercised + runOracle confirmed real assertion held.
+    PENDING verified_in_product flip after product spot-check."

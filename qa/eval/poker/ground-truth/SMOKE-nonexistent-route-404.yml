@@ -1,0 +1,31 @@
+id: SMOKE-nonexistent-route-404
+title: Nonexistent route returns 4xx
+area: smoke
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /__contractqa_404_probe__
+expected:
+  http_status:
+    gte: 400
+    lt: 500
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.613Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.613Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: "weak-pass (flags: unknown:http_status). Assertion was schema-ignored or
+    evaluated against wrong page; the PASS was a silent / coincidental match.
+    Phase B drift pattern."

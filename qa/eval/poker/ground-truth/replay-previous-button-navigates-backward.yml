@@ -1,0 +1,32 @@
+id: replay-previous-button-navigates-backward
+title: Previous button selects prior timeline action
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: click
+    target:
+      role: button
+      name_regex: ^Previous$
+expected:
+  dom:
+    contains_text:
+      - Selected Action
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.102Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.102Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but selector text exists in SUT web source — UI element probably
+    real, contract may need richer state. PENDING verified_in_product flip.

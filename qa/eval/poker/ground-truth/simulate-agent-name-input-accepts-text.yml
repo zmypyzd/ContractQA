@@ -1,0 +1,35 @@
+id: simulate-agent-name-input-accepts-text
+title: Agent name input accepts and displays user-entered name
+area: core
+severity: P2
+preconditions: {}
+actions:
+  - type: goto
+    path: /simulate
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Nn]ame"
+      first: true
+    value: Test Agent 1
+expected:
+  dom:
+    contains_text:
+      - Test Agent 1
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.255Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.255Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but path "/simulate" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

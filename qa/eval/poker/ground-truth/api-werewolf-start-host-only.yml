@@ -1,0 +1,36 @@
+id: api-werewolf-start-host-only
+title: Only the game creator can start a werewolf game
+area: api
+severity: P0
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: POST
+    path: /werewolf-games/test-game-id/start
+expected:
+  url:
+    matches: .*
+category:
+  - unclassified
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:37:01.587Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 1
+  severity_original: P0
+  severity_final: P0
+  notes: >-
+    Canonical of true-duplicate body-hash group 52d8bc0c1cc8 (3 members).
+    Absorbs: api-werewolf-start-requires-auth, api-werewolf-start-returns-202.
+    PENDING human verified_in_product flip.
+
+    user-review 2026-05-27: DROP confirmed (user review). trivial-url-regex (.*)
+    — no real assertion. [REPLACE-NEEDED: P0 domain rule: only game creator can
+    start. Rewrite as http POST + auth/role assertion via status code.]

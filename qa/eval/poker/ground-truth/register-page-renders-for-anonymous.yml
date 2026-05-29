@@ -1,0 +1,39 @@
+id: register-page-renders-for-anonymous
+title: Register page renders registration form for anonymous users
+area: auth
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /register
+expected:
+  url:
+    matches: ^/register
+  dom:
+    contains_text:
+      - Register
+      - Create account
+    role_count:
+      - role: textbox
+        gte: 3
+      - role: button
+        name_regex: Create account
+        eq: 1
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.751Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.751Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: "strong-pass: runner exercised + runOracle confirmed real assertion held.
+    PENDING verified_in_product flip after product spot-check."

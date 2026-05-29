@@ -1,0 +1,40 @@
+id: replay-previous-button-stops-playback
+title: Previous button stops auto-play when clicked
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: click
+    target:
+      role: button
+      name_regex: ^Play$
+  - type: wait
+    ms: 100
+  - type: click
+    target:
+      role: button
+      name_regex: ^Previous$
+expected:
+  dom:
+    contains_text:
+      - Play
+    not_contains_text:
+      - Pause
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:03.110Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:03.110Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but selector text exists in SUT web source — UI element probably
+    real, contract may need richer state. PENDING verified_in_product flip.

@@ -1,0 +1,12 @@
+id: SMOKE-root-not-500
+title: Root route does not return 5xx
+area: smoke
+severity: P0
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /
+expected:
+  http_status:
+    lt: 500

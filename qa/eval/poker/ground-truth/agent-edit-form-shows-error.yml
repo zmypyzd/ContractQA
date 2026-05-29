@@ -1,0 +1,46 @@
+id: agent-edit-form-shows-error
+title: Agent form displays error message on submission failure
+area: core
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /agents/new
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Aa]gent [Nn]ame"
+    value: Test Agent
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Ee]ndpoint"
+    value: invalid-url
+  - type: click
+    target:
+      role: button
+      name_regex: "[Ss]ave|[Cc]reate|[Ss]ubmit"
+  - type: wait
+    ms: 500
+expected:
+  dom:
+    contains_text:
+      - "[Ee]rror|[Ff]ailed|[Ii]nvalid"
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:01.653Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:01.653Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but path "/agents/new" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

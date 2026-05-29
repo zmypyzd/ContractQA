@@ -1,0 +1,35 @@
+id: invite-http-agent-copies-to-clipboard
+title: Clicking "Invite HTTP agent" generates invite and copies to clipboard
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: click
+    target:
+      text: Invite HTTP agent
+expected:
+  dom:
+    contains_text:
+      - 已复制 HTTP Agent 邀请文案到剪贴板
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.819Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: >-
+    Chinese-locale selector or text (needle) on English SUT — likely i18n
+    hallucination.
+
+    user-review 2026-05-27: Clean KEEP. STRONG: long Chinese needle "已复制 HTTP
+    Agent 邀请文案到剪贴板" — unmistakable.

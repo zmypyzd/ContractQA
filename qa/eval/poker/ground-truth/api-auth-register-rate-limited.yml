@@ -1,0 +1,31 @@
+id: api-auth-register-rate-limited
+title: POST /auth/register enforces rate limiting
+area: auth
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: http
+    method: POST
+    path: /auth/register
+    body:
+      email: ratelimit-test@example.com
+      password: SecurePass123!
+      displayName: Rate Test
+category:
+  - unclassified
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:37:01.587Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:37:01.587Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: "Schema-invalid as generated: Required. Reviewer may rescue if the intent
+    describes a real invariant; otherwise leave dropped."

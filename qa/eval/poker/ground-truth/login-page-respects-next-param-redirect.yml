@@ -1,0 +1,35 @@
+id: login-page-respects-next-param-redirect
+title: Login page redirects authenticated users to next param destination
+area: auth
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /login?next=/dashboard
+expected:
+  url:
+    matches: ^/dashboard
+category:
+  - auth-boundary
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:01.198Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P2
+  severity_final: P2
+  notes: >-
+    FAIL with no SUT source evidence:
+    paths=["/login\\?next=/dashboard","/login\\?next=/dashboard"] texts=[].
+    Likely hallucination.
+
+    user-review 2026-05-27: Clean KEEP. STRONG: precise url.matches
+    "^/dashboard" — logged-in user with next param redirects correctly.

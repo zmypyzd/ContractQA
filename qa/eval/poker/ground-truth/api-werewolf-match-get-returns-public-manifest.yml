@@ -1,0 +1,33 @@
+id: api-werewolf-match-get-returns-public-manifest
+title: GET /werewolf-matches/:matchId returns public manifest without private files
+area: api
+severity: P1
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: http
+    method: GET
+    path: /werewolf-matches/test-match-id
+expected:
+  dom:
+    not_contains_text:
+      - privateStateHash
+      - reasoningSummary
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.665Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:46:30.665Z
+  status: dropped
+  duplicates_of: []
+review:
+  validity: fp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P1
+  severity_final: P1
+  notes: "weak-pass (flags: dom-after-http). Assertion was schema-ignored or
+    evaluated against wrong page; the PASS was a silent / coincidental match.
+    Phase B drift pattern."

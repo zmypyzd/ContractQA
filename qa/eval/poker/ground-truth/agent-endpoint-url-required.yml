@@ -1,0 +1,42 @@
+id: agent-endpoint-url-required
+title: Agent endpoint URL field is required for form submission
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /agents/new
+  - type: fill
+    target:
+      name_regex: "[Aa]gent [Nn]ame"
+    value: Test Agent
+  - type: fill
+    target:
+      name_regex: "[Ee]ndpoint"
+    value: ""
+  - type: click
+    target:
+      role: button
+      name_regex: "[Ss]ave|[Cc]reate|[Ss]ubmit"
+expected:
+  url:
+    matches: /agents/new
+category:
+  - auth-boundary
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:01.810Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:01.810Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/agents/new" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

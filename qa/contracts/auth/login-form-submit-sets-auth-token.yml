@@ -1,0 +1,32 @@
+# generated-by: deep-discovery v1
+# interaction: input-fixture-email (form)
+# rationale: Email field in login form
+id: login-form-submit-sets-auth-token
+title: Successful login stores auth token in localStorage
+area: auth
+severity: P0
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /login
+  - type: fill
+    target:
+      role: textbox
+      name_regex: email
+    value: test@example.com
+  - type: fill
+    target:
+      role: textbox
+      name_regex: password
+    value: password123
+  - type: click
+    target:
+      role: button
+      name_regex: Sign in
+expected:
+  url: /lobby
+  localStorage:
+    sb-fixture-auth-token:
+      exists: true
+  auth_state: logged_in

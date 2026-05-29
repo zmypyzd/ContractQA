@@ -1,0 +1,32 @@
+id: all-in-button-visible-when-pending-action
+title: All-in button is visible when player has pending action
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /table
+expected:
+  dom:
+    role_count:
+      - role: button
+        name_regex: "[Aa]ll.?[Ii]n"
+        gte: 1
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:02.151Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:02.151Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/table" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

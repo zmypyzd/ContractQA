@@ -1,0 +1,36 @@
+id: lobby-logout-clears-session
+title: Logout button clears user session and redirects to login
+area: auth
+severity: P0
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /lobby
+  - type: click
+    target:
+      role: button
+      name_regex: "[Ll]og\\s*[Oo]ut"
+expected:
+  url:
+    matches: /(login|signin|auth)
+  auth_state:
+    fully_logged_out: true
+category:
+  - auth-boundary
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:01.078Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:01.078Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P0
+  severity_final: P0
+  notes: FAIL but path "/lobby" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

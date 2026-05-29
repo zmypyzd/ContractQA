@@ -1,0 +1,38 @@
+id: appshell-login-navigates-to-login-page
+title: Login button navigates to login page with return URL
+area: auth
+severity: P0
+preconditions:
+  auth_state: anonymous
+actions:
+  - type: goto
+    path: /
+  - type: click
+    target:
+      role: button
+      name_regex: ^登录$
+expected:
+  url:
+    matches: ^/login\?next=%2F$
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:46:30.728Z
+  reviewed_by: user+rubber-duck-review
+  reviewed_at: 2026-05-27T02:19:22.366Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 0
+  severity_original: P0
+  severity_final: P0
+  notes: >-
+    Chinese-locale selector or text (name_regex) on English SUT — likely i18n
+    hallucination.
+
+    user-review 2026-05-27: Clean KEEP. STRONG: precise url.matches
+    "^/login\\?next=%2F$" — validates `next` param mechanism. § A1 (returnTo)
+    alarm voided.

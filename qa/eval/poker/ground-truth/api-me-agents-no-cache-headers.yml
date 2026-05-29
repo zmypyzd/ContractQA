@@ -1,0 +1,34 @@
+id: api-me-agents-no-cache-headers
+title: POST /me/agents responses include no-store cache headers
+area: api
+severity: P2
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: http
+    method: POST
+    path: /me/agents
+    body:
+      agentName: cache-test-agent
+      endpointUrl: https://example.com/callback
+expected:
+  dom:
+    contains_text:
+      - cache-test-agent
+category:
+  - auth-boundary
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:00.091Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:00.091Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: FAIL but path "/me/agents" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.

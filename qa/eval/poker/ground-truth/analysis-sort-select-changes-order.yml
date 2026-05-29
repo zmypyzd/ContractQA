@@ -1,0 +1,34 @@
+id: analysis-sort-select-changes-order
+title: Agent comparison sort dropdown changes agent list order
+area: core
+severity: P2
+actions:
+  - type: click
+    target:
+      role: combobox
+      name_regex: "[Ss]ort"
+  - type: click
+    target:
+      role: option
+      text: Average latency
+expected:
+  dom:
+    contains_text:
+      - avg latency
+category:
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:50:01.196Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:50:01.196Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P2
+  severity_final: P2
+  notes: MatchAnalysisDashboard.tsx has the Sort combobox — needs match-analysis
+    page state to reach it.

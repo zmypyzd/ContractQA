@@ -1,0 +1,46 @@
+id: agent-edit-form-submit-redirects
+title: Agent form submission redirects to agents list
+area: core
+severity: P1
+preconditions:
+  auth_state: logged_in
+actions:
+  - type: goto
+    path: /agents/new
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Aa]gent [Nn]ame"
+    value: Test Agent
+  - type: fill
+    target:
+      role: textbox
+      name_regex: "[Ee]ndpoint"
+    value: https://example.com/agent
+  - type: click
+    target:
+      role: button
+      name_regex: "[Ss]ave|[Cc]reate|[Ss]ubmit"
+  - type: wait
+    ms: 1000
+expected:
+  url:
+    matches: /agents$
+category:
+  - auth-boundary
+  - happy-path
+provenance:
+  source: autopilot
+  generated_at: 2026-05-25T09:48:01.673Z
+  reviewed_by: eval-automation
+  reviewed_at: 2026-05-25T09:48:01.673Z
+  status: approved
+  duplicates_of: []
+review:
+  validity: tp
+  validity_verified_in_product: false
+  specificity: 2
+  severity_original: P1
+  severity_final: P1
+  notes: FAIL but path "/agents/new" exists in SUT source — intent likely valid,
+    failure is state/selector. PENDING verified_in_product flip.
