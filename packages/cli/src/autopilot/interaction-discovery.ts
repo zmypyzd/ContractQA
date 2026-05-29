@@ -446,6 +446,71 @@ function extractWindow(fileContent: string, matchTokens: string[]): string {
   return lines.slice(start, end).join('\n');
 }
 
+// Variant-selectable strengthening block, chosen by CONTRACTQA_GEN_PROMPT.
+//  - 'asrt'   : assertion-specificity rules (tuning Entry 20-22). REJECTED — no
+//               true-detection lift; a blind agent reading buggy source asserts the
+//               buggy behavior regardless of how the rule is phrased (Entry 22).
+//  - 'priors' : oracle-problem fix (tuning Entry 23). Don't derive `expected` from
+//               what the buggy code DOES — derive it from what the product SHOULD do,
+//               as a human user / domain prior, plus metamorphic relations (which
+//               need no absolute oracle). This supplies the INDEPENDENT correct
+//               reference blind-from-source lacks. (Grounded in the test-oracle-
+//               problem literature: metamorphic testing, agentic property-based
+//               testing, LLM-as-oracle.)
+//  - default  : baseline (no extra block).
+function genVariantBlock(): string[] {
+  const v = process.env.CONTRACTQA_GEN_PROMPT || 'baseline';
+  if (v === 'asrt') {
+    return [
+      'ASSERTION SPECIFICITY — a contract that fails any of these PASSES on a buggy app:',
+      '  • VALUE, not existence: assert the concrete correct value (count/text/persisted/total/ordering), not that an element merely exists.',
+      '  • VIOLATION, not happy path: if there is a constraint, ATTEMPT to violate it and assert it is blocked.',
+      '  • INTERACTION, not static: perform the click/fill/submit/switch, then assert the post-action state.',
+      '  • AIM at THIS requirement, not just something on the same page.',
+      '',
+    ];
+  }
+  if (v === 'priors') {
+    return [
+      '═══ HOW TO DERIVE `expected` — read carefully ═══',
+      'The source code you are given MAY CONTAIN BUGS. If you write `expected` to',
+      'match what the code currently does, your contract will PASS even when the',
+      'product is broken — it catches nothing. Instead, derive `expected` from what',
+      'the product SHOULD do, the way a real human user would expect it to behave.',
+      '',
+      '1. HUMAN-USER INTUITION (domain priors): picture yourself actually using this',
+      '   product. For this KIND of app and this interaction, what would any',
+      '   reasonable user EXPECT? Assert those expectations even if the code seems to',
+      '   do something else. Universal examples (adapt to the feature):',
+      '     • registering with an already-taken email/username is REJECTED',
+      '     • deleting one of N items leaves N−1 and the item is gone',
+      '     • a count/badge equals the number of items actually rendered',
+      '     • clicking a link/button actually navigates / performs its labelled action',
+      '     • a submitted value is the value shown afterwards (no silent change/loss)',
+      '     • required fields block submission when empty; limits block the (N+1)th',
+      '',
+      '2. METAMORPHIC RELATIONS (no absolute answer needed — relations that MUST hold',
+      '   between two states/views; a violation is a bug regardless of exact values):',
+      '     • FILTER ⊆ ALL: filtered results are a subset of unfiltered',
+      '     • CONSISTENCY: the same datum shown in two places (list vs detail, badge',
+      '       vs rows, card vs page) must match',
+      '     • REVERSIBILITY: toggle on then off returns to the original state',
+      '     • ROUND-TRIP: create X with given inputs → X appears with those same inputs',
+      '   Encode these as two-step contracts (capture state A, act, assert relation to A).',
+      '',
+      '3. ACTIVE SUSPICION: before writing, ask "what about this interaction would be',
+      '   ABNORMAL or broken from a user\'s view?" Target those suspicions — write the',
+      '   contract that would FAIL if the product misbehaves the way you suspect.',
+      '',
+      'Prefer scoped value/relation assertions (element_text_equals, role_count{eq},',
+      'input_value, attribute_equals) over contains_text needles. Still output ONLY',
+      'contracts you can express in the schema below.',
+      '',
+    ];
+  }
+  return [];
+}
+
 export function buildGenerateSystemPrompt(): string {
   // Reuse the existing schema description from llm-discovery.ts. We replicate
   // it here (rather than importing) because llm-discovery's prompt is
@@ -483,30 +548,9 @@ export function buildGenerateSystemPrompt(): string {
     'attribute_equals, input_value, class_contains) over `dom.contains_text`',
     'needles — the latter silent-pass on most pages.',
     '',
-    // ─── BEGIN assertion-specificity rules (tuning v2, 2026-05-29) ───
-    // Execution-grounded fingerprints (tuning-log Entry 20/21): 91% of contracts
-    // that reach the bug surface still PASS on the buggy app because of three
-    // weaknesses. A contract that does not avoid all three cannot catch a bug.
-    'ASSERTION SPECIFICITY — a contract that fails any of these PASSES on a buggy',
-    'app and is worthless. Before finalizing each contract, enforce all four:',
-    '  • VALUE, not existence: if the feature has a concrete correct value (a',
-    '    count, exact text, a persisted field, a computed total, an ordering),',
-    '    assert that VALUE via element_text_equals / role_count{eq} / input_value /',
-    '    attribute_equals. Asserting only that an element EXISTS or the page',
-    '    contains some text cannot catch a wrong-value bug.',
-    '  • VIOLATION, not happy path: if the requirement is a CONSTRAINT (max/min,',
-    '    required, uniqueness, ordering, role/permission, validation), add actions',
-    '    that ATTEMPT TO VIOLATE it and assert the violation is blocked/handled.',
-    '    Exercising only the allowed path cannot catch a broken constraint.',
-    '  • INTERACTION, not static: if the invariant only holds AFTER an action',
-    '    (click / fill / submit / switch / filter), the contract MUST perform that',
-    '    action, then assert the post-action URL/DOM/storage — never just the',
-    '    pre-action state.',
-    '  • AIM at THIS requirement: the assertion must target the specific behavior',
-    '    in question, not merely something else on the same page. Being "on the',
-    '    surface" is not coverage.',
-    '',
-    // ─── END assertion-specificity rules ───
+    // Variant-selectable extra block (env CONTRACTQA_GEN_PROMPT): baseline (none),
+    // 'asrt' (assertion-specificity, Entry 22 — rejected), 'priors' (Entry 23).
+    ...genVariantBlock(),
     // ─── END class-targeted CoT ───
     'ContractProposal:',
     '  {',
