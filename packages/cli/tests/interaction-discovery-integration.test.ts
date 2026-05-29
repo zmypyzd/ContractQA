@@ -94,6 +94,51 @@ describe('discoverByInteraction integration', () => {
     expect(written).toContain('# interaction: btn-app-greet');
   });
 
+  // One Stage-1 interaction → one Stage-2 call. Reflexion (when enabled) adds
+  // exactly one more LLM call after Stage 2, gated on flatProposals.length > 0.
+  // These two cases pin the enableReflexion plumbing the --no-reflexion CLI flag
+  // threads through.
+  function singleInteractionLlm(): LLMClient {
+    let callIdx = 0;
+    return {
+      providerName: 'anthropic-sdk',
+      modelHint: 'test',
+      generate: vi.fn(async () => {
+        callIdx++;
+        if (callIdx === 1) {
+          return {
+            content: JSON.stringify([
+              { id: 'btn-app-greet', type: 'button', file: 'app/page.tsx', name: 'Greet', module: 'app', rationale: 'r' },
+            ]),
+            usage: { inputTokens: 0, outputTokens: 0 },
+          };
+        }
+        // Stage 2 + any Reflexion call: return one valid proposal.
+        return {
+          content: JSON.stringify([
+            { yaml: `id: INV-${callIdx}\ntitle: t\narea: app\nactions: []\nexpected: {}\n`, confidence: 'high', module: 'app',
+              evidence: { sourceFiles: [], rationale: 'r' } },
+          ]),
+          usage: { inputTokens: 0, outputTokens: 0 },
+        };
+      }),
+    };
+  }
+
+  it('enableReflexion default (true) runs the post-Stage-2 Reflexion call', async () => {
+    const llm = singleInteractionLlm();
+    await discoverByInteraction({ cwd, llmClient: llm, signal: new AbortController().signal, concurrency: 1 });
+    // Stage 1 (1) + Stage 2 (1) + Reflexion (1) = 3 calls
+    expect((llm.generate as ReturnType<typeof vi.fn>).mock.calls.length).toBe(3);
+  });
+
+  it('enableReflexion: false skips the Reflexion call', async () => {
+    const llm = singleInteractionLlm();
+    await discoverByInteraction({ cwd, llmClient: llm, signal: new AbortController().signal, concurrency: 1, enableReflexion: false });
+    // Stage 1 (1) + Stage 2 (1), no Reflexion = 2 calls
+    expect((llm.generate as ReturnType<typeof vi.fn>).mock.calls.length).toBe(2);
+  });
+
   it('re-run produces 0 new contracts (dedup works)', async () => {
     // Same LLM stub as above — first run writes, second should skip all 3
     let callIdx = 0;

@@ -97,6 +97,12 @@ export interface AutopilotOptions {
   deepConcurrency?: number;
   /** Hard cap on contracts generated in a single deep run. Default 500. */
   deepMaxContracts?: number;
+  /**
+   * Run the post-Stage-2 Reflexion content-class pass in deep mode. Default
+   * true (matches discoverByInteraction's own default). Set false to disable —
+   * used for paired Reflexion-on/off tuning batches. Only affects deep mode.
+   */
+  enableReflexion?: boolean;
 }
 
 interface QueuedFailure {
@@ -643,6 +649,7 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
           signal: abortController.signal,
           concurrency: opts.deepConcurrency,
           maxContracts: opts.deepMaxContracts,
+          enableReflexion: opts.enableReflexion,
           onEvent: (e) => {
             if (e.type === 'log') {
               emit({ type: 'log', level: e.level, message: e.message, elapsedMs: elapsed() });

@@ -120,6 +120,7 @@ program
   .option('--discovery-mode <mode>', 'Phase B discovery: deep (default, 1 contract per interaction) or modules', 'deep')
   .option('--deep-concurrency <n>', 'Concurrent LLM calls in deep Stage 2 (default 4)', '4')
   .option('--deep-max-contracts <n>', 'Hard cap on contracts generated per deep run (default 500)', '500')
+  .option('--no-reflexion', 'Skip the deep-mode Reflexion content-class pass (also via CONTRACTQA_DISABLE_REFLEXION=1)')
   .action(async (opts: {
     timeBudget: string;
     fix: boolean;
@@ -133,6 +134,7 @@ program
     discoveryMode?: string;
     deepConcurrency?: string;
     deepMaxContracts?: string;
+    reflexion?: boolean;
   }) => {
     const baseOpts = {
       cwd: process.cwd(),
@@ -147,6 +149,11 @@ program
       discoveryMode: (opts.discoveryMode === 'modules' ? 'modules' : 'deep') as 'modules' | 'deep',
       deepConcurrency: Number(opts.deepConcurrency ?? '4'),
       deepMaxContracts: Number(opts.deepMaxContracts ?? '500'),
+      // Reflexion defaults on (commander sets opts.reflexion=true unless
+      // --no-reflexion is passed). CONTRACTQA_DISABLE_REFLEXION=1 forces it off
+      // regardless of the flag, so docker-batch tuning runs can toggle it via
+      // env without threading a CLI arg through the container invocation.
+      enableReflexion: process.env.CONTRACTQA_DISABLE_REFLEXION === '1' ? false : opts.reflexion !== false,
       // Wire phase/log events to the terminal. Without this, non-watch
       // autopilot runs are silent until completion — masking deep-discovery
       // diagnostics (`[deep] ...` lines), the non-git-cwd warn, etc.
