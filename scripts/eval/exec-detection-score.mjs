@@ -109,8 +109,8 @@ function teardown(ctx) {
 }
 
 // Run a single contract against the live SUT and return a structured verdict.
-async function runOne(contract, baseUrl, browser, deps) {
-  const { compileContract, runOracle, snapshotBrowser, emptyNoise } = deps;
+async function runOne(contract, baseUrl, browser, deps, authEntry) {
+  const { compileContract, runOracle, snapshotBrowser, emptyNoise, applyAuth } = deps;
   // Contracts use relative goto paths ("/dashboard"); the canonical runner relies
   // on playwright config's use.baseURL. We launch chromium directly, so set
   // baseURL on the context so relative navigations resolve against the SUT.
@@ -118,7 +118,12 @@ async function runOne(contract, baseUrl, browser, deps) {
   const page = await context.newPage();
   const tmp = mkdtempSync(path.join(tmpdir(), `cqa-${contract.id}-`));
   const stripBase = (u) => (baseUrl && u.startsWith(baseUrl) ? u.slice(baseUrl.length) || '/' : u);
+  let authed = false;
   try {
+    // Auth bootstrap for logged_in contracts (scorer-side; not blind-gated).
+    if (contract.preconditions?.auth_state === 'logged_in' && authEntry) {
+      try { authed = await applyAuth(page, authEntry); } catch { authed = false; }
+    }
     const thunk = compileContract(contract);
     const captureDom = !!contract.expected?.dom;
     const before = await snapshotBrowser(page, { screenshotPath: path.join(tmp, 'before.png'), captureDom });
@@ -131,9 +136,10 @@ async function runOne(contract, baseUrl, browser, deps) {
       verdict: verdict.verdict,
       violations: (verdict.violations || []).map((v) => `${v.invariantId}: ${v.message} (got ${JSON.stringify(v.actual)})`),
       threw: false,
+      authed,
     };
   } catch (e) {
-    return { verdict: 'ERROR', violations: [], threw: true, error: String(e.message || e).slice(0, 300) };
+    return { verdict: 'ERROR', violations: [], threw: true, error: String(e.message || e).slice(0, 300), authed };
   } finally {
     await context.close();
     rmSync(tmp, { recursive: true, force: true });
@@ -186,8 +192,11 @@ async function main() {
   const byId = new Map(normalized.map((c) => [c.id, c]));
   const { chromium } = await import('@playwright/test');
   const { pickClient } = await import(path.join(ROOT, 'packages/orchestrator/dist/llm/pick-client.js'));
+  const { AUTH_REGISTRY, applyAuth } = await import(path.join(ROOT, 'scripts/eval/auth-registry.mjs'));
+  const authEntry = AUTH_REGISTRY[idx] || null;
+  if (authEntry) console.error(`[exec-det ${idx}] auth bootstrap available (${authEntry.strategy}: ${authEntry.note || ''})`);
   const emptyNoise = { project: 'eval', generated_at: '2026-05-29T00:00:00.000Z', ignore: { localStorage_keys: [], sessionStorage_keys: [], cookies: [], network_url_patterns: [], console_patterns: [] } };
-  const deps = { compileContract: runner.compileContract, runOracle: runner.runOracle, snapshotBrowser: probes.snapshotBrowser, emptyNoise };
+  const deps = { compileContract: runner.compileContract, runOracle: runner.runOracle, snapshotBrowser: probes.snapshotBrowser, emptyNoise, applyAuth };
 
   let ctx = null;
   let baseUrl = typeof args['base-url'] === 'string' ? args['base-url'] : null;
@@ -224,21 +233,23 @@ async function main() {
             ranCache.set(ix, { verdict: 'UNLOADABLE', violations: [], threw: true, error: 'schema-invalid: loader skipped (lenient)' });
           } else {
             process.stderr.write(`[exec-det ${idx}] run [${ix}] ${meta.id} … `);
-            const res = await runOne(c, baseUrl, browser, deps);
-            process.stderr.write(`${res.verdict}\n`);
+            const res = await runOne(c, baseUrl, browser, deps, authEntry);
+            process.stderr.write(`${res.verdict}${res.authed ? ' (authed)' : ''}\n`);
             ranCache.set(ix, res);
           }
         }
         const r = ranCache.get(ix);
-        runs.push({ ix, id: meta.id, auth_state: meta.preconditions?.auth_state ?? 'anonymous', verdict: r.verdict, threw: r.threw, error: r.error, violations: r.violations });
+        runs.push({ ix, id: meta.id, auth_state: meta.preconditions?.auth_state ?? 'anonymous', authed: !!r.authed, verdict: r.verdict, threw: r.threw, error: r.error, violations: r.violations });
       }
       // classify — separate the pipeline stage where detection broke.
       // A contract whose precondition is auth_state:logged_in but ran without an
       // auth bootstrap (this eval has none) never reaches the gated surface — its
       // FAIL is the login wall, not detection. Treat those as auth_unreached, not
       // as off-target assertions, so the back-trace blames the right stage.
-      const authBlocked = runs.filter((r) => r.auth_state === 'logged_in');
-      const reachable = runs.filter((r) => r.auth_state !== 'logged_in');
+      // A logged_in contract is reachable IF the auth bootstrap put us in session
+      // (r.authed); otherwise it's blocked at the login wall.
+      const authBlocked = runs.filter((r) => r.auth_state === 'logged_in' && !r.authed);
+      const reachable = runs.filter((r) => r.auth_state !== 'logged_in' || r.authed);
       const reachFails = reachable.filter((r) => r.verdict === 'FAIL');
       const reachPass = reachable.filter((r) => r.verdict === 'PASS');
       const reachThrew = reachable.filter((r) => r.threw);

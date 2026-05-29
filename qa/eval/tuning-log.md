@@ -1844,3 +1844,50 @@ different metrics and the gap is ~52pp → 0. The eval must report
    judge false-negatives, then widen enumeration.
 3. **Locator hardening** to shrink `execution_defect`.
 4. Bump container boot wait; re-measure 0007/0009.
+
+---
+
+## Entry 17 — Auth bootstrap built & validated: unblocking auth does NOT move true detection (bottleneck → judge S8)
+
+**Date:** 2026-05-29
+**Commit:** post-`cb004b7` (auth-registry.mjs + exec-detection auth wiring + this entry)
+**Goal:** roadmap step 2 second half — add a scorer-side auth bootstrap so the 21%
+`auth_unreached` bugs (Entry 16) become evaluable, then re-measure.
+
+**Method:** `scripts/eval/auth-registry.mjs` — per-app, registry-driven. For
+client-side-auth SPAs, strategy `localStorage`: navigate an init path (to trigger
+the app's own storage seeding) then set the auth key. exec-detection-score now calls
+it before any `auth_state: logged_in` contract and reclassifies authed runs as
+reachable (not `auth_unreached`). 0008 entry: seed `codeforge_current_user='1'`
+(demo user alice) via `/login` mount.
+
+**Result on 0008 — auth works, detection doesn't:**
+- ✅ Bootstrap verified: bug#1/#3 contracts now `authed=true` and land on the
+  dashboard (`got "CodeForge Welcome Bac…"`), no longer the login wall. Mechanism
+  is sound.
+- ❌ `true_detection` stayed **0/4**. The unblocked bugs became `off_target_fail`,
+  not detections — the contracts assert dashboard text that's missing, but the
+  failure↔bug judge rules them unrelated.
+- 🔎 **Bottleneck moved S5→S8 (judge reliability):** bug#1's judge reason said "a
+  login page appearing" while the evidence `got` text is the *dashboard*
+  ("Welcome Bac"). The Haiku failure↔bug judge **mislabeled** it — so `true=0` is
+  now partly a judge false-negative, exactly the S8 defect the audit flagged.
+
+**Conclusion:** auth was a measurement-completeness fix (removes the 21% blind
+spot), **not** a detection lever — confirming the Entry 16 prior. After unblocking,
+detection is gated by (a) judge reliability (S8) and (b) contracts being off-target/
+weak (S2/S7), not by reachability. Extending the registry to the other 4
+auth-affected apps (0002/0004/0005/0006/0010 — non-uniform auth, 3 have no obvious
+localStorage key) is bespoke per-app work with predictably low marginal payoff
+(more `auth_unreached → off_target/weak`, not `→ true_detection`).
+
+**Verdict:** Auth bootstrap mechanism kept (registry-driven, extensible). Default
+the next investment to the higher-value levers, not more auth configs.
+
+**Next:**
+1. **Harden the S8 judge** (now the proven bottleneck): include the contract's
+   target/surface + the `got` text explicitly; k-sample majority vote; or replace
+   with the gold-standard clean-vs-buggy oracle (no judge needed). bug#1 shows the
+   current single-shot Haiku judge produces evidence-contradicting verdicts.
+2. **(b) Discovery gap** (`not_covered` 48%, the largest leak): instrument S1.
+3. Extend auth registry opportunistically when an app is already being debugged.
