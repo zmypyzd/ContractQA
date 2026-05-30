@@ -2388,3 +2388,27 @@ SMALL detection lever. The confirmed high-leverage levers, in order:
 
 **Next:** implement #1 navigation completeness (generation-side: emit the reach-path before the
 interaction action), re-measure exec-detection apps 2-4.
+
+## Entry 27 — Icon-only control targeting (prerequisite for navigation completeness): add `target.icon`
+
+**Date:** 2026-05-30 · **Commit:** core `contract.schema.ts` + runner `compile.ts` (+1 test, 41/41).
+
+**Why:** the app-2 navigation PoC (validating Entry-26 finding #1) showed the checkout journey
+needs clicking a ticket **+** stepper that is an **icon-only `<button>`** (`lucide-plus`, no
+text / aria-label / test-id). The contract schema (role+name / text / test_id) cannot express
+it → a navigation-complete contract would still be stuck. So icon targeting is a prerequisite.
+
+**Fix:** new `target.icon` field → "the <role> element containing an svg whose class includes
+<icon>". Resolution (after two wrong attempts, each caught by live verification):
+1. CSS `button:has(svg[class*="plus"])` — Playwright's CSS `:has()` did NOT match the svg → timeout.
+2. `page.locator('button').filter({has: svg[class*="plus"]})` — matched **6** incl. hidden
+   responsive (mobile+desktop) dupes → `.first()` hit a hidden node → click timeout.
+3. ✓ `page.getByRole(role).filter({has: page.locator('svg[class*="<icon>"]')})` — resolves to the
+   **3 visible/accessible** controls; clicks reliably. (Live: getByRole→3 vs locator('button')→6.)
+
+**Verified end-to-end** via the real `compileContract` against the live app-2 SUT: a contract
+`goto /event/1 → click {icon:"plus", first:true}` clicked the stepper and the quantity went to "1".
+
+**PoC also confirmed Entry-26 finding #1 (navigation):** `/event/1` reached; "Continue to Checkout"
+is gated behind `totalTickets>0` — so the no-`goto` contracts could never reach the form. Next:
+navigation completeness (generation emits the reach-path: navigate → select ticket → open form).

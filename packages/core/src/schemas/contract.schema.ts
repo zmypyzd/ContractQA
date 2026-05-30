@@ -14,6 +14,13 @@ const Target = z.object({
   name_regex: SafeRegex.optional(),
   test_id: z.string().optional(),
   text: z.string().optional(),
+  // `icon` targets an icon-only control with no accessible name (e.g. a
+  // lucide `Plus`/`Minus` quantity stepper, or any `<button><svg class="…">`).
+  // Resolved to "the <role> element containing an svg whose class includes
+  // <icon>" — icon libraries (lucide, heroicons, …) put the icon name in the
+  // svg class, so `icon: "plus"` matches `svg.lucide-plus`. Combine with
+  // `first`/`within` to disambiguate when several share the same icon.
+  icon: z.string().optional(),
   // `first: true` resolves to the first match when the accessible name
   // appears multiple times on the page (e.g. a "Login" link in both
   // navbar and footer). Without this, Playwright's strict-mode locator

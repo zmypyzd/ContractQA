@@ -219,6 +219,36 @@ describe('compileContract', () => {
     expect(calls).toEqual(['getByTestId:submit-btn']);
   });
 
+  it('target.icon resolves via page.locator(role).filter({has: svg[class*=icon]}) — icon-only buttons', async () => {
+    const calls: string[] = [];
+    const locator: any = {
+      click: vi.fn(async () => undefined),
+      fill: vi.fn(async () => undefined),
+      first: () => { calls.push('.first()'); return locator; },
+      filter: (_opts: { has?: unknown }) => { calls.push('.filter(has)'); return locator; },
+      getByRole: () => locator,
+      getByTestId: () => locator,
+    };
+    const page: any = {
+      goto: vi.fn(async () => undefined),
+      url: () => '/',
+      waitForTimeout: vi.fn(async () => undefined),
+      getByRole: vi.fn((role: string) => { calls.push(`getByRole:${role}`); return locator; }),
+      getByTestId: vi.fn(() => locator),
+      locator: vi.fn((sel: string) => { calls.push(`locator:${sel}`); return locator; }),
+    };
+    const c = {
+      id: 't-icon', title: 'icon', area: 'ui', severity: 'P2', risk_tags: [],
+      preconditions: { auth_state: 'anonymous' },
+      actions: [{ type: 'click', target: { icon: 'plus', first: true } }],
+      expected: {}, verification: { wait_ms: 0, retries: 0, evidence_required: ['state_diff'] },
+    } as unknown as ContractDoc;
+    await compileContract(c)({ page, snapshot: async () => ({ url: '/', localStorageKeys: [], cookies: [] }) });
+    // getByRole('button') is the receiver (visible/accessible — not hidden responsive
+    // dupes); the has-arg page.locator('svg[class*="plus"]') is the filter argument.
+    expect(calls).toEqual(['getByRole:button', 'locator:svg[class*="plus"]', '.filter(has)', '.first()']);
+  });
+
   it('goto.locale calls page.setExtraHTTPHeaders before goto', async () => {
     const calls: string[] = [];
     const locator: any = {

@@ -10,6 +10,7 @@ export interface CompiledLocator {
   first(): CompiledLocator;
   getByRole(role: string, opts?: { name?: RegExp }): CompiledLocator;
   getByTestId(id: string): CompiledLocator;
+  filter(opts: { has?: CompiledLocator }): CompiledLocator;
 }
 
 export interface CompiledPage {
@@ -17,6 +18,7 @@ export interface CompiledPage {
   setExtraHTTPHeaders?(h: Record<string, string>): Promise<unknown>;
   getByRole(role: string, opts?: { name?: RegExp }): CompiledLocator;
   getByTestId(id: string): CompiledLocator;
+  locator(selector: string): CompiledLocator;
   url(): string;
   waitForTimeout(ms: number): Promise<unknown>;
 }
@@ -87,6 +89,7 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+
 // Resolve a contract `target` into a Playwright locator. Precedence:
 //   test_id  → getByTestId (most robust, unambiguous)
 //   name_regex / text → accessible-name match on the role (text is escaped to a
@@ -99,11 +102,29 @@ function escapeRegex(s: string): string {
 // Previously `text` and `test_id` (both valid schema fields) were silently dropped.
 function resolveActionLocator(
   page: CompiledPage,
-  target: { role?: string; name_regex?: string; text?: string; test_id?: string; within?: string; first?: boolean },
+  target: { role?: string; name_regex?: string; text?: string; test_id?: string; icon?: string; within?: string; first?: boolean },
   defaultRole: string,
 ): CompiledLocator {
   if (target.test_id) {
     const t = page.getByTestId(target.test_id);
+    return target.first ? t.first() : t;
+  }
+  if (target.icon) {
+    // "the <role> element containing an svg whose class includes <icon>".
+    // Use getByRole(...).filter({has}) — NOT page.locator('button') or CSS
+    // `:has()`: (a) Playwright's CSS `:has()` doesn't reliably match a
+    // descendant svg here; (b) page.locator('button') also matches hidden
+    // responsive duplicates (mobile+desktop), so .first() lands on a hidden
+    // node and the click times out. getByRole resolves to the visible,
+    // accessible controls (verified live on the WebTestBench lucide stepper:
+    // getByRole→3 clickable vs locator('button')→6 incl. hidden).
+    // Sanitize <icon> to word/dash chars so it's a safe CSS attribute-substring.
+    const icon = target.icon.replace(/[^a-zA-Z0-9_-]/g, '');
+    const role = target.role ?? defaultRole;
+    const base = target.within
+      ? page.getByRole(target.within).getByRole(role)
+      : page.getByRole(role);
+    const t = base.filter({ has: page.locator(`svg[class*="${icon}"]`) });
     return target.first ? t.first() : t;
   }
   const roleOpts: { name?: RegExp } = {};
