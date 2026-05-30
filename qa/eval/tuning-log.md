@@ -2445,3 +2445,29 @@ prompt isn't given the project's known routes. **The last gap is route accuracy,
 of inventing `/events/1`. Re-PoC; if the route comes out right, prompt-only navigation completeness
 is done and we can full-regen apps 2-4 to measure detection. If the LLM still can't map
 component→route, fall back to capturing route-per-interaction in `enumerateSurface`.
+
+## Entry 29 — Known-routes → generate prompt closes the route-accuracy gap (anti-overfit verified); launching full regen
+
+**Date:** 2026-05-30 · **Commit:** cli `interaction-discovery.ts` (`knownRoutes` threaded into
+the generate prompt, derived generically from enumeration).
+
+**Change:** `discoverByInteraction` now derives the project's real routes generically —
+`[...new Set(interactions.map(i=>i.route).filter(Boolean))]` (NOT hardcoded) — and passes them to
+`generateContractFor`; the generate user-prompt lists them with "use one of these for the
+reach-path goto, replace :id with a concrete value." Closes the Entry-28 gap where the LLM
+invented `/events/1`.
+
+**Anti-overfit PoC (single generation each, Haiku, priors):**
+| app | known routes given | goto emitted |
+|---|---|---|
+| app-2 checkout (previously hand-examined) | `/, /event/:id, /organizer` | **`/event/1`** ✓ (was `/events/1`) |
+| **app-4 View Details (NEVER examined)** | `/, /venues, /vendors, /favorites, /checklists` | **`/venues`** ✓ |
+
+The un-tuned app-4 picking the correct route from its OWN list is the key check: the fix
+generalizes, it is not fitted to app-2. Routes come from enumeration, so any project works.
+
+**Status:** navigation completeness is now structurally complete (reach-path + icon + correct
+route), validated at the single-generation level. Launching FULL regeneration of apps 2-4
+(`CONTRACTQA_GEN_PROMPT=priors`, label `priors-h-nav`) → exec-detection (dump-mode + manual
+judge) to measure whether the recovered execution_defect contracts now reach their surfaces and
+move true_detection off the priors 1/15 baseline. Result in a follow-up entry.

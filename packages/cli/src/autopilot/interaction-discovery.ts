@@ -110,6 +110,9 @@ export interface GenerateContractForOptions {
   llmClient: LLMClient;
   signal?: AbortSignal;
   maxTokens?: number;
+  // Project's known routes (from enumeration), so the reach-path `goto` uses a
+  // real route instead of an invented one. Optional — empty ⇒ model infers.
+  knownRoutes?: string[];
 }
 
 export interface GenerateContractForResult {
@@ -658,7 +661,7 @@ export function buildGenerateSystemPrompt(): string {
   ].join('\n');
 }
 
-function buildGenerateUserPrompt(interaction: Interaction, window: string): string {
+function buildGenerateUserPrompt(interaction: Interaction, window: string, knownRoutes: string[] = []): string {
   return [
     `Interaction:`,
     `  id: ${interaction.id}`,
@@ -669,6 +672,18 @@ function buildGenerateUserPrompt(interaction: Interaction, window: string): stri
     `  file: ${interaction.file}`,
     `  rationale: ${interaction.rationale}`,
     '',
+    // Real routes discovered for THIS project. The reach-path `goto` MUST use one
+    // of these (substitute a concrete id for `:id`/`:slug`), NOT an invented path
+    // — without this list the model guesses plurals/variants (e.g. "/events/1"
+    // when the real route is "/event/:id"). Empty list ⇒ fall back to inference.
+    ...(knownRoutes.length > 0
+      ? [
+          `Known routes in this project (use one of these for the reach-path goto;`,
+          `replace :id/:slug with a concrete value like 1):`,
+          ...knownRoutes.map((r) => `  - ${r}`),
+          '',
+        ]
+      : []),
     `Source context (around the interaction):`,
     '```',
     window,
@@ -747,7 +762,7 @@ export async function generateContractFor(opts: GenerateContractForOptions): Pro
   }
 
   const system = buildGenerateSystemPrompt();
-  const user = buildGenerateUserPrompt(opts.interaction, window);
+  const user = buildGenerateUserPrompt(opts.interaction, window, opts.knownRoutes ?? []);
 
   let content: string;
   try {
@@ -1200,6 +1215,10 @@ export async function discoverByInteraction(
   // Stage 2
   emit({ type: 'stage', stage: 'generate', status: 'start' });
   const interactions = enumResult.interactions;
+  // Real routes this project exposes — derived generically from the route-type
+  // interactions enumeration already found (NOT hardcoded). Fed to generation so
+  // the reach-path goto uses a real route instead of an invented plural/variant.
+  const knownRoutes = [...new Set(interactions.map((i) => i.route).filter((r): r is string => !!r))];
   let completed = 0;
   const results = await runPool(interactions, concurrency, async (interaction) => {
     if (opts.signal.aborted) return null;
@@ -1208,6 +1227,7 @@ export async function discoverByInteraction(
       cwd: opts.cwd,
       llmClient: opts.llmClient,
       signal: opts.signal,
+      knownRoutes,
     });
     completed++;
     emit({ type: 'progress', phase: 'generate', done: completed, total: interactions.length });
