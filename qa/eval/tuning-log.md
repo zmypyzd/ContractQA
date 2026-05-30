@@ -2600,3 +2600,14 @@ actually manifesting as a missing toast at runtime (source HAS the reached `toas
 **Decisive next check (cheap, before any full regen): run the toast contract against the LIVE buggy
 app-2 — does "Reservation Confirmed!" actually fail to appear (bug real → detection) or appear
 (bug not here → my grounding example was wrong)?** Don't invest in `intent` regen until this is known.
+
+**DECISIVE RUNTIME CHECK — my grounding example was WRONG:** drove the full checkout journey on
+the live buggy app-2 (goto /event/1 → add ticket → Continue to Checkout → fill → Confirm) →
+**"Reservation Confirmed!" toast DOES appear** (count 2; "have been reserved" also visible; URL → /).
+So bug#9 does NOT manifest as a missing toast — a toast-intent contract would correctly PASS (no
+detection, no false alarm). **Methodological lesson:** we've been reasoning about detectability from
+checklist+source WITHOUT verifying bugs actually MANIFEST at runtime. Part of the stubborn low
+true-detection may be bugs that don't observably deviate (or deviate differently than the checklist
+says), NOT only the oracle wall. **Before any more oracle/prompt tuning, empirically audit which
+app bugs actually manifest at runtime** (drive each bug's flow, observe deviation vs intent) to get
+a trustworthy ground truth. Tuning detection methods against bugs that don't manifest is wasted.
