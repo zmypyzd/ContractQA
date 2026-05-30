@@ -1005,3 +1005,22 @@ only covers the stepper-vs-availability class); (2) FP risk if a legit "max N pe
 templates must stay conservative. **Next: grow the template catalog (count == rendered rows, shown
 total == Σ items, "showing N of M" == rendered, value-shown-in-two-places match), then run the
 consistency layer across apps 2-4 alongside LLM contracts and measure added true detections.**
+
+**SWEEP RESULT (2 templates × apps 2-4, 12 routes):** app-2 `/event/1` → 3 violations (bug#10, real);
+apps 3 & 4 → **0**. **Zero false positives anywhere** (conservative templates safe, incl. un-tuned
+apps 3/4). But count-vs-rendered grounded NOWHERE (apps don't expose `role=article/listitem`
+uniformly → skipped). **Net: high precision, ~zero recall beyond bug#10.** Bottleneck = generic
+DETECTION: a pure-static template only fires on the exact structural pattern it hardcodes (lucide
+steppers, specific ARIA roles); per [[feedback_no_overfit_generalize]] we must NOT bolt on narrow
+per-app detectors to juice apps 3/4.
+
+**Synthesis / next direction — split IDENTIFICATION from CHECKING:** the wall-immune part is the
+deterministic relation CHECK (displayed value vs reality — never trusts a buggy constant). The part
+that needs generalization is IDENTIFYING which two signals should be consistent (this count ↔ that
+collection; this total ↔ those items). Use the LLM/exploration for IDENTIFICATION only — "value X at
+locator A should relate (==,>=,⊆) to reality B (rendered count / Σ / selectable max)" — and emit a
+parameterized consistency assertion the runner checks DETERMINISTICALLY. The LLM never asserts a
+(possibly buggy) value; it only proposes WHICH cross-checks to run. Combines LLM generalization
+(detection across diverse markup) with source-anchor-proof verdicts (wall defense). Needs a new
+relational assertion type (`expected.consistency: {signalA, relation, signalB}`) in the runner.
+That is the next build.

@@ -66,7 +66,40 @@ async function templateDisplayedLimitVsStepper(page) {
   return { id: 'displayed-limit-vs-stepper', surface: 'quantity steppers vs displayed availability', violations };
 }
 
-const TEMPLATES = [templateDisplayedLimitVsStepper];
+// ── Template 2: DISPLAYED COUNT == RENDERED COLLECTION ──
+// High-level heuristic (NOT app-specific): any number the UI states ABOUT a collection
+// must equal the collection it describes. Conservative instance: a "Showing N of M" /
+// "N results|items" claim must match the number of rendered list items. The bug is the gap.
+const COUNT_CLAIM_RE = /showing\s+(\d+)\s+of\s+(\d+)|(?<![\d.$])(\d+)\s+(?:results?|items?|products?|events?|venues?|entries|records?|matches)\b/ig;
+
+async function templateDisplayedCountVsRendered(page) {
+  const violations = [];
+  const body = await page.locator('body').innerText().catch(() => '');
+  const claims = [];
+  let m;
+  COUNT_CLAIM_RE.lastIndex = 0;
+  while ((m = COUNT_CLAIM_RE.exec(body))) {
+    const shown = m[1] != null ? parseInt(m[1], 10) : parseInt(m[3], 10);
+    if (Number.isFinite(shown)) claims.push({ shown, total: m[2] ? parseInt(m[2], 10) : null, text: m[0] });
+  }
+  if (claims.length === 0) return { id: 'displayed-count-vs-rendered', surface: 'displayed count vs rendered items', violations };
+  // rendered collection size = the dominant repeated-item role on the page
+  const article = await page.getByRole('article').count();
+  const listitem = await page.getByRole('listitem').count();
+  const rendered = Math.max(article, listitem);
+  if (rendered === 0) return { id: 'displayed-count-vs-rendered', surface: 'displayed count vs rendered items', violations }; // can't ground → skip (conservative)
+  for (const c of claims) {
+    // For "showing N of M", N is what should be rendered now. For a bare "N items",
+    // only flag when it clearly mismatches and there's no obvious pagination total.
+    const expectRendered = c.shown;
+    if (rendered !== expectRendered && Math.abs(rendered - expectRendered) >= 1) {
+      violations.push({ detail: `claim "${c.text.trim()}" (=${expectRendered}) but ${rendered} items rendered`, displayed: expectRendered, actual: rendered });
+    }
+  }
+  return { id: 'displayed-count-vs-rendered', surface: 'displayed count vs rendered items', violations };
+}
+
+const TEMPLATES = [templateDisplayedLimitVsStepper, templateDisplayedCountVsRendered];
 
 export async function runConsistencyOracles(page) {
   const results = [];
