@@ -186,6 +186,13 @@ async function main() {
   const idx = args.idx;
   if (!idx || !/^\d{4}$/.test(idx)) { console.error('usage: --idx NNNN [--arm reflexion-on] [--base-url URL] [--keep-up] [--out path]'); process.exit(1); }
   const arm = typeof args.arm === 'string' ? args.arm : 'reflexion-on';
+  // --dump-judge <path>: skip the slow LLM k-vote on-target judge; instead emit
+  // the (bug, failing contract, violations) tuples to <path> for a human/agent to
+  // adjudicate. Deterministic stages (weak_assertion / execution_defect /
+  // not_covered / auth_unreached) are still computed normally — only the
+  // reachable-FAIL on-target decision is deferred (stage 'needs_judge').
+  const dumpJudgePath = typeof args['dump-judge'] === 'string' ? args['dump-judge'] : null;
+  const pendingJudge = [];
   // Resolve the snapshot dir by glob (date-robust — don't hardcode 2026-05-29; a
   // batch run across a date rollover writes a different date). Pick the latest match.
   const re = new RegExp(`^${idx}-\\d{4}-\\d\\d-\\d\\d-${arm}-docker$`);
@@ -272,7 +279,15 @@ async function main() {
       const reachPass = reachable.filter((r) => r.verdict === 'PASS');
       const reachThrew = reachable.filter((r) => r.threw);
       let stage, detail;
-      if (reachFails.length > 0) {
+      if (reachFails.length > 0 && dumpJudgePath) {
+        // Defer the on-target call to a manual judge: record the evidence.
+        pendingJudge.push({
+          idx, bug_id: bug.id, bug: bug.bug,
+          candidates: reachFails.map((f) => ({ contract: f.id, title: f.title, violations: f.violations })),
+        });
+        stage = 'needs_judge';
+        detail = `${reachFails.length} reachable FAIL(s) deferred to manual judge: ${reachFails.map((f) => f.id).join(', ')}`;
+      } else if (reachFails.length > 0) {
         // judge whether ANY reachable fail is on-target for the bug
         let onTarget = null;
         for (const f of reachFails) {
@@ -311,6 +326,10 @@ async function main() {
   };
   const outPath = typeof args.out === 'string' ? args.out : path.join(snapDir, 'exec-detection.json');
   writeFileSync(outPath, JSON.stringify(out, null, 2));
+  if (dumpJudgePath) {
+    writeFileSync(dumpJudgePath, JSON.stringify(pendingJudge, null, 2));
+    console.log(`→ dump-judge: ${pendingJudge.length} bug(s) with reachable FAILs need manual on-target judgment → ${dumpJudgePath}`);
+  }
   console.log(`\n=== exec-detection ${idx} (${arm}) ===`);
   console.log(`coverage "detected": ${out.coverage_detected}/${out.total_bugs}  |  execution true detection: ${trueDet}/${out.total_bugs}`);
   console.log('stage breakdown:', JSON.stringify(stages));

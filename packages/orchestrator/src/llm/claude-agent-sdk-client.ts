@@ -1,9 +1,40 @@
 // packages/orchestrator/src/llm/claude-agent-sdk-client.ts
-import { mkdtempSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { LLMTransportError, type LLMClient, type GenerateOptions, type GenerateResult } from './index.js';
+
+// Resolve the LOCALLY INSTALLED Claude Code executable so the SDK spawns it
+// instead of its own bundled `cli.js`.
+//
+// WHY (2026-05-30 root-cause, supersedes the Entry 7 "harness 403" theory):
+// `@anthropic-ai/claude-agent-sdk@0.1.77` ships an 11 MB bundled `cli.js`
+// (frozen ~May 17) and spawns IT by default (sdk.mjs: pathToClaudeCodeExecutable
+// defaults to join(__dirname,'cli.js')). That OLDER client gets
+//   API Error: 403 {"type":"forbidden","message":"Request not allowed"} · Please run /login
+// under OAuth subscription auth — EVEN with minimal options (harness OFF). The
+// locally installed `claude` (e.g. v2.1.158, a native binary) does NOT 403.
+// Proven by A/B: same network (US exit IP), same flags — bundled cli.js → 403,
+// installed binary via pathToClaudeCodeExecutable → success. So the blocker was
+// never credits, the account, the network, or the repo harness; it was which
+// executable the SDK launches.
+//
+// Resolution order: CONTRACTQA_CLAUDE_EXECUTABLE env → `command -v claude` →
+// undefined (let the SDK fall back to its bundled cli.js, preserving old
+// behavior when no local install exists, e.g. CI without Claude Code).
+function resolveInstalledClaude(): string | undefined {
+  const override = process.env.CONTRACTQA_CLAUDE_EXECUTABLE?.trim();
+  if (override) return existsSync(override) ? override : undefined;
+  try {
+    const p = execSync('command -v claude', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    if (p && existsSync(p)) return p;
+  } catch {
+    // `claude` not on PATH — fall through to bundled cli.js.
+  }
+  return undefined;
+}
 
 // Tools the inner agent should NEVER reach for during a stateless JSON
 // generation. Sonnet without these constraints enters Read/Bash/Glob/Task
@@ -50,6 +81,9 @@ export class ClaudeAgentSDKClient implements LLMClient {
   // For Sonnet under API-key auth (where 403 doesn't apply), opt back in
   // via CONTRACTQA_ENABLE_SDK_HARNESS=1 or `enableHarness: true`.
   private readonly harnessEnabled: boolean;
+  // Path to the locally installed `claude` binary, or undefined to use the
+  // SDK's bundled cli.js. Resolved once per client; see resolveInstalledClaude.
+  private readonly claudeExecutable: string | undefined;
 
   constructor(opts: { model?: string; enableHarness?: boolean; disableHarness?: boolean } = {}) {
     // Match AnthropicSDKClient's env contract — same var works for both
@@ -66,6 +100,7 @@ export class ClaudeAgentSDKClient implements LLMClient {
     else if (process.env.CONTRACTQA_ENABLE_SDK_HARNESS === '1') this.harnessEnabled = true;
     else if (process.env.CONTRACTQA_DISABLE_SDK_HARNESS === '1') this.harnessEnabled = false;
     else this.harnessEnabled = false;
+    this.claudeExecutable = resolveInstalledClaude();
   }
 
   async generate(opts: GenerateOptions): Promise<GenerateResult> {
@@ -105,6 +140,9 @@ export class ClaudeAgentSDKClient implements LLMClient {
             permissionMode: 'bypassPermissions',
           };
       if (this.model) sdkOptions.model = this.model;
+      // Spawn the locally installed claude (not the SDK's bundled, 403-prone
+      // cli.js) when available. See resolveInstalledClaude for the why.
+      if (this.claudeExecutable) sdkOptions.pathToClaudeCodeExecutable = this.claudeExecutable;
       for await (const msg of query({ prompt, options: sdkOptions })) {
         if (opts.signal?.aborted) throw new Error('aborted mid-stream');
         // Claude Agent SDK emits various message types; concatenate text 'result' frames.

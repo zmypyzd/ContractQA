@@ -2259,3 +2259,83 @@ Console `sk-ant-` key (separate quota). Code is ready (`CONTRACTQA_GEN_PROMPT=pr
 (priors+Haiku vs baseline+Sonnet) vs the Haiku baseline (apps 2-4, 0/15). Until then,
 the diagnosis stands: 0% true detection is the blind-from-buggy-source wall (Entry 22),
 fix unverified.
+
+## Entry 25 — priors VERIFIED at 1/15 (off the 0/15 floor); SDK exec root-caused & fixed; failure mode shifted weak_assertion → execution_defect + not_covered
+
+**Date:** 2026-05-30
+**Commit:** SDK executable fix in `packages/orchestrator/src/llm/claude-agent-sdk-client.ts`
+(uncommitted at time of writing — `resolveInstalledClaude()` → `pathToClaudeCodeExecutable`);
+generation via `c1a1b29` priors variant.
+
+**Unblock (supersedes Entry 23/24 "credits exhausted"):** the blocker was NEVER credits or
+account. Root cause: `@anthropic-ai/claude-agent-sdk@0.1.77` spawns its OWN bundled `cli.js`
+(frozen ~May 17), which gets `403 "Request not allowed"` under OAuth; the locally installed
+`claude` v2.1.158 does not. Proven by same-network A/B (US exit IP): bundled→403, installed
+binary via `pathToClaudeCodeExecutable`→pong. Fix resolves the installed binary
+(`CONTRACTQA_CLAUDE_EXECUTABLE` env → `command -v claude`). priors+Haiku then ran on apps 2-4.
+(Account-switching/OAuth-waiting was a dead end; see memory [[deep-mode-sdk-crash-2026-05-27]].)
+
+**Method:** `CONTRACTQA_GEN_PROMPT=priors`, Haiku generator + Haiku coverage judge, deep
+discovery, apps 2-4 (the 0/15 Haiku baseline set). Generation SUCCEEDED richly (209/101/286
+contracts — the deep-discovery step that MiniMax couldn't do in Entry 24). exec-detection run
+in new `--dump-judge` mode: the deterministic part (run matched contracts vs live buggy SUT →
+PASS/FAIL/THREW, stage attribution) is automated; only the reachable-FAIL **on-target decision
+was made MANUALLY by the main agent** (the OAuth subprocess k-vote would take 1.5-3 h per the
+~1.5 min/call spawn cost; main-agent judge is the deliberate substitute, user-authorized).
+
+**Result — priors moved true detection 0/15 → 1/15:**
+
+| app | bugs | true_detection | stage breakdown |
+|-----|------|----------------|-----------------|
+| 0002 | 5 | 0 | execution_defect 4, not_covered 1 |
+| 0003 | 3 | 0 | not_covered 3 |
+| 0004 | 7 | **1** | true_detection 1, off_target_fail 1, execution_defect 1, not_covered 4 |
+| **tot** | **15** | **1/15** | **not_covered 8, execution_defect 5, off_target_fail 1, true_detection 1** |
+
+baseline (Haiku, apps 2-4): **0/15** (was dominated by **weak_assertion**).
+
+**The real finding — the failure mode SHIFTED, which is more useful than the +1:**
+- **weak_assertion went 0** (baseline's dominant mode — contracts that PASS on the buggy SUT).
+  priors stopped the agent silently passing on bugs: the intent-strengthening worked.
+- Two NEW binding constraints replaced it:
+  - **not_covered 8/15 (53%)** — coverage judge matched no contract to the bug (discovery or
+    judge-match gap; needs disambiguation).
+  - **execution_defect 5/15 (33%)** — contracts encode the right intent but THROW on brittle
+    locators (`getByRole('button')` matched 21-25 elements → strict-mode violation; timeouts on
+    buttons that don't exist). These are would-be detections lost to runner brittleness.
+- **The 1 true_detection (0004 bug#12) is a declarative-intent-vs-behavior catch:** contract
+  `venue-card-view-details-navigates-to-detail` asserted "View Details → /venues/<id>" (intent
+  from route/affordance) and got URL `/` (buggy behavior) — matching planted bug "clicking the
+  button does not redirect." This is exactly the mechanism the research predicts works (see
+  `qa/eval/ORACLE-FREE-DETECTION-RESEARCH.md` Part II / family-3). off_target case (bug#4):
+  a search-filter contract failing on count, unrelated to the price-display bug — correctly NOT
+  counted.
+
+**Tuning implications (grounded in the two research passes, ranked by leverage):**
+1. **Harden runner/selector robustness** — recover up to 5 execution_defect (highest-confidence,
+   pure engineering, not oracle theory): scope selectors within card/region, role+name
+   specificity, fallbacks; never emit bare `getByRole('button')`.
+2. **Add a generic-invariant backbone** (ATUSA family): the 1 win is a navigation invariant —
+   generalize "every nav/CTA button must change URL", "no error/exception strings", "no 500",
+   "back-button reversibility". Source-independent, can't be weak_assertion'd.
+3. **Close not_covered** — disambiguate discovery-gap vs judge-match-gap; if discovery, add
+   autonomous-journey exploration (DroidAgent family).
+4. **Lean into declarative-intent extraction** (research Part II): assert UI-stated intent
+   (labels, route names, "max 2" hints, schemas/constants) against live behavior; firewall the
+   oracle from imperative source.
+
+**Caveats — do not overclaim:** N=15, single arm, main-agent judge (not LLM k-vote — different
+methodology from baseline's automated judge); 1-vs-0 is within noise. The honest claim is NOT
+"priors detects bugs" — it is "priors eliminated the weak_assertion wall and shifted the binding
+constraint to execution brittleness + coverage, which is more actionable." Arm B (baseline+Sonnet)
+NOT run — Sonnet generation produced only 5 `_smoke` templates (0 real contracts; the known
+harness-less Sonnet failure), separate from this result.
+
+**Verdict:** priors is a diagnostic success, not a detection breakthrough. Next lever is runner
+hardening + generic-invariant backbone, NOT more prompt tuning. The blind-from-buggy-source wall
+is no longer the *only* wall — it's now one of three, and the smallest.
+
+**Next:** (1) commit the SDK executable fix (branch off main). (2) Implement selector hardening
++ generic-invariant backbone, re-measure exec-detection apps 2-4. (3) Optionally re-run Arm B
+with `CONTRACTQA_ENABLE_SDK_HARNESS=1` (the 403 was the executable, not the harness — Sonnet may
+now work with the harness on).
