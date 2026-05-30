@@ -2339,3 +2339,52 @@ is no longer the *only* wall — it's now one of three, and the smallest.
 + generic-invariant backbone, re-measure exec-detection apps 2-4. (3) Optionally re-run Arm B
 with `CONTRACTQA_ENABLE_SDK_HARNESS=1` (the 403 was the executable, not the harness — Sonnet may
 now work with the harness on).
+
+## Entry 26 — Tuning #1 (runner robustness): support target.text/test_id — real correctness fix, but detection unchanged (1/15 → 1/15); confirms the real lever is navigation completeness, not selectors
+
+**Date:** 2026-05-30
+**Commit:** `packages/runner/src/compile.ts` (+2 tests in `compile.test.ts`, 40/40 pass).
+**Re-measured on the EXISTING Entry-25 priors snapshots — NO regeneration** (patched runner only).
+
+**Fix:** the runner silently ignored two valid schema target fields, `text` and `test_id`
+(`compile.ts` only read `role`/`name_regex`/`within`/`first`). A `{text:"Barn"}` target collapsed
+to a bare `getByRole('button')` → matched all 21-25 buttons → Playwright strict-mode crash
+(→ false `execution_defect`). Now: `test_id`→`getByTestId`; `text`→accessible-name match
+(regex-escaped) on the role, default `button`/`textbox`.
+
+**Result — no change in the headline or stage mix:**
+
+| metric | Entry 25 (pre-fix) | Entry 26 (post-fix) |
+|--------|--------------------|---------------------|
+| true_detection (apps 2-4) | 1/15 | **1/15** |
+| stage totals | exec_defect 5, not_covered 8, off_target 1, true 1 | **identical** |
+
+**But the fix mattered for VALIDITY, not the count:** the single detection (0004 bug#12,
+"clicking the button does not redirect") was previously caught by ACCIDENT — the ignored
+`{text:"View Details"}` collapsed to a random button click and the URL landed at `/`. Post-fix
+the contract clicks the REAL View Details button (`getByRole('button',{name:/View Details/i}).first()`),
+the URL correctly stays at `/venues` and never reaches `/venues/<id>` — the button genuinely does
+not redirect. So pre-fix the 1/15 was partly luck; post-fix it is a legitimate, well-evidenced
+catch. (Evidence string changed `got "/"` → `got "/venues"`, proving the fix is live.)
+
+**Why detection didn't move — diagnosis CONFIRMED (the execution_defect bucket is not selectors):**
+- **App 2 (4 execution_defect): missing navigation, not selectors.** Contracts like
+  `checkout-form-submits-with-email` `fill` name/email/phone with NO `goto`/journey to reach the
+  checkout form → fields absent at `/` → fill timeout. The runner cannot fix an incomplete
+  contract. (These threw regardless of text/test_id.)
+- **App 4 (1 execution_defect + off-target): bug#3 matched FILTER contracts but is a CARD-DISPLAY
+  bug.** Even with `{text:"Barn"}` now resolving correctly, those contracts are off-target for
+  "venue listings don't display name/location/price"; other matched filter contracts time out on
+  genuinely-absent named buttons.
+
+**Verdict:** runner text/test_id support is a correct, keep-it fix that improves instrument
+validity and converts one accidental catch into a legitimate one — but selector hardening is a
+SMALL detection lever. The confirmed high-leverage levers, in order:
+1. **Contract navigation completeness** (recover app-2's 4 execution_defect): discovery/generation
+   must prepend the journey to reach each interaction (event→tickets→checkout), not assert on a
+   form that isn't on the landing page. This is the biggest fixable chunk.
+2. **not_covered 8/15** (coverage/discovery gap) — the largest bucket.
+3. **off-target matching** (coverage judge matched filter contracts to a display bug).
+
+**Next:** implement #1 navigation completeness (generation-side: emit the reach-path before the
+interaction action), re-measure exec-detection apps 2-4.

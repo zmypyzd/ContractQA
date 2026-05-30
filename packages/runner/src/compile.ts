@@ -9,12 +9,14 @@ export interface CompiledLocator {
   fill(v: string): Promise<unknown>;
   first(): CompiledLocator;
   getByRole(role: string, opts?: { name?: RegExp }): CompiledLocator;
+  getByTestId(id: string): CompiledLocator;
 }
 
 export interface CompiledPage {
   goto(path: string): Promise<unknown>;
   setExtraHTTPHeaders?(h: Record<string, string>): Promise<unknown>;
   getByRole(role: string, opts?: { name?: RegExp }): CompiledLocator;
+  getByTestId(id: string): CompiledLocator;
   url(): string;
   waitForTimeout(ms: number): Promise<unknown>;
 }
@@ -81,6 +83,39 @@ function assertDomActionInvariant(c: ContractDoc): void {
   }
 }
 
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Resolve a contract `target` into a Playwright locator. Precedence:
+//   test_id  → getByTestId (most robust, unambiguous)
+//   name_regex / text → accessible-name match on the role (text is escaped to a
+//                       literal-substring regex; this is what makes `{text:"Barn"}`
+//                       resolve to the *button named Barn* instead of collapsing to
+//                       a bare getByRole('button') that strict-mode-crashes on every
+//                       button on the page — the Entry-25 execution_defect cause).
+//   within   → scope to an ancestor role first.
+//   first    → disambiguate multi-match.
+// Previously `text` and `test_id` (both valid schema fields) were silently dropped.
+function resolveActionLocator(
+  page: CompiledPage,
+  target: { role?: string; name_regex?: string; text?: string; test_id?: string; within?: string; first?: boolean },
+  defaultRole: string,
+): CompiledLocator {
+  if (target.test_id) {
+    const t = page.getByTestId(target.test_id);
+    return target.first ? t.first() : t;
+  }
+  const roleOpts: { name?: RegExp } = {};
+  if (target.name_regex) roleOpts.name = new RegExp(target.name_regex, 'i');
+  else if (target.text) roleOpts.name = new RegExp(escapeRegex(target.text), 'i');
+  const role = target.role ?? defaultRole;
+  const scope = target.within
+    ? page.getByRole(target.within).getByRole(role, roleOpts)
+    : page.getByRole(role, roleOpts);
+  return target.first ? scope.first() : scope;
+}
+
 export function compileContract(c: ContractDoc, opts: CompileOptions = {}): CompiledContract {
   assertDomActionInvariant(c);
   return async (ctx) => {
@@ -96,21 +131,9 @@ export function compileContract(c: ContractDoc, opts: CompileOptions = {}): Comp
         }
         await ctx.page.goto(a.path);
       } else if (a.type === 'click') {
-        const opts: { name?: RegExp } = {};
-        if (a.target.name_regex) opts.name = new RegExp(a.target.name_regex, 'i');
-        const scope = a.target.within
-          ? ctx.page.getByRole(a.target.within).getByRole(a.target.role ?? 'button', opts)
-          : ctx.page.getByRole(a.target.role ?? 'button', opts);
-        const loc = a.target.first ? scope.first() : scope;
-        await loc.click();
+        await resolveActionLocator(ctx.page, a.target, 'button').click();
       } else if (a.type === 'fill') {
-        const opts: { name?: RegExp } = {};
-        if (a.target.name_regex) opts.name = new RegExp(a.target.name_regex, 'i');
-        const scope = a.target.within
-          ? ctx.page.getByRole(a.target.within).getByRole(a.target.role ?? 'textbox', opts)
-          : ctx.page.getByRole(a.target.role ?? 'textbox', opts);
-        const loc = a.target.first ? scope.first() : scope;
-        await loc.fill(a.value);
+        await resolveActionLocator(ctx.page, a.target, 'textbox').fill(a.value);
       } else if (a.type === 'wait') {
         await ctx.page.waitForTimeout(a.ms);
       } else if (a.type === 'http') {

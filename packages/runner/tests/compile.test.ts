@@ -163,6 +163,62 @@ describe('compileContract', () => {
     expect(() => compileContract(c, { baseUrl: 'http://x' })).not.toThrow();
   });
 
+  it('target.text resolves to getByRole(button, {name: /escaped/i}) — not a bare getByRole that strict-mode-crashes', async () => {
+    const calls: Array<{ role: string; name?: string }> = [];
+    const locator: any = {
+      click: vi.fn(async () => undefined),
+      fill: vi.fn(async () => undefined),
+      first: () => locator,
+      getByRole: () => locator,
+      getByTestId: () => locator,
+    };
+    const page: any = {
+      goto: vi.fn(async () => undefined),
+      url: () => '/',
+      waitForTimeout: vi.fn(async () => undefined),
+      getByRole: vi.fn((role: string, opts?: { name?: RegExp }) => {
+        calls.push({ role, name: opts?.name?.source });
+        return locator;
+      }),
+      getByTestId: vi.fn(() => locator),
+    };
+    const c = {
+      id: 't-text', title: 'text', area: 'ui', severity: 'P2', risk_tags: [],
+      preconditions: { auth_state: 'anonymous' },
+      actions: [{ type: 'click', target: { text: 'Barn (Rustic)' } }],
+      expected: {}, verification: { wait_ms: 0, retries: 0, evidence_required: ['state_diff'] },
+    } as unknown as ContractDoc;
+    await compileContract(c)({ page, snapshot: async () => ({ url: '/', localStorageKeys: [], cookies: [] }) });
+    // defaults role to 'button'; text becomes a regex-escaped accessible-name match
+    expect(calls).toEqual([{ role: 'button', name: 'Barn \\(Rustic\\)' }]);
+  });
+
+  it('target.test_id resolves via getByTestId, never getByRole', async () => {
+    const calls: string[] = [];
+    const locator: any = {
+      click: vi.fn(async () => undefined),
+      fill: vi.fn(async () => undefined),
+      first: () => locator,
+      getByRole: () => locator,
+      getByTestId: () => locator,
+    };
+    const page: any = {
+      goto: vi.fn(async () => undefined),
+      url: () => '/',
+      waitForTimeout: vi.fn(async () => undefined),
+      getByRole: vi.fn(() => { calls.push('getByRole'); return locator; }),
+      getByTestId: vi.fn((id: string) => { calls.push(`getByTestId:${id}`); return locator; }),
+    };
+    const c = {
+      id: 't-tid', title: 'tid', area: 'ui', severity: 'P2', risk_tags: [],
+      preconditions: { auth_state: 'anonymous' },
+      actions: [{ type: 'click', target: { test_id: 'submit-btn' } }],
+      expected: {}, verification: { wait_ms: 0, retries: 0, evidence_required: ['state_diff'] },
+    } as unknown as ContractDoc;
+    await compileContract(c)({ page, snapshot: async () => ({ url: '/', localStorageKeys: [], cookies: [] }) });
+    expect(calls).toEqual(['getByTestId:submit-btn']);
+  });
+
   it('goto.locale calls page.setExtraHTTPHeaders before goto', async () => {
     const calls: string[] = [];
     const locator: any = {
