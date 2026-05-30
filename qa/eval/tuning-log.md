@@ -2217,3 +2217,45 @@ aborted run. No conclusion about the oracle-problem fix yet.
 **Next:** when OAuth is healthy, re-run the exact two arms (commands in
 qa/eval/entry13-logs/exp-A-B.log header) + exec-detection; compare true_detection to
 the apps-2-4 baseline (0/15). If priors moves it off 0, scale + write it up.
+
+---
+
+## Entry 24 — MiniMax A/B INVALID: MiniMax can't run Stage-1 deep discovery (falls back to modules)
+
+**Date:** 2026-05-30
+**Commit:** (no code change) — uses `c1a1b29` priors variant via MiniMax Anthropic-compat
+**Context:** OAuth subscription Agent-SDK credits exhausted (~11h, 0/5 probe even after
+re-login — confirmed credit-limit, not credential: web research = Anthropic requires
+API keys for Agent SDK but reinstated subscription use "with a catch" = credit limit;
+our flaky-then-dead pattern fits exhaustion, not a ban). User supplied the MiniMax
+Anthropic-compat key to bypass OAuth. Ran MiniMax-internal A/B (baseline vs priors,
+apps 2-4) so the model is held constant and only the prompt varies.
+
+**Result — both arms 0 coverage, 0 detection — but for an upstream reason:**
+
+| arm | contracts (0002) | coverage aim | true detection |
+|-----|------------------|--------------|----------------|
+| baseline-mm | 18 (vs Haiku ~76-128) | 0/15 | 0/15 |
+| priors-mm | 13 | 0/15 | 0/15 |
+
+**Root cause: MiniMax fails Stage-1 `enumerateSurface`** — it returns invalid JSON for
+the large structured surface-enumeration output, so the deep path quarantines and
+**falls back to shallow module discovery** (all 3 apps, both arms). Module discovery
+produces ~13-18 contracts that miss the bug surfaces → 0 coverage. The priors prompt
+only affects Stage-2 generation, which never meaningfully ran. The MiniMax judge
+worked fine (coherent "no contract tests ticketing functionality" reasons).
+
+**Conclusion — INVALID for the priors hypothesis.** MiniMax bypasses OAuth but cannot
+drive this pipeline's deep discovery (Stage-1 JSON compliance fails; cf. Entry 11 where
+MiniMax also underperformed Haiku). The priors test requires a generator that can do
+Stage-1 — Haiku or Sonnet. MiniMax is usable as a *judge* but not as the *generator*
+here. No conclusion about priors yet; the question is still open.
+
+**Verdict:** MiniMax path rejected for generation. The priors experiment remains
+pending a capable generator: OAuth Haiku/Sonnet (credit-reset) or an Anthropic
+Console `sk-ant-` key (separate quota). Code is ready (`CONTRACTQA_GEN_PROMPT=priors`).
+
+**Next:** when a capable generator is available, run the original isolated arms
+(priors+Haiku vs baseline+Sonnet) vs the Haiku baseline (apps 2-4, 0/15). Until then,
+the diagnosis stands: 0% true detection is the blind-from-buggy-source wall (Entry 22),
+fix unverified.
