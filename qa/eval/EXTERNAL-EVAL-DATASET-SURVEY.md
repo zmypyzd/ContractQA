@@ -133,3 +133,50 @@ out-of-domain sanity checks — none is drop-in for an E2E web-contract agent.
 
 Proposed first step: pick 3 WebTestBench apps, repair each to a fixed version, run F2P, and check
 whether buggy source actually yields a non-zero true-detection gradient.
+
+---
+
+## ADDENDUM 2 (2026-05-31): deep-research pass (104 agents, 21 sources, 25 claims adversarially verified 24✓/1✗)
+
+Confirmed the gap and found the few genuine fits. Verdict by criterion {(a) bug in source,
+(b) independent correct-intent reference, (c) F2P} + domain {runnable web app + E2E}.
+
+### The ONLY true full-fit corpus (but tiny) — e2e-tests-dataset
+- **Soto-Sánchez et al., Software Quality Journal 2021.** 3 complete full-stack web apps
+  (Java/Spring + Angular/Mustache + MySQL), **6 source-injected regression bugs**, each with
+  `regression-N` / `regression-fixed-N` git tags; **browser E2E tests** needing the whole app+DB;
+  **true F2P** (fail at regression commit, pass at fix); Docker/Compose dual-version reproduction.
+- Satisfies (a)+(b)+(c) AND runnable-web-app+E2E — the only corpus that does. Cost: only 6 bugs/3
+  apps, **manually injected** (not organic). → high-fidelity validation/tuning target, NOT a
+  training set. https://link.springer.com/article/10.1007/s11219-021-09566-x ·
+  https://github.com/e2e-tests-dataset/e2e-tests-dataset
+
+### Strongest NEW on rigor, wrong shape — SusVibes (CMU, 2025-12)
+- 200 tasks / 108 OSS projects; bugs = reverted real vuln-fix commits; independent **Target-Patch**
+  golden reference with **fix-line masking** (anti-leakage); execution-based F2P. (a)+(b)+(c) all met.
+- **Disqualified**: it is a SECURITY benchmark (77 CWEs) where the agent GENERATES the impl from a
+  feature request (bug introduced at generation), no delivered buggy source, no E2E/UI oracle, intent
+  = security spec not functional product intent. **But its mask + Target-Patch method is the reusable
+  recipe** for scaling our own set (see below). arXiv 2512.03262 · github.com/LeiLiLab/susvibes
+
+### Ruled out (verified), with reason
+- **SWE-bench Multimodal** (arXiv 2410.03859): 617 real JS front-end bugs but in **libraries**
+  (Chart.js/Mermaid/openlayers…), **unit-test** oracles not E2E, not full apps. Partial fit.
+- **SWE-Bench Pro** (Scale AI, arXiv 2509.16941): 1865 tasks, golden patches + F2P, Py/Go/TS/JS, but
+  multi-file ENGINEERING tasks + repo unit/integration tests, not web E2E.
+- **Vibe Code Bench** (Vals AI, arXiv 2603.04601): zero-to-one generation-from-NL-spec; NO buggy
+  source, NO buggy/fixed pair, NO F2P.
+- **MobileDev-Bench** (arXiv 2603.24946): mobile (RN/Flutter/Android), not web. Partial.
+- **DiffSpec** (2410.04249, eBPF/Wasm), **FixJS** (isolated function snippets, no tests): out of scope.
+- **CONFIRMED: no public React/Vue/Next.js Defects4J-style buggy/fixed pairs exist.**
+
+### Strategic conclusion (updated, supersedes Addendum-1's build idea)
+The combination {LARGE + complete runnable web app + ORGANIC source bug + fixed reference + E2E}
+is an **open gap** — no 2025-2026 benchmark closes it at scale. Two viable paths:
+1. **Now / small**: use **e2e-tests-dataset** as an immediate F2P validation target (non-zero true
+   detection today).
+2. **Scalable / organic (BETTER than Addendum-1's "repair WebTestBench apps")**: mine real OSS web
+   apps that already ship **Playwright/E2E suites**, take **fix-commit before/after as buggy/fixed
+   pairs**, and use **GitHub Actions logs as the F2P oracle**. Bugs are ORGANIC → matches the "others'
+   app full of latent bugs" deployment scenario. Apply **SusVibes's mask + Target-Patch method** to
+   port it from security CWEs to functional/logical product-intent bugs.
