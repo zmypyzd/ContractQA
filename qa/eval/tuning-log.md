@@ -2547,3 +2547,56 @@ with OUR runner without their Python agent.
 **Next:** Task C — adopt F2P scoring (`baselines/evaluate.py`口径: TP fail-on-buggy ∧ pass-on-clean,
 FP fail-on-clean, FN pass-on-buggy) and design how ContractQA generates contracts → runs them
 clean/buggy → scores F2P. Retry indico with a longer readiness wait.
+
+## Entry 32 — STRATEGY PIVOT: WebTestPilot demoted; un-freeze the oracle line; method = declarative-intent-from-buggy-source
+
+**Date:** 2026-05-31 · cli `interaction-discovery.ts` — added `CONTRACTQA_GEN_PROMPT=intent` variant.
+
+**User's decisive critique:** WebTestPilot has **no substantive effect** on our core problem. Its
+bugs are RUNTIME JS injections, so the **source stays clean** — an agent generating from clean
+source trivially produces correct contracts; it never faces our actual wall ("infer correct intent
+from a BUGGY product"). Clean-vs-buggy differential is only a SCORING tool (real-dev analog =
+baseline/last-good version for regression testing); it does not make a blind agent detect. Agreed.
+
+**Decision:** (1) demote WebTestPilot to a SECONDARY regression/runner-robustness sanity set (it
+also validated our Node bug-injector replica + F2P harness works — Entry 31, not wasted). (2)
+**UN-FREEZE the in-agent oracle line as primary.** (3) Keep measuring on our buggy-SOURCE
+WebTestBench via exec-detection.
+
+**Grounding diagnostic (app-2 source) — the pivotal finding:** for our buggy apps the DECLARATIVE
+intent is often CLEAN in source; the bug lives in the IMPERATIVE layer.
+- **bug#9 (no confirmation toast):** `CheckoutForm.handleSubmit` literally calls
+  `toast({title:'Reservation Confirmed!'})` (line 57, reached). Intent = clean & in source →
+  assertable. The SAME handler also `navigate('/')` (line 64). **The wall bites only if the agent
+  mirrors the imperative `navigate('/')` → asserts url=/ (buggy app also does this → weak_assertion).
+  Asserting the DECLARATIVE toast string → catches the bug.** Same source, two layers; the layer you
+  assert decides detect-vs-miss.
+- **bug#10 (>10 cap):** `const maxQuantity = Math.min(ticket.quantity, 10)` — the `10` constant +
+  the "N tickets available" text are declarative signals to triangulate against.
+- **bug#12 (no phone-format validation):** source only has `required` (non-empty); the format rule
+  is genuinely ABSENT → declarative extraction can't recover it → needs a domain prior.
+
+**Reframed wall statement:** the wall is NOT "you read buggy source" — it is "you mirrored the
+buggy IMPERATIVE behavior." Reading the source's DECLARATIVE intent layer (string literals,
+constants, schemas/types, enums, labels/ARIA/placeholders, route names) recovers correct intent
+FROM a buggy product, no clean version needed.
+
+**`intent` prompt variant (built):** directs the generator to (a) assert declared intent signals,
+(b) explicitly NOT mirror imperative behavior (the `navigate("/")` trap), (c) triangulate across
+signals, (d) fall back to a domain prior when intent is absent from source. Two legs: declarative
+extraction (Part II, primary) + domain priors (Part I family-3, fallback).
+
+**Next:** cheap PoC (gen one contract for bug#9 checkout-submit with `intent` vs `priors` — does
+`intent` assert the toast string vs the imperative url?), then exec-detection on apps 2-4 if promising.
+
+**PoC result (intent vs priors, bug#9 checkout-submit):** BOTH variants generated the
+declarative-intent contract (`contains_text: ["Reservation Confirmed!", "have been reserved"]`) AND
+a separate imperative `url: ^/$` contract. So: (a) the toast-intent assertion IS produced — the
+declarative path is viable; (b) `intent` ≈ `priors` on this interaction and did NOT suppress the
+imperative url contract (the "avoid the trap" instruction only partially followed); (c) **key
+implication — generation is likely NOT the bug#9 bottleneck** (the right contract is already
+generated under priors). The 0-detection must come from coverage/reachability OR from bug#9 not
+actually manifesting as a missing toast at runtime (source HAS the reached `toast()` call).
+**Decisive next check (cheap, before any full regen): run the toast contract against the LIVE buggy
+app-2 — does "Reservation Confirmed!" actually fail to appear (bug real → detection) or appear
+(bug not here → my grounding example was wrong)?** Don't invest in `intent` regen until this is known.

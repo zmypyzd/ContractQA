@@ -511,6 +511,49 @@ function genVariantBlock(): string[] {
       '',
     ];
   }
+  if (v === 'intent') {
+    return [
+      '═══ DERIVE `expected` FROM DECLARED INTENT, NOT FROM IMPERATIVE BEHAVIOR ═══',
+      'The source MAY be buggy — but a bug almost always lives in the IMPERATIVE logic',
+      '(handlers, conditions, effects, computed values), while the product\'s INTENT is',
+      'encoded separately in DECLARATIVE artifacts the bug usually leaves intact. Read the',
+      'intent from those, and assert the running app conforms to it. This lets you recover',
+      'correct behavior even from a buggy product.',
+      '',
+      'DECLARATIVE INTENT SIGNALS — trust these; they state what SHOULD happen:',
+      '  • user-facing string literals: toast/success/error titles & messages, confirmation',
+      '    and empty-state text. A literal like "Reservation Confirmed!" in the code means a',
+      '    successful submit MUST surface that text — assert it appears.',
+      '  • constants & limits & defaults: maxQuantity, MAX_*, numeric bounds, default values.',
+      '    A `10` cap or a `default 100` is the INTENDED number — assert the UI honors it.',
+      '  • schemas / types / validation: zod, PropTypes, TS unions, `required`, regex',
+      '    patterns, enums — the allowed set / required-ness IS the intended rule.',
+      '  • labels, ARIA, placeholders, route names: a button labelled "View Details" wired to',
+      '    a `/thing/:id` route MUST navigate there; a placeholder "555-0123" implies a phone',
+      '    format the input should enforce.',
+      '',
+      'THE TRAP — do NOT mirror imperative behavior into `expected`:',
+      '  • If a handler does `navigate("/")`, or computes a value a certain way, that is the',
+      '    CURRENT behavior — which may BE the bug. Never assert "url = /" merely because the',
+      '    code happens to do it.',
+      '  • Assert the DECLARED outcome instead (the success-message string, the constant limit,',
+      '    the schema rule, the labelled destination). Such a contract FAILS exactly when the',
+      '    implementation deviates from its own declared intent — that gap is the bug.',
+      '',
+      'TRIANGULATE: when several declarative signals agree (label + route + message), assert',
+      'their shared intent and treat the imperative path as the suspect, not the oracle. If a',
+      'lone declarative signal looks like it could itself be wrong, prefer the corroborated one.',
+      '',
+      'If the intent for an interaction is genuinely ABSENT from the source (e.g. a validation',
+      'rule simply not implemented), fall back to a reasonable domain-prior expectation for',
+      'this KIND of app (forms validate formats, actions give feedback, counts match rendered',
+      'items, limits block the N+1th).',
+      '',
+      'Prefer scoped value/relation assertions (element_text_equals, role_count{eq},',
+      'input_value, attribute_equals) over contains_text needles.',
+      '',
+    ];
+  }
   return [];
 }
 
