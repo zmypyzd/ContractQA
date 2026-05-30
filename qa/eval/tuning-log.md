@@ -2695,3 +2695,15 @@ prompt is too weak; need a STRUCTURAL mechanism:
       bindings and emit a fixed "interaction must reach the displayed value" contract (ATUSA-style
       generic backbone), not LLM-freeform.
 Next: prototype (A) or (B) — structural cross-signal consistency, since prompting alone fails.
+
+**B PROTOTYPE — WORKS (`scripts/eval/consistency-oracles.mjs`):** template-instantiated, LLM-free
+cross-signal consistency oracle. Template `displayed-limit-vs-stepper`: find a displayed
+availability/stock count N next to a +/- stepper; drive the +; if it caps BELOW min(N,15) → flag.
+On live buggy app-2 `/event/1`: **3/3 violations** — steppers cap at 10 while UI displays 500 / 100 /
+20 available. **Caught bug#10 deterministically, never reading the buggy `Math.min(qty,10)` constant**
+→ immune to the source-anchoring that made the LLM miss (PoC-2). This realizes the ATUSA-style generic
+invariant/consistency backbone. Caveats: (1) coverage = template-catalog breadth (this one template
+only covers the stepper-vs-availability class); (2) FP risk if a legit "max N per order" is intended —
+templates must stay conservative. **Next: grow the template catalog (count == rendered rows, shown
+total == Σ items, "showing N of M" == rendered, value-shown-in-two-places match), then run the
+consistency layer across apps 2-4 alongside LLM contracts and measure added true detections.**
