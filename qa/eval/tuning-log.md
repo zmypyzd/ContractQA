@@ -2471,3 +2471,43 @@ route), validated at the single-generation level. Launching FULL regeneration of
 (`CONTRACTQA_GEN_PROMPT=priors`, label `priors-h-nav`) → exec-detection (dump-mode + manual
 judge) to measure whether the recovered execution_defect contracts now reach their surfaces and
 move true_detection off the priors 1/15 baseline. Result in a follow-up entry.
+
+## Entry 30 — Full regen with navigation completeness: execution_defect 5→2 (fix works) but true_detection UNCHANGED 1/15 (wall not broken)
+
+**Date:** 2026-05-30 · label `priors-h-nav` (apps 2-4, priors+Haiku, reach-path+icon+routes).
+Manual-judge exec-detection (dump-mode).
+
+| metric (apps 2-4) | priors-h (E26) | priors-h-nav (E30) |
+|---|---|---|
+| **true_detection** | **1/15** | **1/15** (unchanged) |
+| execution_defect | 5 | **2** down |
+| not_covered | 8 | 11 up |
+| off_target_fail / true | 1 / 1 | 1 / 1 |
+
+**Reading:** the nav/icon/route work did exactly what it was built for — `execution_defect` halved
+(5→2): contracts now reach gated surfaces (checkout) and the generator emits real journeys using
+`{icon:"plus"}` + correct routes. But **detection did NOT move** — recovered bugs landed in
+`not_covered`, not `true_detection`; `weak_assertion` stayed 0. The one catch is again the
+intent-vs-behavior gap (0004 bug#12: View Details doesn't redirect). Caveat: fresh generation,
+N=15, single sample — the not_covered rise (8→11) is partly generation variance.
+
+**Conclusion (confirms the wall analysis):** navigation completeness is NECESSARY-not-sufficient.
+It removes a *reachability* confound and de-noises the buckets, but does not touch the **oracle** —
+assertions are still generated from the running buggy app, so they don't encode correct behavior.
+The blind-from-buggy-source wall stands at ~1/15; selector/nav tuning has hit its ceiling.
+
+**Decision (user):** PAUSE the in-agent oracle-fix line (generic invariants / metamorphic /
+declarative-intent). PIVOT to a clean-vs-buggy **differential oracle** via WebTestPilot as the
+primary eval set ([[reference_external_eval_datasets]]) — Task A (adopt + run), then Task C (swap
+scoring to F2P: FAIL-on-buggy ∧ PASS-on-clean). The CLEAN run is the correct reference, so the
+agent never infers correct behavior from buggy source — structurally past the wall.
+
+**WebTestPilot orientation (parallel):** cloned to
+`/Users/zmy/intership/qa-eval-fixtures/WebTestPilot`. Test case = `name`+`setup_function`+`steps[]`;
+each step has `action`/`expectation`/`ground_truth` (Playwright assertion, isomorphic to our
+contract `expected`). **Bug = runtime JS DOM mutation** (`benchmark/<app>/bugs/*.js`:
+`isConditionMet`/`onConditionMet`), toggled by `baselines/bug_injector.py` merging into
+`bug_injector.js` — app SOURCE stays clean (clean = no injection, buggy = injected). Scoring in
+`baselines/evaluate.py`. 4 heavy real apps via Docker Compose (`webapps/`, needs `uv`+`docker-compose`,
+app images + mysql/redis/nginx). Because bugs are runtime-injected, the differential oracle measures
+REAL detection without blind-source contamination.
