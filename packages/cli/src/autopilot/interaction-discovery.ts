@@ -548,6 +548,29 @@ export function buildGenerateSystemPrompt(): string {
     'attribute_equals, input_value, class_contains) over `dom.contains_text`',
     'needles — the latter silent-pass on most pages.',
     '',
+    // ─── REACH-PATH requirement (tuning, Entry 28 — navigation completeness) ───
+    // The #1 cause of "covered but never caught" execution_defect (tuning-log
+    // Entry 25/26): contracts assert on an element that is NOT on the landing
+    // page, with no navigation to reach it → the action times out and nothing is
+    // tested. The interaction may live behind a route AND behind reveal steps
+    // (a dialog opened by a button, a panel shown after a selection, a tab).
+    'CRITICAL — REACH-PATH: the target element is usually NOT on the landing page ("/").',
+    'Every contract\'s `actions` MUST BEGIN with the full path to reach the element:',
+    '  1. a `goto` to the route that renders it (use the interaction\'s `route`, or',
+    '     infer it from the source context / known routes — e.g. a detail page is',
+    '     often `/<thing>/:id`, so navigate to a concrete id like `/event/1`);',
+    '  2. then any REVEAL steps the source shows are required before the element',
+    '     exists: click the control that opens its dialog/menu/section (e.g. a',
+    '     "Continue to Checkout" button that opens a checkout dialog), select a',
+    '     prerequisite (add a ticket via the +/- stepper before checkout is shown),',
+    '     switch the tab, expand the accordion, etc.',
+    'If the source context shows the element is rendered inside a dialog/section that',
+    'is conditionally shown, you MUST include the steps that trigger that condition',
+    'FIRST. A contract that fills/clicks an element without first navigating+revealing',
+    'it is WORSE THAN USELESS — it times out and silently fails to test anything.',
+    'When you are not certain of the exact reach-path, still emit your best-inferred',
+    'goto + reveal steps rather than asserting on a bare landing page.',
+    '',
     // Variant-selectable extra block (env CONTRACTQA_GEN_PROMPT): baseline (none),
     // 'asrt' (assertion-specificity, Entry 22 — rejected), 'priors' (Entry 23).
     ...genVariantBlock(),
@@ -609,7 +632,10 @@ export function buildGenerateSystemPrompt(): string {
     '                              contains_keys?: [string], not_contains_keys?: [string] },',
     '                     headers?: { <header-name>: <value> } }',
     '',
-    '  Target shape: { role?, name_regex?, test_id?, text?, first?, within? }',
+    '  Target shape: { role?, name_regex?, test_id?, text?, icon?, first?, within? }',
+    '    - icon: for icon-only controls with NO text/aria-label (e.g. a lucide Plus/Minus',
+    '      quantity stepper). icon: "plus" matches a <button> containing <svg class="...plus...">.',
+    '      Use it (with first/within to disambiguate) when a control has only an icon.',
     '',
     'HARD CONSTRAINTS (the runner WILL drop your contract if violated):',
     '  - actions[*].type MUST be one of: goto, click, fill, wait, http.',

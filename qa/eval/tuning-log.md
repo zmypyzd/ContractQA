@@ -2412,3 +2412,36 @@ it → a navigation-complete contract would still be stuck. So icon targeting is
 **PoC also confirmed Entry-26 finding #1 (navigation):** `/event/1` reached; "Continue to Checkout"
 is gated behind `totalTickets>0` — so the no-`goto` contracts could never reach the form. Next:
 navigation completeness (generation emits the reach-path: navigate → select ticket → open form).
+
+## Entry 28 — Navigation completeness (prompt reach-path) — PoC: structure WORKS + icon used; route accuracy is the last gap
+
+**Date:** 2026-05-30 · **Commit:** cli `interaction-discovery.ts` gen prompt (reach-path block +
+`icon` in Target doc). Validated by single-interaction PoC; NOT yet full-regen-measured.
+
+**Change:** added a CRITICAL "REACH-PATH" requirement to `buildGenerateSystemPrompt`: every
+contract's `actions` MUST begin with the full path to the element — `goto` the route, then any
+REVEAL steps the source shows are required (open the dialog, select a prerequisite, switch tab).
+Also surfaced the new `icon` Target field in the prompt's Target doc.
+
+**Cheap PoC (1 generation call, Haiku, priors, window = `CheckoutForm.tsx` only):** the LLM
+produced 3 navigation-complete contracts, e.g.:
+`goto /events/1 → click {icon:"plus"} → click {name_regex:"[Cc]heckout"} → fill email/name/phone
+→ click {confirm} → expect "Reservation Confirmed"`. So (a) the reach-path requirement produces
+real journeys even without the rendering-parent context, and (b) **the generator USED the new
+`icon` target** to add a ticket via the icon-only stepper.
+
+**Live run of the generated journey (compileContract vs app-2 SUT):**
+| route in goto | reached the checkout form? |
+|---|---|
+| `/events/1` (LLM's guess — WRONG, real route is `/event/1`) | **no** — timeout (NotFound → no stepper) |
+| `/event/1` (corrected) | **yes** — full journey reached the form |
+
+**Conclusion:** prompt-only gets the journey STRUCTURE right and uses `icon`, but the LLM GUESSES
+the route wrong because the component window doesn't reveal where it's mounted, and the generate
+prompt isn't given the project's known routes. **The last gap is route accuracy, not structure.**
+
+**Next (cheap, try before any structural enumeration change):** pass the project's known routes
+(enumerate already computes them) into the GENERATE prompt so the LLM picks `/event/:id` instead
+of inventing `/events/1`. Re-PoC; if the route comes out right, prompt-only navigation completeness
+is done and we can full-regen apps 2-4 to measure detection. If the LLM still can't map
+component→route, fall back to capturing route-per-interaction in `enumerateSurface`.
