@@ -1052,3 +1052,37 @@ LLM-generated). Both check deterministically; bug caught if ANY fires.
 consistency) + run the static template layer, then exec-detection, and report the true-detection
 increment vs priors 1/15. Increment depends on how many apps-2-4 bugs are count/total/limit
 inconsistencies (snapshot- or interaction-observable); report honestly which classes it adds.
+
+## Entry 35 — Recall measure (intent + consistency, apps 2-4): true_detection still 1/15; consistency added 0; bottleneck shifted to COVERAGE + GROUNDING
+
+**Date:** 2026-05-31 · label `intent-h` (apps 2-4, `CONTRACTQA_GEN_PROMPT=intent`, manual-judge exec-det).
+
+| metric (apps 2-4) | priors-h | priors-h-nav | **intent-h** |
+|---|---|---|---|
+| exec-det true_detection | 1/15 | 1/15 | **1/15** |
+| stage totals | nc8 ed5 ot1 t1 | nc11 ed2 ot1 t1 | **nc11 ed1 ot2 t1** |
+
+**The one detection (0004 bug#12, View Details no-redirect) is a url/intent-gap catch — NOT a
+consistency assertion.** Consistency assertions added **ZERO** exec-det detections: apps 2-4 simply
+don't have the snapshot count/total/value-inconsistency bug class, and the consistency contracts that
+WERE generated grounded to null (conservative skip → correct, no FP). The static template layer
+separately catches app-2 bug#10 (stepper cap, interaction-based — exec-det's snapshot consistency
+can't express "select up to N"). Union of both layers = 2 distinct bugs (bug#10, bug#12); net-new
+from the whole consistency effort over priors = just bug#10 (via the template).
+
+**Honest plateau finding:** across priors → nav-completeness → icon/text targeting → intent →
+consistency, exec-det true_detection has stayed ~1/15. Each addition is individually SOUND and
+generalizable, but recall hasn't moved because the binding constraint is no longer the oracle:
+- **not_covered = 11/15** (dominant): the coverage judge matched NO contract to the bug — the agent
+  isn't producing a contract that targets that bug's surface.
+- **grounding failures** ("no element matched target" — app-3 bug#9 email field, app-4 search box):
+  contracts whose locators don't resolve on the live app → can't test anything.
+So the frontier has shifted from INTENT (oracle) to **COVERAGE (generate a contract that targets each
+bug surface) + GROUNDING (locators that actually resolve)**. The consistency/oracle machinery is built
+and wall-proof, but it can only fire where a contract exists, reaches, and the bug is of its class.
+
+**Implication for next lever (was deferred): the observation-gated exploration / Tier-2 grounding is
+now the highest-value work** — explore the live app to (a) discover the real surfaces (raise coverage)
+and (b) ground locators in observed elements (kill the "no element matched" misses). Also revisit
+whether some apps-2-4 bugs manifest at all (bug#9 toast precedent). Oracle tuning has hit diminishing
+returns at ~1/15; coverage+grounding is the lever.
