@@ -2678,3 +2678,20 @@ total vs rendered/selectable reality), (3) metamorphic (add↔remove, reversibil
 invariants — and count a bug detected if ANY fires. Then measure exec-detection on apps 2-4 with
 observation-gated escalation for grounding failures. Do NOT let a single constant-reading oracle be
 the sole assertion.
+
+**PoC-2 (prompt-only multi-oracle, ticket stepper interaction) — NEGATIVE, wall at generation:**
+upgraded `intent` prompt to demand a SET of oracles + "assert the UI-DISPLAYED value, NOT the code
+constant (the constant may be the bug)". The agent STILL did not generate the cross-signal
+consistency oracle; it produced 3 stepper-mechanics contracts, one literally *"Plus disables when
+reaching availability cap or 10-ticket limit"* — i.e. it read `Math.min(qty,10)` and ENCODED the
+10-cap as expected (PASS on buggy → miss), even conflating availability with the buggy 10. (Good:
+the new `icon` target WAS used.) **Conclusion: prompt-only instruction can't stop the LLM anchoring
+on the buggy imperative line when it's in the code window — the wall bites at generation.** A
+prompt is too weak; need a STRUCTURAL mechanism:
+  (A) FIREWALL the generator from imperative logic — feed it declarative signals + the displayed-
+      value bindings (`{ticket.quantity} tickets available`) + UI structure, but strip the imperative
+      handlers (`Math.min`, disabled-conditions) so there is nothing to mirror; or
+  (B) TEMPLATE-INSTANTIATED consistency oracles — programmatically detect displayed count/limit/total
+      bindings and emit a fixed "interaction must reach the displayed value" contract (ATUSA-style
+      generic backbone), not LLM-freeform.
+Next: prototype (A) or (B) — structural cross-signal consistency, since prompting alone fails.
