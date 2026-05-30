@@ -145,6 +145,30 @@ const ExpectedBlock = z.object({
             .strict(),
         )
         .optional(),
+      // CROSS-SIGNAL CONSISTENCY (Entry 33): relate two RUNTIME-OBSERVED signals
+      // (never a code constant). A Signal extracts a number from the live DOM:
+      //   { count: <Target> }     → how many elements match the Target
+      //   { number_in: <Target> } → the first number in the matched element's text
+      //   { sum_of: <Target> }    → sum of the first number across all matches
+      // The relation must hold between left and right (e.g. a displayed count ==
+      // the rendered row count; a shown total == Σ line items). The bug is the GAP.
+      // If either signal cannot be grounded (no match / no number) the relation is
+      // skipped (conservative — no false positive).
+      consistency: z
+        .array(
+          z
+            .object({
+              left: z
+                .object({ count: Target.optional(), number_in: Target.optional(), sum_of: Target.optional() })
+                .strict(),
+              relation: z.enum(['eq', 'lte', 'gte', 'lt', 'gt']),
+              right: z
+                .object({ count: Target.optional(), number_in: Target.optional(), sum_of: Target.optional() })
+                .strict(),
+            })
+            .strict(),
+        )
+        .optional(),
     })
     .optional(),
   auth_state: z.object({ fully_logged_out: z.boolean() }).partial().optional(),

@@ -169,3 +169,42 @@ describe('classifyDom — Stream 5 rich assertions', () => {
     expect(r.failContributions[0]?.detail).toContain('predates Stream 5');
   });
 });
+
+describe('classifyDom consistency (cross-signal relations)', () => {
+  const els = [
+    { role: 'heading', name: 'Showing 2 of 8 venues', text: 'Showing 2 of 8 venues', attributes: {}, classes: [], value: undefined },
+    { role: 'article', name: 'A', text: 'A', attributes: {}, classes: [], value: undefined },
+    { role: 'article', name: 'B', text: 'B', attributes: {}, classes: [], value: undefined },
+    { role: 'article', name: 'C', text: 'C', attributes: {}, classes: [], value: undefined },
+  ];
+  const domE = (e = els): DomShape => ({ roleCounts: {}, visibleText: '', elements: e });
+
+  it('FAILs when displayed count != rendered count (2 != 3)', () => {
+    const r = classifyDom(domE(), { consistency: [{ left: { number_in: { text: 'Showing' } }, relation: 'eq', right: { count: { role: 'article' } } }] });
+    expect(r.failContributions.some((f) => f.field === 'dom.consistency' && /2 eq 3/.test(f.detail))).toBe(true);
+  });
+
+  it('PASSes when displayed count == rendered count', () => {
+    const e2 = els.map((x) => (x.role === 'heading' ? { ...x, text: 'Showing 3 of 8 venues', name: 'Showing 3 of 8 venues' } : x));
+    const r = classifyDom(domE(e2), { consistency: [{ left: { number_in: { text: 'Showing' } }, relation: 'eq', right: { count: { role: 'article' } } }] });
+    expect(r.failContributions).toEqual([]);
+    expect(r.passContributions.some((p) => p.field === 'dom.consistency')).toBe(true);
+  });
+
+  it('SKIPs (no fail, no pass) when a signal cannot be grounded — conservative, no false positive', () => {
+    const r = classifyDom(domE(), { consistency: [{ left: { number_in: { text: 'Nonexistent' } }, relation: 'eq', right: { count: { role: 'article' } } }] });
+    expect(r.failContributions.filter((f) => f.field === 'dom.consistency')).toEqual([]);
+    expect(r.passContributions.filter((p) => p.field === 'dom.consistency')).toEqual([]);
+  });
+
+  it('sum_of: total == sum of item numbers', () => {
+    const e = [
+      { role: 'heading', name: 'Total 60', text: 'Total 60', attributes: {}, classes: [], value: undefined },
+      { role: 'listitem', name: 'i1', text: '$20', attributes: {}, classes: [], value: undefined },
+      { role: 'listitem', name: 'i2', text: '$40', attributes: {}, classes: [], value: undefined },
+    ];
+    const r = classifyDom(domE(e), { consistency: [{ left: { number_in: { text: 'Total' } }, relation: 'eq', right: { sum_of: { role: 'listitem' } } }] });
+    expect(r.failContributions).toEqual([]);
+    expect(r.passContributions.some((p) => p.field === 'dom.consistency')).toBe(true);
+  });
+});

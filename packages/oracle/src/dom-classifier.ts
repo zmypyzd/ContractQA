@@ -41,6 +41,19 @@ export interface DomExpected {
     target: DomTarget;
     equals: string;
   }>;
+  consistency?: Array<{
+    left: ConsistencySignal;
+    relation: 'eq' | 'lte' | 'gte' | 'lt' | 'gt';
+    right: ConsistencySignal;
+  }>;
+}
+
+// A consistency signal extracts ONE number from the observed DOM. Exactly one
+// of count / number_in / sum_of is set.
+export interface ConsistencySignal {
+  count?: DomTarget;
+  number_in?: DomTarget;
+  sum_of?: DomTarget;
 }
 
 // Find the first DomElementSnapshot matching a DomTarget. Returns null on
@@ -64,6 +77,51 @@ function matchElement(target: DomTarget, elements: DomElementSnapshot[]): DomEle
   // `first: true` is the default semantically — there's no concept of "all"
   // for these new evaluators since they always assert on a single element.
   return matches[0] ?? null;
+}
+
+// All elements matching a DomTarget (consistency's count/sum_of need every match,
+// not just the first). Mirrors matchElement's predicate.
+function matchAllElements(target: DomTarget, elements: DomElementSnapshot[]): DomElementSnapshot[] {
+  return elements.filter((el) => {
+    if (target.role && el.role !== target.role) return false;
+    if (target.name_regex && !new RegExp(target.name_regex, 'i').test(el.name)) return false;
+    if (target.test_id && el.attributes['data-testid'] !== target.test_id) return false;
+    if (target.text && !el.text.includes(target.text)) return false;
+    return true;
+  });
+}
+
+// First number in a string ("Showing 2 of 8" → 2; "$1,200.00" → 1200; "500 available" → 500).
+function firstNumber(s: string): number | null {
+  const m = (s || '').replace(/,/g, '').match(/-?\d+(?:\.\d+)?/);
+  return m ? Number(m[0]) : null;
+}
+
+// Resolve a ConsistencySignal to a number, or null if it can't be grounded
+// (no matching element / no parseable number) → caller skips (conservative).
+function evalSignal(sig: ConsistencySignal, els: DomElementSnapshot[]): { value: number | null; label: string } {
+  if (sig.count) return { value: matchAllElements(sig.count, els).length, label: `count(${targetLabel(sig.count)})` };
+  if (sig.number_in) {
+    const el = matchElement(sig.number_in, els);
+    return { value: el ? firstNumber(el.text) : null, label: `number_in(${targetLabel(sig.number_in)})` };
+  }
+  if (sig.sum_of) {
+    const ms = matchAllElements(sig.sum_of, els);
+    const nums = ms.map((e) => firstNumber(e.text)).filter((n): n is number => n != null);
+    return { value: nums.length ? nums.reduce((a, b) => a + b, 0) : null, label: `sum_of(${targetLabel(sig.sum_of)})` };
+  }
+  return { value: null, label: '<empty signal>' };
+}
+
+function relationHolds(a: number, rel: string, b: number): boolean {
+  switch (rel) {
+    case 'eq': return a === b;
+    case 'lte': return a <= b;
+    case 'gte': return a >= b;
+    case 'lt': return a < b;
+    case 'gt': return a > b;
+    default: return false;
+  }
 }
 
 function targetLabel(target: DomTarget): string {
@@ -120,7 +178,8 @@ export function classifyDom(dom: DomShape, expected: DomExpected): DomClassifica
     !!expected.attribute_equals ||
     !!expected.input_value ||
     !!expected.class_contains ||
-    !!expected.element_text_equals;
+    !!expected.element_text_equals ||
+    !!expected.consistency;
   if (needsElements && !dom.elements) {
     out.failContributions.push({
       field: 'dom.elements',
@@ -301,6 +360,25 @@ export function classifyDom(dom: DomShape, expected: DomExpected): DomClassifica
         out.passContributions.push({
           field: 'dom.role_count',
           detail: `${label} = ${total}`,
+        });
+      }
+    }
+  }
+
+  if (expected.consistency) {
+    for (const c of expected.consistency) {
+      const L = evalSignal(c.left, els);
+      const R = evalSignal(c.right, els);
+      const label = `${L.label} ${c.relation} ${R.label}`;
+      // Conservative: if either signal can't be grounded, skip (no false positive).
+      if (L.value === null || R.value === null) continue;
+      if (relationHolds(L.value, c.relation, R.value)) {
+        out.passContributions.push({ field: 'dom.consistency', detail: `${label} (${L.value} ${c.relation} ${R.value})` });
+      } else {
+        out.failContributions.push({
+          field: 'dom.consistency',
+          detail: `${label} VIOLATED: ${L.value} ${c.relation} ${R.value} is false`,
+          actual: { left: L.value, right: R.value },
         });
       }
     }

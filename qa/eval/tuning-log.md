@@ -1024,3 +1024,31 @@ parameterized consistency assertion the runner checks DETERMINISTICALLY. The LLM
 (detection across diverse markup) with source-anchor-proof verdicts (wall defense). Needs a new
 relational assertion type (`expected.consistency: {signalA, relation, signalB}`) in the runner.
 That is the next build.
+
+## Entry 34 — Built `expected.dom.consistency` relational assertion (LLM-identifies / runner-checks); agent generates it
+
+**Date:** 2026-05-31 · core schema + oracle `dom-classifier.ts` (+4 unit tests, 47/47) + cli generate prompt.
+
+Implements the Entry-33 synthesis: a relational assertion comparing TWO runtime-observed signals,
+never a code constant. `expected.dom.consistency: [{ left, relation: eq|lte|gte|lt|gt, right }]`
+where each Signal ∈ { count: Target | number_in: Target | sum_of: Target } (count of matches /
+first number in matched text / sum of numbers across matches). The oracle reads both from the live
+DOM snapshot (`dom.elements`) and checks the relation; if EITHER signal can't be grounded it SKIPS
+(conservative — no false positive). Unit-verified both ways + skip + sum_of.
+
+**The LLM-identifies / runner-checks split WORKS end-to-end:** with the `intent` prompt surfacing
+`consistency`, the agent (Haiku) GENERATED — for the app-4 venues list — exactly:
+`{ left: number_in{text:"Showing"}, relation: eq, right: count{role:article} }`
+("displayed venue count must match rendered card count"). It IDENTIFIED which two signals should
+agree and emitted the relation WITHOUT hardcoding a (possibly buggy) value; the runner will verify
+deterministically → source-anchor-proof. This is generalizable (mechanism-level, per
+[[feedback_no_overfit_generalize]]) — works on the un-tuned app-4.
+
+Two consistency layers now exist: (a) `consistency-oracles.mjs` static templates (interaction-capable,
+catches the stepper class / bug#10); (b) `expected.dom.consistency` (snapshot count/number/sum,
+LLM-generated). Both check deterministically; bug caught if ANY fires.
+
+**Next: measure RECALL on apps 2-4** — regenerate with `CONTRACTQA_GEN_PROMPT=intent` (now emits
+consistency) + run the static template layer, then exec-detection, and report the true-detection
+increment vs priors 1/15. Increment depends on how many apps-2-4 bugs are count/total/limit
+inconsistencies (snapshot- or interaction-observable); report honestly which classes it adds.
