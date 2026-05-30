@@ -80,3 +80,56 @@ pairs so we get a real detection gradient to tune against?**
 
 Next concrete step (not yet done): pull WebTestPilot's docker apps, wire to the existing contract
 executor, verify it actually yields a non-zero detection signal.
+
+---
+
+## ADDENDUM (2026-05-31): the criterion was wrong — we must train on BUGGY SOURCE, not clean
+
+User critique (correct): WebTestPilot injects its bug as a runtime overlay on **otherwise-correct
+source**, so the agent reads CLEAN source and infers correct intent. That is the OPPOSITE of our
+deployment scenario — **others' already-built apps that are full of source-level bugs**, where the
+agent must read **buggy source** and still infer the **correct product intent** (not encode the bug
+as expected). WebTestPilot validates the executor plumbing but does NOT exercise the capability we
+need to tune. **Demote it from "primary tuning set" to "differential-oracle plumbing check".**
+
+Revised criterion: **(a) bug genuinely IN the source + (b) an independent correct-intent reference
+(fixed version OR spec/doc/checklist) + (c) F2P scoring (contract fails on buggy, passes on fixed).**
+
+### Candidates by fit to the revised criterion
+
+**Tier 1 — exact task formulation (infer intent from buggy source, no bug report given)**
+- **TestExplora (Microsoft)** — hides ALL defect signals; uses **documentation-derived intent** as
+  the oracle; bug in real source; buggy+fixed versions; F2P metric. SOTA F2P only ~16% → hard, lots
+  of headroom. Caveat: **Python-only, backend, library-level unit tests (not E2E)**. Borrow the
+  paradigm (doc→intent→F2P, no bug report). github.com/microsoft/TestExplora · arXiv 2602.10471
+
+**Tier 2 — web/JS domain, real source bugs + fixed versions (closest domain)**
+- **SWE-bench Multimodal** — 617 real bugs in 17 JS front-end/visualization libraries, golden fix +
+  F2P + screenshots. Source bug + fixed reference + UI-facing. Gap: libraries not full apps; unit
+  tests not E2E contracts. arXiv 2410.03859
+- **BugsJS** — 453 manually-validated real JS bugs, Docker faulty+fixed versions + detecting tests +
+  fix patches ("JS Defects4J"). Gap: Node server-side libs, not web UI. https://bugsjs.github.io/
+
+**Tier 3 — gold-standard structure / methodology to borrow**
+- **Defects4J** (835 Java bugs, buggy+fixed, F2P) · **SWE-bench Verified / SWE-bench-Live** (Python
+  real issues, Docker, F2P; Live = 1319 tasks / 93 repos, post-2024, contamination-resistant).
+- **GitHub Recent Bugs + oracle-omission / AugmenTest / SpecRover / VibeRepair** — methods+data for
+  "infer the oracle/intent from buggy code" = the exact capability we tune. Read for technique.
+
+### The honest gap + the only directly-usable path
+NO public benchmark = {full running web app + source bug + fixed-version reference + E2E contracts}.
+That combination is a genuine vacuum. The external sets above are for borrowing the paradigm and as
+out-of-domain sanity checks — none is drop-in for an E2E web-contract agent.
+
+**Build it from what we already own (friedrichor WebTestBench = our local fixture):**
+1. Its apps already have the **bug IN source**, and the **checklist IS the correct-intent spec**.
+   The only missing piece is a fixed reference.
+2. For each buggy app, have a strong model **repair it until the full checklist passes** → a
+   **fixed version** → now we hold `buggy-source / fixed-source` FULL-APP pairs.
+3. Tuning signal: agent reads ONLY the buggy source → infers intent → generates an E2E contract →
+   score **F2P** (fails on the buggy app, passes on the fixed app). This is TestExplora's paradigm
+   at full-web-app + E2E granularity, on deployment-representative apps. It is the only way to get
+   bug-in-source + E2E + executable correct reference in one place.
+
+Proposed first step: pick 3 WebTestBench apps, repair each to a fixed version, run F2P, and check
+whether buggy source actually yields a non-zero true-detection gradient.
