@@ -2511,3 +2511,39 @@ contract `expected`). **Bug = runtime JS DOM mutation** (`benchmark/<app>/bugs/*
 `baselines/evaluate.py`. 4 heavy real apps via Docker Compose (`webapps/`, needs `uv`+`docker-compose`,
 app images + mysql/redis/nginx). Because bugs are runtime-injected, the differential oracle measures
 REAL detection without blind-source contamination.
+
+## Entry 31 — Task A: WebTestPilot brought up + differential oracle VALIDATED end-to-end (bookstack)
+
+**Date:** 2026-05-31 · WebTestPilot at `/Users/zmy/intership/qa-eval-fixtures/WebTestPilot`.
+
+**Bring-up (4 heavy Docker-Compose apps, sequential):**
+| app | port | status |
+|---|---|---|
+| indico | 8080 | ❌ FAILED — "not ready after 60s" (heaviest app: DB migrate + celery; 60s wait too short, or compose error masked by the `>/dev/null \| tee` pattern). Retry with longer wait. |
+| bookstack | 8081 | ✅ up + seeded |
+| invoiceninja | 8082 | ✅ up + seeded |
+| prestashop | 8083 | ⏳ finishing |
+
+Cross-platform fix applied: `webapps/start_app.sh` seed used GNU `date -d "yesterday"` → patched to
+`date -v-1d` (BSD/macOS) with GNU fallback, else prestashop/bookstack seed aborts under `set -e`.
+
+**Differential oracle VALIDATED (bookstack, `count_recently_created_books`):** replicated
+`bug_injector.py` in Node Playwright (merge bug's isConditionMet/onConditionMet into
+`bug_injector.js`, inject via `addInitScript`), logged in (admin@admin.com/password), and ran the
+consistency assertion "no phantom book in Recently Created Books":
+- **clean** → phantom count 0 (assertion PASSES)
+- **buggy** (injected) → phantom count 1, fake "Custom Book Title" appears (assertion FAILS)
+- ⇒ **TP = FAIL-on-buggy ∧ PASS-on-clean.** This is the differential oracle that structurally
+  escapes the blind-from-buggy-source wall: the CLEAN run is the correct reference; the agent
+  never infers correct behavior from buggy source.
+
+**Integration learnings:** (1) bug triggers are **test-case-page-specific** — this bug fires on the
+user PROFILE page (`/user/admin`, `h2#recent-pages`), NOT home (home shows different "Recently
+Updated Pages" markup). So a faithful run needs the per-test navigation to reach each bug's trigger
+(their runner / our agent provides it). (2) Bug selectors are DOM/version-coupled — keep the
+pinned `webapps/` images. (3) The Node-side injection replica works, so we can run the differential
+with OUR runner without their Python agent.
+
+**Next:** Task C — adopt F2P scoring (`baselines/evaluate.py`口径: TP fail-on-buggy ∧ pass-on-clean,
+FP fail-on-clean, FN pass-on-buggy) and design how ContractQA generates contracts → runs them
+clean/buggy → scores F2P. Retry indico with a longer readiness wait.
