@@ -2611,3 +2611,70 @@ true-detection may be bugs that don't observably deviate (or deviate differently
 says), NOT only the oracle wall. **Before any more oracle/prompt tuning, empirically audit which
 app bugs actually manifest at runtime** (drive each bug's flow, observe deviation vs intent) to get
 a trustworthy ground truth. Tuning detection methods against bugs that don't manifest is wasted.
+
+## Entry 33 — Direction locked: codebase-intent (NOT instruction) + observation-gated tiered grounding + multi-oracle redundancy
+
+**Date:** 2026-05-31 · design decision (from `5-25/webtest` reference study + user direction).
+
+**Studied `/Users/zmy/intership/5-25/webtest`** (a WebTester/codegen impl on the SAME friedrichor
+WebTestBench). Its method: intent from the **developer `instruction`** (clean spec) + **live-app
+exploration** (Playwright-MCP observes real routes/elements) → checklist → per-category test scripts
+→ execute. It never reads source, so it sidesteps the wall — BUT via the instruction.
+
+**User decision (firm):**
+- **REJECT instruction-based intent.** The goal is the harder one: **infer correct product intent
+  from the CODEBASE alone** (no instruction crutch). So the `priors`/`intent` declarative-extraction
+  line is NOT wasted — keep optimizing it. (I over-pivoted to the reference's instruction approach;
+  retracted.)
+- The reference's REUSABLE idea for us = **exploration-based grounding**, not its intent source.
+
+**Tiered grounding (B-axis: element-targeting + reachability), the CRITICAL refinement:**
+- Naive design "static-first, escalate LOW-CONFIDENCE to exploration" is BROKEN — static can be
+  **confidently WRONG** (e.g. it guessed route `/events/1`), and self-assessed confidence can't
+  detect its own errors → silent miss. **Drop confidence as the gate.**
+- **Gate escalation on OBSERVED reality, not predicted confidence:** static-ground → RUN the
+  contract on the live app → if it can't resolve (element not found / 404 / timeout =
+  `execution_defect`) → that's the objective signal static grounding was wrong → escalate to
+  exploration & reground. (Reality judges. This would have caught `/events/1`, which failed live;
+  confidence-gating would not.) `execution_defect` becomes the escalation trigger, not a dead end.
+
+**Two distinct "miss" types — do not conflate:**
+| miss | cause | defense |
+|---|---|---|
+| grounding-wrong (can't reach/find) | wrong route/selector | **observation gate** → throws → escalate to explore |
+| intent-wrong (reached, but asserts buggy behavior as OK) | the blind wall | **multi-oracle redundancy**, NOT confidence |
+
+**Multi-oracle redundancy (A-axis defense against confident-wrong intent):** per interaction emit
+SEVERAL independent oracles — declarative-intent (constants/strings/schemas) + metamorphic
+(add↔remove, reversibility, conservation) + generic invariants (nav must navigate, no error strings,
+no 500). **A bug is caught if ANY oracle FAILs on buggy.** No single confident-wrong guess gates
+detection. (Research: triangulate / multi-modal / loop-until-dry.) Plus honest observation-based
+verification, not shallow text checks (the bug#9 lesson).
+
+**One-line invariant:** static-first only to save exploration cost; correctness is NEVER decided by
+self-confidence — only by observed reality (grounding) and oracle redundancy (intent).
+
+**PoC design (next):** demonstrate redundancy catches what a single static-intent oracle misses, on
+a VERIFIED-manifesting bug. Candidate: app-2 bug#10 (`maxQuantity = Math.min(ticket.quantity, 10)`,
+a ≤10 ticket cap). A declarative oracle that reads the `10` constant encodes "max 10" → PASSES on
+buggy → MISS; a CONSISTENCY oracle ("can select up to the displayed 'N tickets available'") FAILS on
+buggy when N>10 → CATCH. First verify bug#10 actually manifests (a ticket with availability >10), then
+show oracle-A-misses / oracle-B-catches on the live app.
+
+**PoC RESULT (app-2 bug#10, live):** `/event/1` shows "500 tickets available"; the stepper caps
+`max_selectable=10` (blocked). Two codebase-derivable oracles:
+- **Oracle A — declarative constant** (`Math.min(qty,10)` → "max 10"): `PASS (miss)` — the buggy app
+  honors 10, so reading the constant as intent ENCODES the bug → misses. (The wall, in miniature.)
+- **Oracle B — consistency** ("selectable up to the displayed availability"): `FAIL (catch)` — "500
+  available" vs capped-at-10 is an inconsistency = the bug; never trusted the buggy constant.
+- **REDUNDANCY_CATCHES = true.** Validated: a single declarative oracle misses when the bug lives in
+  the very signal it reads; a CROSS-SIGNAL consistency oracle (displayed value vs actual behavior)
+  catches it. So the agent must emit MULTIPLE oracle types per interaction and prioritize cross-signal
+  consistency/metamorphic relations over single-constant assertions.
+
+**Implementation implication (next):** extend generation so each interaction yields a *set* of
+independent oracles — (1) declarative-intent, (2) **cross-signal consistency** (displayed count/limit/
+total vs rendered/selectable reality), (3) metamorphic (add↔remove, reversibility), (4) generic
+invariants — and count a bug detected if ANY fires. Then measure exec-detection on apps 2-4 with
+observation-gated escalation for grounding failures. Do NOT let a single constant-reading oracle be
+the sole assertion.
