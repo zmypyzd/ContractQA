@@ -104,7 +104,7 @@ function escapeRegex(s: string): string {
 // Previously `text` and `test_id` (both valid schema fields) were silently dropped.
 function resolveActionLocator(
   page: CompiledPage,
-  target: { role?: string; name_regex?: string; text?: string; test_id?: string; icon?: string; placeholder?: string; within?: string; first?: boolean; nth?: number },
+  target: { role?: string; css?: string; name_regex?: string; text?: string; test_id?: string; icon?: string; placeholder?: string; within?: string; first?: boolean; nth?: number },
   defaultRole: string,
 ): CompiledLocator {
   // Disambiguate a multi-match: `nth` (explicit index, generalises `first`) wins,
@@ -113,6 +113,9 @@ function resolveActionLocator(
   // by htmlFor) — the author targets by role + source-declared order.
   const pick = (loc: CompiledLocator): CompiledLocator =>
     target.nth !== undefined ? loc.nth(target.nth) : target.first ? loc.first() : loc;
+  if (target.css) {
+    return pick(page.locator(target.css));
+  }
   if (target.test_id) {
     return pick(page.getByTestId(target.test_id));
   }

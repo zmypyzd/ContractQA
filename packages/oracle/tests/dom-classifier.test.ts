@@ -208,3 +208,40 @@ describe('classifyDom consistency (cross-signal relations)', () => {
     expect(r.passContributions.some((p) => p.field === 'dom.consistency')).toBe(true);
   });
 });
+
+describe('classifyDom — date_constraint', () => {
+  const domWithDate = (text: string, value?: string): DomShape => ({
+    roleCounts: {},
+    visibleText: text,
+    elements: [{ role: 'text', name: 'Wedding Date', attributes: {}, classes: [], text, ...(value !== undefined ? { value } : {}) }],
+  });
+
+  it('rule:future FAILs on a past date (catches accepted past date)', () => {
+    const r = classifyDom(domWithDate('Jan 1, 2020'), { date_constraint: [{ target: { text: 'Jan 1, 2020' }, rule: 'future' }] });
+    expect(r.failContributions.some((f) => f.field === 'dom.date_constraint')).toBe(true);
+  });
+
+  it('rule:future PASSes on a clearly-future date', () => {
+    const r = classifyDom(domWithDate('Jan 1, 2099'), { date_constraint: [{ target: { text: 'Jan 1, 2099' }, rule: 'future' }] });
+    expect(r.failContributions).toEqual([]);
+    expect(r.passContributions.some((p) => p.field === 'dom.date_constraint')).toBe(true);
+  });
+
+  it('unparseable target → skipped (no false positive)', () => {
+    const r = classifyDom(domWithDate('not a date'), { date_constraint: [{ target: { text: 'not a date' }, rule: 'future' }] });
+    expect(r.failContributions).toEqual([]);
+    expect(r.passContributions).toEqual([]);
+  });
+
+  it('relational after: end before start FAILs', () => {
+    const dom: DomShape = {
+      roleCounts: {}, visibleText: 'start end',
+      elements: [
+        { role: 'text', name: 'start', attributes: {}, classes: [], text: '2025-06-01' },
+        { role: 'text', name: 'end', attributes: {}, classes: [], text: '2020-01-01' },
+      ],
+    };
+    const r = classifyDom(dom, { date_constraint: [{ target: { name_regex: '^end$' }, after: { name_regex: '^start$' } }] });
+    expect(r.failContributions.some((f) => f.field === 'dom.date_constraint')).toBe(true);
+  });
+});

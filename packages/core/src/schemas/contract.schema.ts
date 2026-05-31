@@ -11,6 +11,12 @@ const SafeRegex = z.string().superRefine((v, ctx) => {
 
 const Target = z.object({
   role: z.string().optional(),
+  // `css` is a last-resort escape hatch (maps to Playwright `page.locator(css)`) for
+  // elements the role/name/placeholder/test_id/label vocab cannot address — notably
+  // `<input type="date">` / `type="time"` which expose NO ARIA role and often have no
+  // associated label. Prefer a semantic handle when one exists; reach for `css` only
+  // when the source shows the element is genuinely role-less and name-less.
+  css: z.string().optional(),
   name_regex: SafeRegex.optional(),
   test_id: z.string().optional(),
   text: z.string().optional(),
@@ -46,6 +52,15 @@ const Target = z.object({
   // over `first: true` when the author knows where the element lives.
   within: z.string().optional(),
 });
+
+const DateConstraintItem = z
+  .object({
+    target: Target,
+    rule: z.enum(['future', 'past', 'today_or_future', 'today_or_past']).optional(),
+    after: Target.optional(),
+    before: Target.optional(),
+  })
+  .strict();
 
 const Action = z.discriminatedUnion('type', [
   // `locale` sets the Accept-Language header before navigation, so i18n
@@ -181,6 +196,18 @@ const ExpectedBlock = z.object({
             })
             .strict(),
         )
+        .optional(),
+      // Date constraints — assert a displayed/entered date honours a temporal rule.
+      // `rule` compares to NOW (future-only event/wedding date must not be in the
+      // past); `after`/`before` compare to another displayed date (end >= start).
+      // The runner reads the date from the target's value/text; unparseable → skipped.
+      // Accept either an array or a single object (LLMs naturally emit one
+      // constraint as a bare object) — normalised to an array.
+      date_constraint: z
+        .union([
+          z.array(DateConstraintItem),
+          DateConstraintItem.transform((x) => [x]),
+        ])
         .optional(),
     })
     .optional(),

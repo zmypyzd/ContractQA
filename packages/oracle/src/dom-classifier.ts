@@ -48,6 +48,17 @@ export interface DomExpected {
     relation: 'eq' | 'lte' | 'gte' | 'lt' | 'gt';
     right: ConsistencySignal;
   }>;
+  // Date constraints — catch MISSING temporal validation (a future-only event/wedding
+  // date accepted in the past; an end before a start). `rule` compares the target's
+  // date to NOW (relative); `before`/`after` compare it to another displayed date
+  // (relational). The date is read from the element's value or visible text and parsed
+  // permissively; unparseable → skipped (conservative, no false positive).
+  date_constraint?: Array<{
+    target: DomTarget;
+    rule?: 'future' | 'past' | 'today_or_future' | 'today_or_past';
+    after?: DomTarget; // target's date must be >= after's date (e.g. end >= start)
+    before?: DomTarget; // target's date must be <= before's date
+  }>;
 }
 
 // A consistency signal extracts ONE number from the observed DOM. Exactly one
@@ -117,6 +128,21 @@ function evalSignal(sig: ConsistencySignal, els: DomElementSnapshot[]): { value:
   return { value: null, label: '<empty signal>' };
 }
 
+// Parse a date from an element's value/text into epoch ms, or null if unparseable.
+// Handles ISO ("2020-01-01"), locale-ish ("Jan 1, 2020", "January 1, 2020"), and
+// date-input values. Conservative: a non-date string → null → caller skips.
+function parseDateFrom(el: DomElementSnapshot): number | null {
+  for (const raw of [el.value, el.text]) {
+    const s = (raw ?? '').trim();
+    if (!s) continue;
+    // Require something date-shaped to avoid parsing bare numbers/prices as dates.
+    if (!/\d{4}|\d{1,2}[/\-.]\d{1,2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/i.test(s)) continue;
+    const t = Date.parse(s);
+    if (!Number.isNaN(t)) return t;
+  }
+  return null;
+}
+
 function relationHolds(a: number, rel: string, b: number): boolean {
   switch (rel) {
     case 'eq': return a === b;
@@ -184,7 +210,8 @@ export function classifyDom(dom: DomShape, expected: DomExpected): DomClassifica
     !!expected.input_value ||
     !!expected.class_contains ||
     !!expected.element_text_equals ||
-    !!expected.consistency;
+    !!expected.consistency ||
+    !!expected.date_constraint;
   if (needsElements && !dom.elements) {
     out.failContributions.push({
       field: 'dom.elements',
@@ -385,6 +412,40 @@ export function classifyDom(dom: DomShape, expected: DomExpected): DomClassifica
           detail: `${label} VIOLATED: ${L.value} ${c.relation} ${R.value} is false`,
           actual: { left: L.value, right: R.value },
         });
+      }
+    }
+  }
+
+  if (expected.date_constraint) {
+    const now = Date.now();
+    for (const dc of expected.date_constraint) {
+      const label = targetLabel(dc.target);
+      const el = matchElement(dc.target, els);
+      // No match → skip (conservative). A self-calibrating target like {text:"2020"}
+      // deliberately won't match when the illegal date was rejected (correct app) — that
+      // must NOT be a false-fail. (If the displayed date is simply not snapshot-captured,
+      // skipping also avoids a spurious fail; capturing text nodes is a separate concern.)
+      if (!el) continue;
+      const d = parseDateFrom(el);
+      if (d === null) continue; // unparseable → skip (conservative)
+      if (dc.rule) {
+        const ok =
+          dc.rule === 'future' ? d > now :
+          dc.rule === 'past' ? d < now :
+          dc.rule === 'today_or_future' ? d >= now - 86_400_000 :
+          /* today_or_past */ d <= now + 86_400_000;
+        if (ok) out.passContributions.push({ field: 'dom.date_constraint', detail: `${label} is ${dc.rule}` });
+        else out.failContributions.push({ field: 'dom.date_constraint', detail: `${label} expected ${dc.rule}`, actual: new Date(d).toISOString().slice(0, 10) });
+      }
+      for (const [other, rel] of [[dc.after, 'gte'], [dc.before, 'lte']] as const) {
+        if (!other) continue;
+        const oel = matchElement(other, els);
+        const od = oel ? parseDateFrom(oel) : null;
+        if (od === null) continue; // can't ground the comparator → skip
+        const ok = rel === 'gte' ? d >= od : d <= od;
+        const sym = rel === 'gte' ? '>=' : '<=';
+        if (ok) out.passContributions.push({ field: 'dom.date_constraint', detail: `${label} ${sym} ${targetLabel(other)}` });
+        else out.failContributions.push({ field: 'dom.date_constraint', detail: `${label} expected ${sym} ${targetLabel(other)}`, actual: { target: new Date(d).toISOString().slice(0, 10), other: new Date(od).toISOString().slice(0, 10) } });
       }
     }
   }
