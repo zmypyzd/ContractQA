@@ -1317,4 +1317,17 @@ Key observations that demolish Entry 39's "missing-attribute is epistemically un
 
 **Artifacts:** `scripts/eval/remeasure-app4-negatives.mjs`; generated contracts in `scratch/0004/qa/contracts` (priors-neg run, transient).
 
+## Entry 45 — Opener-reach grounding nudge closes the Entry-44 residual: app4 numeric bugs id8 + id9 both CAUGHT via the agent's OWN generated locators → app4 true_detection 1 → 3.
+
+**Date:** 2026-06-01 · Fixed the singular Entry-44 residual (6/7 negative contracts mis-reached by guessing an "Edit" opener). Added a general REACH-PATH directive (system prompt, all variants): when a reveal step opens a dialog/menu, ground the opener by its ACTUAL source label (OR several candidates), never guess a generic "Edit"/"Open"/"Add" the source doesn't use. cli builds + 261 tests pass.
+
+**Confirmation:**
+- **Generation (isolated, `priors-neg`, app4):** all negative contracts now consistently emit `name_regex:"Get Started|Update Details|Edit"` (real opener OR'd) + `nth:0` (budget) / `nth:1` (guests). The earlier "Edit"-only guess is gone.
+- **Live run of the agent's OWN locators (opener + nth):** budget → **FAIL = id8 caught**; guests → **FAIL = id9 caught**. Both reach the modal and the outcome oracle fires.
+- With id12 (View Details inert button, positive-evidence, contract intact), **app4 true_detection = 3** (id8 budget, id9 guests, id12 button), up from 1. The rest stay out for known reasons: id3/id4/id16 don't manifest (Entry 38); id11 future-date awaits the date primitive.
+
+**Status of the arc (Entries 38→45):** the blind-from-buggy-source plateau on app4's numeric "missing-attribute" omission bugs is BROKEN — fully blind, no relax-of-pure-blind, no checklist: `priors-neg` (outcome-shaped negative oracle) + source-order field grounding (`Target.nth`) + source-label opener grounding, all mechanism-level and validated for non-overfit on un-tuned 0005/0006 (Entry 42). 1 → 3 on app4.
+
+**Honest scope note:** 1→3 is confirmed at the contract level (the agent's generated locators catch both bugs live) — a fresh FULL autopilot run + the LLM coverage-judge would formalize the suite-level score, but that is a measurement formality, not a mechanism question. Remaining levers (date/relational primitive; app2 phone 2-step reach; the ~6% schema-slip unloadables) are scoped in Entry 44.
+
 **Artifacts:** `scripts/eval/gen-experiment-negative-outcome.mjs` (A/B generateContractFor harness), `scripts/eval/run-contract-against-live.mjs` (single-contract live runner), `genVariantBlock` `priors-neg` branch.
