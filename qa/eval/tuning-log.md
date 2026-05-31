@@ -1137,3 +1137,57 @@ fix; text/icon/placeholder/route targeting; reach-path; `expected.dom.consistenc
 consistency templates; live-app observer. true_detection plateaued ~1/15 (+bug#10 via template);
 the remaining gain requires the gated-flow-exploration build (coverage), whose payoff is uncertain.
 Recommend deciding explicitly whether to invest in that build vs. bank the committed gains.
+
+## Entry 38 — Bug-manifestation audit (apps 2-4, all 15 bugs driven live): only ~8/15 are winnable; ~7/15 are unfalsifiable. The 1/15 plateau is HALF benchmark + HALF coverage.
+
+**Date:** 2026-05-31 · Path A from the session handoff. Drove every `pass:false` checklist item on the
+live apps with Playwright (scripts: `scripts/eval/_audit-app{2,3,4}.mjs`, run from the qa-agent repo so
+`@playwright/test` resolves; apps launched one-at-a-time on :8080 via the fixture `runner/`). For each
+bug I recorded ACTUAL runtime behavior + the source mechanism, then classified: **N** = does not manifest
+as the checklist describes (benchmark mislabel); **C** = unrealizable premise / wrong oracle class;
+**T** = manifests but only under adversarial input (oracle-trap); **M** = genuinely manifests + catchable.
+
+### The 15 bugs, classified
+
+**N — does NOT manifest at runtime; UNWINNABLE for any blind-from-source agent (5/15):**
+- app2 id9 "no success notification on booking" → **toast `Reservation Confirmed!` DOES fire** (CheckoutForm L57). Confirmed bug#9 precedent. The `navigate('/')` does not kill it fast enough to matter.
+- app2 id16 "ticket count stuck at 1" → header reads **`Total (10 tickets)`**, updates correctly (EventDetail `totalTickets` sum, L40).
+- app4 id3 "venue list shows no name/location/price/type" → first card renders **all four**: `Garden | Luxury ($$$) | Rosewood Garden Estate | Napa Valley, CA` (VenueCard).
+- app4 id4 "supplier list missing price range" → vendor card renders **`Luxury ($$$)`** badge (VendorCard L42).
+- app4 id16 "specific price not displayed correctly" → price range renders fine; the data model has **only a `priceRange` enum** (budget/moderate/luxury), no numeric price ever existed → nothing to display "incorrectly".
+
+→ A blind agent generating contracts from this source correctly encodes the WORKING behavior as expected.
+These bugs can never be detected because **there is no runtime deviation** — exactly the [[blind-from-buggy-source-wall]] failure, but the root cause here is that the benchmark label is wrong, not the agent.
+
+**C — unrealizable premise / wrong oracle class (1/15):**
+- app3 id12 "'Post a Job' still shows after switching to job-seeker profile" → there is **no role/profile system at all** in the app; `Header` renders `Post a Job` unconditionally (no `isJobSeeker` anything). You cannot "switch to a job-seeker profile" — the control doesn't exist. Bug premise is unrealizable; agent has no in-app signal to act on.
+
+**T — manifests but only under adversarial input; an oracle-TRAP (1/15):**
+- app3 id9 "can submit with incorrect email" → `<input type=email required>`. Runtime: `"abc"` is **blocked** (native HTML5 invalid), but `"a@b"` (no TLD) **passes & submits**. An agent that probes with a typical bad value like `notanemail` sees it blocked → concludes validation works → MISSES the bug. Catching it requires choosing an input that passes HTML5 but is semantically invalid. Subtle oracle-design requirement, not a coverage problem.
+
+**M — genuinely manifests + catchable; THIS is the real ceiling (8/15):**
+| bug | mechanism | reach | oracle needed |
+|---|---|---|---|
+| app2 id11 past-date | organizer create-event `#date` has no `min` | gated (Organizer → New Event form) | constraint: reject past date |
+| app2 id12 invalid-phone | checkout phone `type=tel`, **no `pattern`** → `not-a-phone-xyz` reserves | gated (select ticket → checkout dialog) | constraint: phone format |
+| app2 id10 cap-at-10 | `Math.min(qty,10)`, + disables at 10 | flat (event page) | **debatable** — a 10-cap is plausibly correct product behavior |
+| app3 id11 dup-application | `handleSubmit` has no dedup → 2nd identical submit succeeds | flat (apply form) | **stateful**: 2 submits, assert 2nd blocked |
+| app4 id8 budget>0 | planning modal budget `type=number`, no `min` → `-5000` saves | gated (Get Started modal) | constraint: budget>0 |
+| app4 id9 guests≥0 int | planning modal guests no `min`/`step` → `-10` saves | gated (Get Started modal) | constraint: guests≥0 int |
+| app4 id11 future-date | planning modal date no `min` → `2020-01-01` saves | gated (Get Started modal) | constraint: future date |
+| app4 id12 View-Details | button has **no `onClick`/no `Link`** → click does nothing (URL unchanged) | flat (venue list) | interaction: click → URL/route change |
+
+### Verdict — answers the handoff's open question 2
+
+The 1/15 plateau is **not** mostly "agent can't." It is roughly **half-and-half**:
+- **7/15 are structurally unwinnable** for a blind-from-source agent: 5 don't manifest (benchmark mislabels) + 1 unrealizable premise + 1 oracle-trap. No amount of coverage or "assert harder" recovers these. **Realistic ceiling on this set is ~8/15, not 15/15.**
+- **8/15 genuinely manifest and are catchable.** Their blockers are concrete, not mysterious:
+  1. **Coverage of GATED surfaces** — 5 of the 8 live behind a click-to-open form/modal (create-event, checkout dialog, the "Get Started" planning modal). Static source-walking + flat observation (Entry 36/37) never reach these. This is exactly the **gated-flow explorer (path B)** lever.
+  2. **Constraint & stateful oracles** — 6 of the 8 need "invalid input is rejected" or "2nd submit blocked" assertions, which a blind agent under-specifies (it encodes the happy path it sees in source). The `expected.dom.consistency` work (Entry 34) doesn't cover these classes; **constraint/negative-path oracles** do.
+
+### Implication for next move
+- **Do NOT** invest in stronger assertions against the N/C/T bucket — those 7 are noise w.r.t. this agent's achievable detection. (Reinforces: don't "assert harder" — [[blind-from-buggy-source-wall]].)
+- The **gated-flow explorer (B)** now has a *quantified* payoff: it unlocks the 5 gated-surface bugs (app2 id11/id12, app4 id8/id9/id11), and pairs with constraint oracles to also bag app3 id11 + app4 id12. Plausible path from **1/15 → ~7–8/15** — the first real movement past the wall.
+- **Caveat (anti-overfit, [[feedback_no_overfit_generalize]]):** these 8 mechanisms (missing `min`, missing `pattern`, no dedup, inert button, gated modal) are generic web-form defects, not app-2-4 trivia — encode the explorer + constraint oracles at that mechanism level and validate on an un-tuned app before trusting the number.
+
+**Artifacts:** `scripts/eval/manifestation-audit-app{2,3,4}.mjs` (committed live drivers; reproducible — launch app NNNN on :8080 via the fixture `runner/`, then `node scripts/eval/manifestation-audit-appN.mjs` from repo root). `_probe_watch.mjs` (OAuth probe) remains scratch — not committed.
