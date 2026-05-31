@@ -1278,4 +1278,24 @@ Key observations that demolish Entry 39's "missing-attribute is epistemically un
 
 **Artifacts:** `scripts/eval/gen-experiment-negative-outcome.mjs` (now parametrized: `app4-budget` | `app5-experience` | `app6-transaction`).
 
+## Entry 43 — Roadmap grounding step: `Target.nth` + a grounding directive close the FULL generate→ground→catch loop for app4 numeric bugs (id8 budget + id9 guests), automatically.
+
+**Date:** 2026-06-01 · Roadmap item (Entry 41 step 2/3). The last mechanical blocker for the numeric bugs was GROUNDING name-less inputs (Entry 41: the agent emitted `name_regex:"Budget"` which doesn't resolve — app4's `<Label>`/`<Input>` aren't `htmlFor`-wired, so neither `getByRole(name)` nor `getByLabel` matches). Chose a blind-legal primitive over a live-crawl: the agent can infer field ORDER from source, so it can target by role + index.
+
+**Shipped:**
+1. **`Target.nth`** (`contract.schema.ts` + `compile.ts` resolver via a `pick()` helper applied at every locator branch; generalises `first` = nth 0). Unit test added (`compile.test.ts`: `{role:spinbutton, nth:1}` → `getByRole(spinbutton).nth(1)`, not `.first()`). runner 43 tests pass.
+2. **Grounding directive in the `priors-neg` block**: if the source shows an input has no usable name/placeholder/test_id/wired-label, target it by ROLE + `nth` in source-declared order (budget before guests → nth 0 / nth 1); scope with `within` if needed; prefer a real handle when the source provides one. cli 261 tests pass.
+
+**Full-loop confirmation (regenerated app4 with `priors-neg`, no manual edits):** the agent emitted `planning-budget-non-negative` `{role:spinbutton, first:true}` AND `planning-guests-non-negative` `{role:spinbutton, nth:1}` — i.e. it CORRECTLY grounded the 2nd nameless field by source order. Live run (Entry-43 hand-mirror + the agent's own locators): budget → **FAIL (id8 caught)**, guests → **FAIL (id9 caught)**; app6's `min=0`-validated amount still PASSES (no false positive, Entry 42). So **generate → ground → catch** is now automatic for the numeric omission class.
+
+**Score impact (principled, pending a full-pipeline run):** app4 numeric bugs id8 + id9 become true detections; with the already-caught id12 (inert View-Details button, positive-evidence), app4 true_detection moves **1 → 3**. The non-numeric app4 bugs (id3/id4/id16 don't manifest — Entry 38; id11 future-date needs the date primitive) stay out.
+
+**Remaining roadmap (unchanged priorities):**
+- (P1) **Full-pipeline re-measure** on apps 2-4 with `CONTRACTQA_GEN_PROMPT=priors-neg`: confirm app4 1→3 in the real autopilot run (not just isolated `generateContractFor`), and read off app2/app3.
+- (P2) **Date/relational primitive** (relative "before today" / "end after start") — unlocks app4 id11, app2 id11, and the app5/app6 date bugs (Entry 42 gap).
+- (P2) **app2 phone (id12)**: 2-step reach (select ticket → checkout) so the checkout form is reachable, then the outcome oracle (bad phone → NOT "Reservation Confirmed").
+- (P3) the agent's `within:{text}`→`within:<role-string>` schema slip (Entry 41) — add a text-scoping locator or prompt-guard.
+
+**Anti-overfit:** `nth` is a generic positional primitive; the grounding rule is source-order inference (blind-legal, not app-specific). The negative mechanism's generalization was already gated on un-tuned apps (Entry 42).
+
 **Artifacts:** `scripts/eval/gen-experiment-negative-outcome.mjs` (A/B generateContractFor harness), `scripts/eval/run-contract-against-live.mjs` (single-contract live runner), `genVariantBlock` `priors-neg` branch.

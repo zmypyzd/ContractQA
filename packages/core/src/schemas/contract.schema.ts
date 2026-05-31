@@ -32,6 +32,14 @@ const Target = z.object({
   // throws on multi-match. Added during dogfood #2 — see
   // dogfood/website-vercel-supabase/FINDINGS.md.
   first: z.boolean().optional(),
+  // `nth` resolves to the 0-based index match — generalises `first` (= nth 0) to
+  // later matches. The grounding handle for name-LESS inputs with no placeholder,
+  // test_id, or htmlFor-associated label (e.g. shadcn `<Label>`+`<Input>` siblings
+  // that aren't wired together): role+name_regex can't match (empty accessible name)
+  // and getByLabel can't either (no association), so the author targets by role +
+  // the field's source-declared order (budget = spinbutton nth 0, guests = nth 1).
+  // Scope with `within` when other same-role elements share the page.
+  nth: z.number().int().nonnegative().optional(),
   // `within` scopes the locator to an ancestor with the given ARIA role
   // (e.g. `within: navigation` for the navbar). Combined with name_regex
   // it semantically disambiguates duplicate accessible names — preferred

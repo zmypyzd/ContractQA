@@ -543,6 +543,14 @@ function genVariantBlock(): string[] {
       'A correctly-guarded app rejects/clamps the illegal value so it never appears; a buggy',
       'app shows it → the contract FAILS → bug caught. (This is the ONE place to prefer',
       '`not_contains_text` over `input_value`.)',
+      'GROUNDING the field: many form inputs have NO accessible name (a `<label>` not wired',
+      'to the input by htmlFor, no aria-label, no placeholder) — `name_regex`/`getByLabel`',
+      'then resolve to NOTHING and the fill times out. If the source shows the input lacks a',
+      'usable name/placeholder/test_id, target it by ROLE + `nth` using its order among',
+      'same-role fields AS DECLARED IN THE SOURCE (e.g. budget input declared before guests →',
+      '`{ role: spinbutton, nth: 0 }` for budget, `nth: 1` for guests); scope with `within` if',
+      'other same-role elements sit outside the form. Prefer `placeholder`/`test_id`/a wired',
+      'label when the source actually provides one.',
       '',
     ];
   }

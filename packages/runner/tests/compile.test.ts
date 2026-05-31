@@ -84,6 +84,43 @@ describe('compileContract', () => {
     expect(calls).toEqual(['page:getByRole(navigation)', 'scoped:getByRole(link)']);
   });
 
+  it('target.nth resolves the nth match (grounds name-less inputs by source order)', async () => {
+    const calls: string[] = [];
+    const locator: any = {
+      click: vi.fn(async () => undefined),
+      fill: vi.fn(async () => undefined),
+      first: vi.fn(() => locator),
+      nth: vi.fn((i: number) => { calls.push(`nth(${i})`); return locator; }),
+      getByRole: vi.fn(() => locator),
+    };
+    const page: any = {
+      goto: vi.fn(async () => undefined),
+      url: () => 'http://x/',
+      waitForTimeout: vi.fn(async () => undefined),
+      getByRole: vi.fn((role: string) => { calls.push(`getByRole(${role})`); return locator; }),
+    };
+    const c: ContractDoc = {
+      id: 'INV-NTH',
+      title: 'nth',
+      area: 'test',
+      severity: 'P2',
+      owner: 't',
+      risk_tags: [],
+      preconditions: { auth_state: 'anonymous' },
+      actions: [
+        { type: 'fill', target: { role: 'spinbutton', nth: 1 }, value: '-10' },
+      ],
+      expected: {},
+      verification: { wait_ms: 0, retries: 0, evidence_required: ['state_diff'] },
+    } as unknown as ContractDoc;
+    await compileContract(c)({
+      page,
+      snapshot: async () => ({ url: '/', localStorageKeys: [], cookies: [] }),
+    });
+    expect(calls).toEqual(['getByRole(spinbutton)', 'nth(1)']);
+    expect(locator.first).not.toHaveBeenCalled();
+  });
+
   it('http action: captures last response on returned thunk', async () => {
     const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
       expect(url).toBe('http://api.local/v1/cards');

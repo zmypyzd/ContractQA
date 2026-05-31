@@ -8,6 +8,7 @@ export interface CompiledLocator {
   click(): Promise<unknown>;
   fill(v: string): Promise<unknown>;
   first(): CompiledLocator;
+  nth(i: number): CompiledLocator;
   getByRole(role: string, opts?: { name?: RegExp }): CompiledLocator;
   getByTestId(id: string): CompiledLocator;
   filter(opts: { has?: CompiledLocator }): CompiledLocator;
@@ -103,17 +104,21 @@ function escapeRegex(s: string): string {
 // Previously `text` and `test_id` (both valid schema fields) were silently dropped.
 function resolveActionLocator(
   page: CompiledPage,
-  target: { role?: string; name_regex?: string; text?: string; test_id?: string; icon?: string; placeholder?: string; within?: string; first?: boolean },
+  target: { role?: string; name_regex?: string; text?: string; test_id?: string; icon?: string; placeholder?: string; within?: string; first?: boolean; nth?: number },
   defaultRole: string,
 ): CompiledLocator {
+  // Disambiguate a multi-match: `nth` (explicit index, generalises `first`) wins,
+  // else `first`. `nth` is the grounding handle for name-less inputs with no
+  // placeholder/test_id/associated label (e.g. shadcn `<Label>`+`<Input>` not wired
+  // by htmlFor) — the author targets by role + source-declared order.
+  const pick = (loc: CompiledLocator): CompiledLocator =>
+    target.nth !== undefined ? loc.nth(target.nth) : target.first ? loc.first() : loc;
   if (target.test_id) {
-    const t = page.getByTestId(target.test_id);
-    return target.first ? t.first() : t;
+    return pick(page.getByTestId(target.test_id));
   }
   if (target.placeholder) {
     // Name-less inputs (bare placeholder) — getByPlaceholder, not getByRole(name).
-    const t = page.getByPlaceholder(target.placeholder);
-    return target.first ? t.first() : t;
+    return pick(page.getByPlaceholder(target.placeholder));
   }
   if (target.icon) {
     // "the <role> element containing an svg whose class includes <icon>".
@@ -131,7 +136,7 @@ function resolveActionLocator(
       ? page.getByRole(target.within).getByRole(role)
       : page.getByRole(role);
     const t = base.filter({ has: page.locator(`svg[class*="${icon}"]`) });
-    return target.first ? t.first() : t;
+    return pick(t);
   }
   const roleOpts: { name?: RegExp } = {};
   if (target.name_regex) roleOpts.name = new RegExp(target.name_regex, 'i');
@@ -140,7 +145,7 @@ function resolveActionLocator(
   const scope = target.within
     ? page.getByRole(target.within).getByRole(role, roleOpts)
     : page.getByRole(role, roleOpts);
-  return target.first ? scope.first() : scope;
+  return pick(scope);
 }
 
 export function compileContract(c: ContractDoc, opts: CompileOptions = {}): CompiledContract {
