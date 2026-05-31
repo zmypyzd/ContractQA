@@ -478,8 +478,7 @@ function genVariantBlock(): string[] {
       '',
     ];
   }
-  if (v === 'priors') {
-    return [
+  const priorsBlock = [
       '═══ HOW TO DERIVE `expected` — read carefully ═══',
       'The source code you are given MAY CONTAIN BUGS. If you write `expected` to',
       'match what the code currently does, your contract will PASS even when the',
@@ -513,6 +512,37 @@ function genVariantBlock(): string[] {
       'Prefer scoped value/relation assertions (element_text_equals, role_count{eq},',
       'input_value, attribute_equals) over contains_text needles. Still output ONLY',
       'contracts you can express in the schema below.',
+      '',
+  ];
+  if (v === 'priors') return priorsBlock;
+  if (v === 'priors-neg') {
+    return [
+      ...priorsBlock,
+      '═══ NEGATIVE-PATH OUTCOME ORACLE — for value/format/range constraints ═══',
+      'Some constraints a reasonable user expects are NOT written in the code at all',
+      '(no `min`/`max`/`pattern`/validation) — the bug IS the MISSING guard. You cannot',
+      'read the rule from the source, but you HOLD it as a domain prior for this KIND of',
+      'field. Whenever an input plausibly carries such a prior, emit a NEGATIVE-PATH',
+      'contract. Domain priors that apply to whole CLASSES of field (not a specific app):',
+      '  • an amount/price/budget/balance is NOT negative',
+      '  • a count/quantity/guests/age is a NON-NEGATIVE integer',
+      '  • a date that names a future event is NOT in the past; an end is not before a start',
+      '  • an email/phone/url field holds a WELL-FORMED value',
+      'HOW to write it (3 steps):',
+      '  1. REACH the field — open any gating modal/dialog/step first (the field is often',
+      '     behind a button like "Get Started" / "Edit" / "Add" / "Checkout" / "New …").',
+      '  2. FILL an ILLEGAL value (a negative number; a malformed format; a past date) and',
+      '     perform the COMMIT action (Save / Submit / Confirm).',
+      '  3. Assert the illegal value is NOT reflected in the resulting DISPLAYED/persisted',
+      '     state.',
+      '⚠ SHAPE — assert on the OUTCOME, NOT on the input field. A raw <input> keeps whatever',
+      'you typed regardless of validation, so `input_value` CANNOT tell "validated" from',
+      '"not". Assert the value shown AFTER commit (on the dashboard / list / summary / card):',
+      'use `not_contains_text` (the committed view must NOT show the illegal value, e.g. a',
+      'negative like "-5,000" or "-10") or `element_text_equals` on that displayed outcome.',
+      'A correctly-guarded app rejects/clamps the illegal value so it never appears; a buggy',
+      'app shows it → the contract FAILS → bug caught. (This is the ONE place to prefer',
+      '`not_contains_text` over `input_value`.)',
       '',
     ];
   }
