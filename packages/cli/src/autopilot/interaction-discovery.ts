@@ -113,6 +113,11 @@ export interface GenerateContractForOptions {
   // Project's known routes (from enumeration), so the reach-path `goto` uses a
   // real route instead of an invented one. Optional — empty ⇒ model infers.
   knownRoutes?: string[];
+  // OBSERVED surface (from live-app exploration): pre-formatted lines describing the
+  // REAL interactive elements (role / accessible name / placeholder / etc.) so the
+  // agent grounds locators in observed reality instead of guessing names that don't
+  // resolve. Observes STRUCTURE only, not intent. Optional.
+  observedSurface?: string[];
 }
 
 export interface GenerateContractForResult {
@@ -743,7 +748,7 @@ export function buildGenerateSystemPrompt(): string {
   ].join('\n');
 }
 
-function buildGenerateUserPrompt(interaction: Interaction, window: string, knownRoutes: string[] = []): string {
+function buildGenerateUserPrompt(interaction: Interaction, window: string, knownRoutes: string[] = [], observedSurface: string[] = []): string {
   return [
     `Interaction:`,
     `  id: ${interaction.id}`,
@@ -765,6 +770,12 @@ function buildGenerateUserPrompt(interaction: Interaction, window: string, known
           ...knownRoutes.map((r) => `  - ${r}`),
           '',
         ]
+      : []),
+    // REAL elements observed on the running app — ground every action target and DOM
+    // assertion in these (use the exact role/name/placeholder shown). If an input has
+    // an empty name, target it by placeholder; never invent a name that isn't here.
+    ...(observedSurface.length > 0
+      ? ['Observed REAL elements on the running app (ground your locators in these — do NOT invent names):', ...observedSurface.map((l) => `  - ${l}`), '']
       : []),
     `Source context (around the interaction):`,
     '```',
@@ -844,7 +855,7 @@ export async function generateContractFor(opts: GenerateContractForOptions): Pro
   }
 
   const system = buildGenerateSystemPrompt();
-  const user = buildGenerateUserPrompt(opts.interaction, window, opts.knownRoutes ?? []);
+  const user = buildGenerateUserPrompt(opts.interaction, window, opts.knownRoutes ?? [], opts.observedSurface ?? []);
 
   let content: string;
   try {

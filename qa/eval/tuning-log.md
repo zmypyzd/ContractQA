@@ -1108,3 +1108,32 @@ failed. Generate prompt now tells the agent to prefer `placeholder` for unlabele
 to reveal dialogs/forms — e.g. app-3's apply form, app-2's checkout) so generation gets those surfaces;
 feed the observed surface map into generation as grounding; then re-measure recall on apps 2-4. Step 3:
 re-audit bug manifestation.
+
+## Entry 37 — Observed-surface grounding PoC: prompt guidance already covers FLAT surfaces; the real lever is GATED-FLOW exploration
+
+**Date:** 2026-05-31 · added `observedSurface` option to `generateContractFor` (prompt injection) + PoC.
+
+PoC (app-3 job-search input, with vs without injecting the observed surface):
+- WITHOUT observed surface → agent already grounds on `placeholder` (placeholder literal is in the
+  source window + Entry-36 prompt guidance). uses_placeholder=true, uses_name_on_textbox=false.
+- WITH observed surface → uses_placeholder=true BUT also emitted a name-on-textbox locator (+1
+  proposal) — marginal / slightly regressive.
+
+**Honest finding:** for FLAT, source-visible elements the placeholder PROMPT GUIDANCE (Entry 36,
+committed) is sufficient; injecting the flat observed surface adds ~nothing. Observed-surface
+injection only pays off for elements the SOURCE WINDOW doesn't reveal — i.e. GATED/dynamic surfaces
+— but the *flat* observer doesn't reach those either. So neither the flat observer nor the
+observed-surface injection moves the needle on the dominant `not_covered` bucket.
+
+**The binding lever is GATED-FLOW EXPLORATION** — intelligently driving multi-step flows (select
+ticket → checkout; click Apply → form dialog) to REACH the bug surfaces that static source-walking
++ flat observation both miss. That requires an LLM-driven explorer (cf. `5-25/webtest`'s Playwright-
+MCP explorer), a substantial build, and its payoff is bounded by how many apps-2-4 bugs live on
+reachable-but-currently-unreached surfaces. The `observedSurface` plumbing is kept (built, harmless)
+to feed that explorer's output when it exists.
+
+**Session ceiling (honest):** committed, sound, generalizable capability this session — SDK exec
+fix; text/icon/placeholder/route targeting; reach-path; `expected.dom.consistency` + static
+consistency templates; live-app observer. true_detection plateaued ~1/15 (+bug#10 via template);
+the remaining gain requires the gated-flow-exploration build (coverage), whose payoff is uncertain.
+Recommend deciding explicitly whether to invest in that build vs. bank the committed gains.
