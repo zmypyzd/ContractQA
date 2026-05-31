@@ -1298,4 +1298,23 @@ Key observations that demolish Entry 39's "missing-attribute is epistemically un
 
 **Anti-overfit:** `nth` is a generic positional primitive; the grounding rule is source-order inference (blind-legal, not app-specific). The negative mechanism's generalization was already gated on un-tuned apps (Entry 42).
 
+## Entry 44 — FULL-PIPELINE re-measure (real autopilot, `priors-neg`, app4): mechanism fires at scale (7 negative contracts), budget id8 CAUGHT end-to-end; residual = inconsistent modal-OPENER reach grounding → precisely motivates `observedSurface`.
+
+**Date:** 2026-06-01 · Ran the real `contractqa autopilot --discovery-mode deep --regenerate` on live app4 with `CONTRACTQA_GEN_PROMPT=priors-neg` (927s, 61 interactions, **130 contracts**, 0 failed). Then ran `scripts/eval/remeasure-app4-negatives.mjs` (find negative-outcome contracts in the real output → run live). This is the pipeline-level confirmation Entry 43 lacked.
+
+**Results:**
+- **The mechanism fires at SCALE in the real pipeline:** the autopilot emitted **7 negative-outcome contracts** for budget/guests (`index-save-rejects-negative-budget/-guests`, `budget-input-rejects-negative`, `guest-count-rejects-negative`, `wedding-details-budget/guests-not-negative`, `index-edit-budget-rejects-negative`) — not just the isolated `generateContractFor`. priors-neg is not a one-off.
+- **Budget id8 CAUGHT end-to-end in the full pipeline:** `index-edit-budget-rejects-negative` → **verdict=FAIL** (`not_contains_text unexpectedly contains "-5,000"`). It reached because it OR'd the real opener labels: `name_regex:"Get Started|Update Details|Edit"`.
+- **id12 (View Details) contract still generated** (`venuecard-view-details-navigates.yml`) — the pre-existing positive-evidence catch is intact.
+- **Residual: 6 of 7 ERROR'd on REACH** — `locator.click timeout waiting for getByRole('button',{name:/Edit/i})`. They guessed the modal opener is "Edit"; app4's is "Get Started"/"Update Details". The field grounding (`nth`/`first`) is fine; the **modal-OPENER label is grounded inconsistently** — when the agent guesses generic "Edit" it never reaches the form. So the binding residual for the full pipeline is OPENER reach grounding, a DIFFERENT grounding miss than the field one `nth` fixed.
+- **Loadability: 8/135 unloadable** (schema slips: a `content-*` consistency contract with an invalid action discriminator + two with a missing `actions[].target` — the Entry-41-P3 class of self-inflicted schema errors).
+
+**Verdict:** the full pipeline CONFIRMS `priors-neg` end-to-end — budget id8 is newly true-detected in the real autopilot run (movement off the 1/15 plateau), id12 intact → **app4 ≥2 and would be 3** the moment guests' contract reaches. The blocker is now sharply identified and singular: **inconsistent modal-opener reach grounding.** This is exactly the `observedSurface` lever (Entry 41 roadmap step 2, deferred): observing the live app yields the REAL opener label, which would flip the 6 ERRORs to catches (budget + guests). A cheaper interim nudge: the opener button's text is literally in the source (`Get Started`/`Update Details` in Index.tsx) — prompt the agent to OR the source-declared opener text rather than guessing "Edit".
+
+**Next (re-prioritized by this data):**
+- (P1) **Reach grounding for modal openers** — either thread `observedSurface` (real opener label) OR a prompt nudge to use the source-declared opener text + OR multiple candidates. Re-run → expect app4 1→3.
+- (P2) date/relational primitive; app2 phone 2-step reach; fix the 8/135 schema-slip unloadables (Entry 41 P3).
+
+**Artifacts:** `scripts/eval/remeasure-app4-negatives.mjs`; generated contracts in `scratch/0004/qa/contracts` (priors-neg run, transient).
+
 **Artifacts:** `scripts/eval/gen-experiment-negative-outcome.mjs` (A/B generateContractFor harness), `scripts/eval/run-contract-against-live.mjs` (single-contract live runner), `genVariantBlock` `priors-neg` branch.
