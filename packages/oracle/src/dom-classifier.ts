@@ -8,6 +8,8 @@ export interface DomTarget {
   name_regex?: string;
   test_id?: string;
   text?: string;
+  icon?: string;
+  placeholder?: string;
   first?: boolean;
   within?: string;
 }
@@ -70,6 +72,7 @@ function matchElement(target: DomTarget, elements: DomElementSnapshot[]): DomEle
       const testId = el.attributes['data-testid'];
       if (testId !== target.test_id) continue;
     }
+    if (target.placeholder && !(el.attributes['placeholder'] ?? '').includes(target.placeholder)) continue;
     if (target.text && !el.text.includes(target.text)) continue;
     matches.push(el);
   }
@@ -86,6 +89,7 @@ function matchAllElements(target: DomTarget, elements: DomElementSnapshot[]): Do
     if (target.role && el.role !== target.role) return false;
     if (target.name_regex && !new RegExp(target.name_regex, 'i').test(el.name)) return false;
     if (target.test_id && el.attributes['data-testid'] !== target.test_id) return false;
+    if (target.placeholder && !(el.attributes['placeholder'] ?? '').includes(target.placeholder)) return false;
     if (target.text && !el.text.includes(target.text)) return false;
     return true;
   });
@@ -129,6 +133,7 @@ function targetLabel(target: DomTarget): string {
   if (target.role) parts.push(`role=${target.role}`);
   if (target.name_regex) parts.push(`name=/${target.name_regex}/`);
   if (target.test_id) parts.push(`test_id=${target.test_id}`);
+  if (target.placeholder) parts.push(`placeholder=${JSON.stringify(target.placeholder)}`);
   if (target.text) parts.push(`text=${JSON.stringify(target.text)}`);
   if (target.within) parts.push(`within=${target.within}`);
   return parts.join(' ') || '<unspecified target>';

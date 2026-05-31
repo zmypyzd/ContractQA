@@ -219,6 +219,22 @@ describe('compileContract', () => {
     expect(calls).toEqual(['getByTestId:submit-btn']);
   });
 
+  it('target.placeholder resolves via getByPlaceholder, never getByRole', async () => {
+    const calls: string[] = [];
+    const locator: any = { click: vi.fn(async()=>undefined), fill: vi.fn(async()=>undefined), first: ()=>locator, getByRole: ()=>locator, getByTestId: ()=>locator, filter: ()=>locator };
+    const page: any = {
+      goto: vi.fn(async()=>undefined), url:()=>'/', waitForTimeout: vi.fn(async()=>undefined),
+      getByRole: vi.fn(()=>{ calls.push('getByRole'); return locator; }),
+      getByTestId: vi.fn(()=>locator), locator: vi.fn(()=>locator),
+      getByPlaceholder: vi.fn((t:string)=>{ calls.push(`getByPlaceholder:${t}`); return locator; }),
+    };
+    const c = { id:'t-ph', title:'ph', area:'ui', severity:'P2', risk_tags:[], preconditions:{ auth_state:'anonymous' },
+      actions:[{ type:'fill', target:{ placeholder:'Search jobs' }, value:'x' }],
+      expected:{}, verification:{ wait_ms:0, retries:0, evidence_required:['state_diff'] } } as unknown as ContractDoc;
+    await compileContract(c)({ page, snapshot: async()=>({ url:'/', localStorageKeys:[], cookies:[] }) });
+    expect(calls).toEqual(['getByPlaceholder:Search jobs']);
+  });
+
   it('target.icon resolves via page.locator(role).filter({has: svg[class*=icon]}) — icon-only buttons', async () => {
     const calls: string[] = [];
     const locator: any = {

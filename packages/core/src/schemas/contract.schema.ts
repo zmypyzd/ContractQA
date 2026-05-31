@@ -21,6 +21,11 @@ const Target = z.object({
   // svg class, so `icon: "plus"` matches `svg.lucide-plus`. Combine with
   // `first`/`within` to disambiguate when several share the same icon.
   icon: z.string().optional(),
+  // `placeholder` targets inputs that have NO accessible name — extremely common
+  // (a bare `<input placeholder="Search…">` has empty role/name, so role+name_regex
+  // can't match it). Maps to Playwright getByPlaceholder. Discovered via live-app
+  // exploration (Entry 35/36): most real inputs are placeholder-only.
+  placeholder: z.string().optional(),
   // `first: true` resolves to the first match when the accessible name
   // appears multiple times on the page (e.g. a "Login" link in both
   // navbar and footer). Without this, Playwright's strict-mode locator

@@ -157,6 +157,8 @@ export async function snapshotBrowser(
                 n === 'name' ||
                 n === 'role' ||
                 n === 'class' ||
+                n === 'placeholder' ||
+                n === 'href' ||
                 n.startsWith('aria-') ||
                 n.startsWith('data-')
               ) {

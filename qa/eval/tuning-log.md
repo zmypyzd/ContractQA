@@ -1086,3 +1086,25 @@ now the highest-value work** — explore the live app to (a) discover the real s
 and (b) ground locators in observed elements (kill the "no element matched" misses). Also revisit
 whether some apps-2-4 bugs manifest at all (bug#9 toast precedent). Oracle tuning has hit diminishing
 returns at ~1/15; coverage+grounding is the lever.
+
+## Entry 36 — Grounding step 1: live-app exploration reveals "no element matched" root cause = placeholder-only inputs; added `placeholder` Target
+
+**Date:** 2026-05-31 · `scripts/eval/explore-app.mjs` (observed-surface map) + `placeholder` Target field
+(core schema + runner compile + oracle classifier + probe snapshot + generate prompt + unit test, 42/42).
+
+Built a deterministic live-app **observer** (`explore-app.mjs`): drives each route, records the REAL
+interactive elements (role + accessible name + placeholder/type/test_id/icon). Observes STRUCTURE, not
+intent. On app-3 it immediately explained the Entry-35 grounding misses: the search input is
+`{role:textbox, name:"", placeholder:"Search jobs, companies, or skills…"}` — **empty accessible name**,
+so the agent's `role=textbox` / `name=/Email/` locators match NOTHING ("no element matched"). Most real
+inputs are placeholder-only.
+
+**Fix (general, not app-specific): `placeholder` Target field** → Playwright `getByPlaceholder` (runner)
++ placeholder-attr match (classifier) + placeholder captured in the snapshot. Verified live via the real
+runner: `{placeholder:"Search jobs"}` fill resolved (input got "designer") where `name`-based targeting
+failed. Generate prompt now tells the agent to prefer `placeholder` for unlabeled inputs.
+
+**Next (continue the order):** step 1 cont'd — coverage: extend the observer to drive GATED flows (click
+to reveal dialogs/forms — e.g. app-3's apply form, app-2's checkout) so generation gets those surfaces;
+feed the observed surface map into generation as grounding; then re-measure recall on apps 2-4. Step 3:
+re-audit bug manifestation.

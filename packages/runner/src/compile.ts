@@ -18,6 +18,7 @@ export interface CompiledPage {
   setExtraHTTPHeaders?(h: Record<string, string>): Promise<unknown>;
   getByRole(role: string, opts?: { name?: RegExp }): CompiledLocator;
   getByTestId(id: string): CompiledLocator;
+  getByPlaceholder(text: string): CompiledLocator;
   locator(selector: string): CompiledLocator;
   url(): string;
   waitForTimeout(ms: number): Promise<unknown>;
@@ -102,11 +103,16 @@ function escapeRegex(s: string): string {
 // Previously `text` and `test_id` (both valid schema fields) were silently dropped.
 function resolveActionLocator(
   page: CompiledPage,
-  target: { role?: string; name_regex?: string; text?: string; test_id?: string; icon?: string; within?: string; first?: boolean },
+  target: { role?: string; name_regex?: string; text?: string; test_id?: string; icon?: string; placeholder?: string; within?: string; first?: boolean },
   defaultRole: string,
 ): CompiledLocator {
   if (target.test_id) {
     const t = page.getByTestId(target.test_id);
+    return target.first ? t.first() : t;
+  }
+  if (target.placeholder) {
+    // Name-less inputs (bare placeholder) — getByPlaceholder, not getByRole(name).
+    const t = page.getByPlaceholder(target.placeholder);
     return target.first ? t.first() : t;
   }
   if (target.icon) {
