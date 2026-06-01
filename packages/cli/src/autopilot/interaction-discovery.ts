@@ -465,7 +465,15 @@ function extractWindow(fileContent: string, matchTokens: string[]): string {
 //               reference blind-from-source lacks. (Grounded in the test-oracle-
 //               problem literature: metamorphic testing, agentic property-based
 //               testing, LLM-as-oracle.)
-//  - default  : baseline (no extra block).
+//  - 'priors-neg': priors + the negative-path / date_constraint catcher. This is now
+//                ALSO the DEFAULT (below) — kept as an explicit alias for back-compat
+//                with existing eval scripts/logs that pass it.
+//  - default  : the validated CATCHER (priors + negative-path outcome oracle). Promoted
+//                from the gated 'priors-neg' recipe in tuning Entry 49 — the shipped
+//                default detected ~1/7 on app4 vs 4/7 with the recipe on; that gap WAS
+//                the product gap. Use CONTRACTQA_GEN_PROMPT=priors to A/B the negative
+//                block's marginal contribution, or =asrt/intent for the rejected/
+//                experimental variants.
 function genVariantBlock(): string[] {
   const v = process.env.CONTRACTQA_GEN_PROMPT || 'baseline';
   if (v === 'asrt') {
@@ -514,10 +522,12 @@ function genVariantBlock(): string[] {
       'contracts you can express in the schema below.',
       '',
   ];
+  // 'priors' isolates the priors block alone — the A/B regression knob that measures the
+  // negative-path block's marginal contribution.
   if (v === 'priors') return priorsBlock;
-  if (v === 'priors-neg') {
-    return [
-      ...priorsBlock,
+  // The negative-path outcome oracle (missing-guard format/range/date bugs). Held in a
+  // named const so the DEFAULT and the 'priors-neg' alias share one source of truth.
+  const negBlock = [
       '═══ NEGATIVE-PATH OUTCOME ORACLE — for value/format/range constraints ═══',
       'Some constraints a reasonable user expects are NOT written in the code at all',
       '(no `min`/`max`/`pattern`/validation) — the bug IS the MISSING guard. You cannot',
@@ -573,8 +583,10 @@ function genVariantBlock(): string[] {
       'other same-role elements sit outside the form. Prefer `placeholder`/`test_id`/a wired',
       'label when the source actually provides one.',
       '',
-    ];
-  }
+  ];
+  // 'priors-neg' kept as an explicit alias for the default (back-compat with existing eval
+  // scripts/logs that pass it); identical to baseline now that the catcher ships by default.
+  if (v === 'priors-neg') return [...priorsBlock, ...negBlock];
   if (v === 'intent') {
     return [
       '═══ DERIVE `expected` FROM DECLARED INTENT, NOT FROM IMPERATIVE BEHAVIOR ═══',
@@ -643,7 +655,10 @@ function genVariantBlock(): string[] {
       '',
     ];
   }
-  return [];
+  // DEFAULT (baseline): the validated catcher = domain-priors + negative-path outcome
+  // oracle. Promoted from the gated 'priors-neg' recipe (tuning Entry 48/49): the shipped
+  // default caught ~1/7 on app4 vs 4/7 with the recipe on — that gap WAS the product gap.
+  return [...priorsBlock, ...negBlock];
 }
 
 export function buildGenerateSystemPrompt(): string {

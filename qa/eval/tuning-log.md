@@ -1391,3 +1391,17 @@ Key observations that demolish Entry 39's "missing-attribute is epistemically un
 **Honesty note:** the tuning-log's "app4 true_detection 3→4" holds ONLY under priors-neg. Default-product detection is 1 until P0 lands. Don't cite 4 as the shipped number.
 
 **Artifacts:** `scripts/eval/stage-c-exec-0004.mjs` (live execution harness, FAIL→GT mapping); baseline snapshot `/tmp/baseline-0004`; oracle fix in `packages/oracle/src/dom-classifier.ts` (`isGroundableTarget` + no-match→skip) with 2 new unit tests.
+
+## Entry 49 — P0 landed: the catcher recipe is now the DEFAULT gen prompt (soft-fold). Default prompt now byte-identical to priors-neg; live Stage-C reproduces 4/7 with no FP regression.
+
+**Date:** 2026-06-01 · Shipped Entry-48's **P0** as a SOFT FOLD (chosen over a hard env-default flip by an independent Opus second-opinion: a hard flip makes the most-aggressive recipe the floor with no A/B headroom; the fold promotes the *validated* mechanism while keeping the regression knob). `genVariantBlock()` in `interaction-discovery.ts` restructured: the negative-path/date_constraint block is extracted to a named `negBlock` const; the **default (baseline)** now returns `[...priorsBlock, ...negBlock]` — the validated catcher. `priors-neg` kept as an explicit back-compat alias (identical to default now); `priors` retained as the A/B knob that isolates negBlock's marginal contribution; `asrt`/`intent` unchanged.
+
+**Verification — two independent legs:**
+- **Generation (deterministic, conclusive):** `buildGenerateSystemPrompt()` under no env var === under `priors-neg` (byte-identical, 17,100 chars; `=== true`). `!== priors` (negBlock present) and `!== asrt` (knobs still distinct). Default contains all four catcher/FP-safety markers: NEGATIVE-PATH OUTCOME ORACLE, `expected.dom.date_constraint`, the "assert on the OUTCOME, NOT on the input field" guardrail, and the `type=email`/`pattern` carve-out. The default now emits the EXACT prompt that earned 4/7 — no stochastic re-run needed to establish that.
+- **Execution (live Stage-C on app4 :8080, the existing priors-neg contract set):** reproduces **4/7 distinct GT bugs** — id8 (budget≥0, 5 contracts), id9 (guests≥0, 1), id11 (date future, 5), id12 (view-details nav, 3). id3/4/16 correctly not caught (non-manifesting / display-content, outside the blind ceiling). 130 contracts: 64 PASS / 28 FAIL / 38 ERROR. **14 FP-candidate FAILs** (not mapped to a GT bug: checklist-save/expand ×4, partner-name roundtrip ×4, nav/notfound ×3, favorites ×2, search-count ×1) ≈ the Entry-48 post-oracle-fix 15 → **no FP regression**. The 38 ERRORs are the P1b modal-reach/grounding class (unchanged, the deferred follow-up).
+
+**Why no fresh default-mode autopilot run:** a 13-min stochastic regeneration would only add LLM variance (could land 3/7 or 5/7) without testing anything the byte-identical prompt-equivalence proof doesn't already guarantee. Honest scope: the live execution leg re-ran the EXISTING priors-neg contracts, not freshly-default-generated ones; the equivalence proof is what bridges generation→the new default.
+
+**Acceptance:** typecheck clean; oracle 53 / runner 43 / core 58 / cli 261 — all green, unregressed.
+
+**Shipped number update:** with P0 landed, the **default-product** app4 true detection is now **4/7** (was 1/7 — Entry 48's honesty caveat is now resolved for the default path). Remaining work = P1b (modal-opener reach via `observedSurface`, the dominant ERROR/FP source), P2 (JSON-parse retry), P3 (nav-assertion path-segment tightening).
