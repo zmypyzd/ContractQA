@@ -877,7 +877,17 @@ function buildGenerateUserPrompt(interaction: Interaction, window: string, known
     // assertion in these (use the exact role/name/placeholder shown). If an input has
     // an empty name, target it by placeholder; never invent a name that isn't here.
     ...(observedSurface.length > 0
-      ? ['Observed REAL elements on the running app (ground your locators in these — do NOT invent names):', ...observedSurface.map((l) => `  - ${l}`), '']
+      ? [
+          'Observed REAL elements on the running app (ground your locators in these — do NOT invent names):',
+          ...observedSurface.map((l) => `  - ${l}`),
+          // The role-count line above lists the roles that ACTUALLY exist on the page.
+          // Only assert role_count / consistency-count on a role you can see there — do
+          // NOT assume a role that is absent (e.g. cards are usually NOT role=article;
+          // if no `article` appears in the counts, asserting count(role=article) will
+          // false-fire at 0). Ground every count target in an observed role.
+          'IMPORTANT: only assert role_count/consistency counts on roles that APPEAR in the role-counts above; never assume an absent role (e.g. do not use role=article unless you see it).',
+          '',
+        ]
       : []),
     `Source context (around the interaction):`,
     '```',

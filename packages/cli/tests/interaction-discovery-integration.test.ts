@@ -186,6 +186,8 @@ describe('discoverByInteraction integration', () => {
     const userPrompt = reqs[1]!.messages[0]!.content;
     expect(userPrompt).toContain('Observed REAL elements');
     expect(userPrompt).toContain('button "Get Started"');
+    // role-absence directive rides with the observed surface (kills count(role=article) FPs)
+    expect(userPrompt).toContain('never assume an absent role');
   });
 
   it('re-run produces 0 new contracts (dedup works)', async () => {

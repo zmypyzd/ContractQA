@@ -11,7 +11,7 @@ export interface CompiledLocator {
   nth(i: number): CompiledLocator;
   getByRole(role: string, opts?: { name?: RegExp }): CompiledLocator;
   getByTestId(id: string): CompiledLocator;
-  filter(opts: { has?: CompiledLocator }): CompiledLocator;
+  filter(opts: { has?: CompiledLocator; visible?: boolean }): CompiledLocator;
 }
 
 export interface CompiledPage {
@@ -118,8 +118,18 @@ function resolveActionLocator(
   // else `first`. `nth` is the grounding handle for name-less inputs with no
   // placeholder/test_id/associated label (e.g. shadcn `<Label>`+`<Input>` not wired
   // by htmlFor) — the author targets by role + source-declared order.
-  const pick = (loc: CompiledLocator): CompiledLocator =>
-    target.nth !== undefined ? loc.nth(target.nth) : target.first ? loc.first() : loc;
+  // Resolve to VISIBLE elements only: responsive layouts render duplicate
+  // controls (desktop + mobile nav), one hidden — Playwright counts the hidden
+  // one too, so a bare getByRole strict-mode-crashes (→ ERROR) and `.first()`
+  // can land on the hidden node. A user can only act on what's visible, so
+  // filtering to visible is strictly more correct, not a heuristic. (Guarded for
+  // test fakes that don't implement filter; real Playwright Locators always do.)
+  const visible = (loc: CompiledLocator): CompiledLocator =>
+    typeof (loc as { filter?: unknown }).filter === 'function' ? loc.filter({ visible: true }) : loc;
+  const pick = (loc: CompiledLocator): CompiledLocator => {
+    const v = visible(loc);
+    return target.nth !== undefined ? v.nth(target.nth) : target.first ? v.first() : v;
+  };
   if (target.css) {
     return pick(page.locator(target.css));
   }

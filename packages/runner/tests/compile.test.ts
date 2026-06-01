@@ -51,6 +51,35 @@ describe('compileContract action timeout', () => {
     await compileContract(trivial, { actionTimeoutMs: 1234 })({ page: page as unknown as CompiledPage, snapshot: async () => ({ url: '/', localStorageKeys: [], cookies: [] }) });
     expect(page.setDefaultTimeout).toHaveBeenCalledWith(1234);
   });
+
+  it('resolves action locators to VISIBLE elements (excludes hidden responsive duplicates that strict-mode-crash)', async () => {
+    const calls: string[] = [];
+    const loc: Record<string, unknown> = {};
+    Object.assign(loc, {
+      click: vi.fn(async () => { calls.push('click'); }),
+      fill: vi.fn(async () => undefined),
+      first: vi.fn(() => loc),
+      nth: vi.fn(() => loc),
+      getByRole: vi.fn(() => loc),
+      filter: vi.fn((o: { visible?: boolean; has?: unknown }) => { calls.push(`filter:${JSON.stringify(o)}`); return loc; }),
+    });
+    const page = {
+      goto: vi.fn(async () => undefined),
+      url: () => 'http://x/',
+      waitForTimeout: vi.fn(async () => undefined),
+      setDefaultTimeout: vi.fn(),
+      getByRole: vi.fn(() => loc),
+    };
+    const c = {
+      id: 'INV-VIS', title: 't', area: 'a', severity: 'P2', risk_tags: [],
+      actions: [{ type: 'goto', path: '/' }, { type: 'click', target: { role: 'link', name_regex: 'Venues' } }],
+      expected: { url: { matches: '/' } },
+      verification: { wait_ms: 0, retries: 0, evidence_required: ['state_diff'] },
+    } as unknown as ContractDoc;
+    await compileContract(c)({ page: page as unknown as CompiledPage, snapshot: async () => ({ url: '/', localStorageKeys: [], cookies: [] }) });
+    expect(calls).toContain('filter:{"visible":true}');
+    expect(calls).toContain('click');
+  });
 });
 
 describe('compileContract', () => {
@@ -313,7 +342,7 @@ describe('compileContract', () => {
       click: vi.fn(async () => undefined),
       fill: vi.fn(async () => undefined),
       first: () => { calls.push('.first()'); return locator; },
-      filter: (_opts: { has?: unknown }) => { calls.push('.filter(has)'); return locator; },
+      filter: (opts: { has?: unknown; visible?: boolean }) => { calls.push(opts.visible ? '.filter(visible)' : '.filter(has)'); return locator; },
       getByRole: () => locator,
       getByTestId: () => locator,
     };
@@ -334,7 +363,7 @@ describe('compileContract', () => {
     await compileContract(c)({ page, snapshot: async () => ({ url: '/', localStorageKeys: [], cookies: [] }) });
     // getByRole('button') is the receiver (visible/accessible — not hidden responsive
     // dupes); the has-arg page.locator('svg[class*="plus"]') is the filter argument.
-    expect(calls).toEqual(['getByRole:button', 'locator:svg[class*="plus"]', '.filter(has)', '.first()']);
+    expect(calls).toEqual(['getByRole:button', 'locator:svg[class*="plus"]', '.filter(has)', '.filter(visible)', '.first()']);
   });
 
   it('goto.locale calls page.setExtraHTTPHeaders before goto', async () => {
