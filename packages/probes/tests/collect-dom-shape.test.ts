@@ -48,6 +48,41 @@ describe('collectDomShape — interactive pass (unchanged behavior)', () => {
   });
 });
 
+describe('collectDomShape — accessible name (ARIA fallback chain)', () => {
+  beforeEach(() => setBody(''));
+
+  it('uses placeholder as the accessible name for a label-less input', () => {
+    setBody(`<input type="text" placeholder="Search vendors..." />`);
+    const tb = collectDomShape(BUDGET).elements.find((e) => e.role === 'textbox');
+    expect(tb?.name).toBe('Search vendors...');
+  });
+
+  it('prefers an associated <label> over placeholder', () => {
+    setBody(`<label for="p1">Partner One</label><input id="p1" type="text" placeholder="Name" />`);
+    const tb = collectDomShape(BUDGET).elements.find((e) => e.role === 'textbox');
+    expect(tb?.name).toBe('Partner One');
+  });
+
+  it('prefers aria-label over label and placeholder', () => {
+    setBody(`<label for="b">Budget label</label><input id="b" aria-label="Wedding budget" placeholder="$" />`);
+    const tb = collectDomShape(BUDGET).elements.find((e) => e.role === 'textbox');
+    expect(tb?.name).toBe('Wedding budget');
+  });
+
+  it('resolves aria-labelledby to the referenced element text', () => {
+    setBody(`<span id="lbl">Guest count</span><input aria-labelledby="lbl" type="number" />`);
+    const tb = collectDomShape(BUDGET).elements.find((e) => e.role === 'textbox');
+    expect(tb?.name).toBe('Guest count');
+  });
+
+  it('still uses textContent for buttons/links (unchanged)', () => {
+    setBody(`<button>Save</button><input placeholder="Name" />`);
+    const els = collectDomShape(BUDGET).elements;
+    expect(els.find((e) => e.role === 'button')?.name).toBe('Save');
+    expect(els.find((e) => e.role === 'textbox')?.name).toBe('Name');
+  });
+});
+
 describe('collectDomShape — text-bearing pass', () => {
   beforeEach(() => setBody(''));
 

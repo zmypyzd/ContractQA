@@ -113,6 +113,39 @@ export function collectDomShape(budget: number): {
       return attrs;
     };
 
+    // Accessible name via the ARIA fallback chain (the bits that matter for
+    // grounding): aria-labelledby → aria-label → associated <label> → placeholder
+    // → title → textContent. The previous `aria-label || textContent` left form
+    // inputs NAMELESS (their name comes from a <label> or placeholder), so a
+    // `name_regex` assertion on them matched nothing → false positive, even though
+    // Playwright (which follows this chain) resolves them fine.
+    const accessibleName = (el: Element): string => {
+      const labelledby = el.getAttribute('aria-labelledby');
+      if (labelledby) {
+        const txt = labelledby
+          .split(/\s+/)
+          .map((id) => document.getElementById(id)?.textContent ?? '')
+          .join(' ')
+          .trim();
+        if (txt) return txt;
+      }
+      const aria = el.getAttribute('aria-label');
+      if (aria && aria.trim()) return aria.trim();
+      const labels = (el as HTMLInputElement).labels;
+      if (labels && labels.length > 0) {
+        const t = Array.from(labels)
+          .map((l) => l.textContent ?? '')
+          .join(' ')
+          .trim();
+        if (t) return t;
+      }
+      const placeholder = el.getAttribute('placeholder');
+      if (placeholder && placeholder.trim()) return placeholder.trim();
+      const title = el.getAttribute('title');
+      if (title && title.trim()) return title.trim();
+      return (el.textContent ?? '').trim();
+    };
+
     const seen = new Set<Element>();
     const counts: Record<string, number> = {};
     const elementSnapshots: CollectedElement[] = [];
@@ -143,7 +176,7 @@ export function collectDomShape(budget: number): {
                     ? 'combobox'
                     : null);
       if (!role) continue;
-      const name = (el.getAttribute('aria-label') ?? el.textContent ?? '').trim();
+      const name = accessibleName(el);
       const key = `${role}:${name}`;
       counts[key] = (counts[key] ?? 0) + 1;
       if (elementSnapshots.length >= budget) continue;

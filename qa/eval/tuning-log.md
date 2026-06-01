@@ -1443,3 +1443,20 @@ Key observations that demolish Entry 39's "missing-attribute is epistemically un
 2. **The reveal raises generation AMBITION, not accuracy.** Knowing the modal fields exist made the generator write MORE and longer modal-reach contracts (130→173). Multi-step reaches (open→fill→commit) are execution-fragile — any unresolved locator in the chain → ERROR. So FP-candidates fell (22→11/17, within:dialog converting some FAILs to ERRORs + better reach awareness) but ERROR climbed 30→54, net noise 52→71 (worse even rate-adjusted: 41% vs 37%). Detection held 4/7 the whole time.
 
 **Decision: REJECTED — not shipped.** Pre-committed stopping rule (must beat static-P1b's 52 noise at ≥4/7) failed. The v2 code (interactive loop + `selectOpeners`/`diffNewElements` + their 6 tests) is **stashed**, not committed; shipped state stays at Entry-50 static-P1b (commit d028e62). The honest lesson: the modal-FP bottleneck is **execution-side reach robustness**, not generation-side surface knowledge — static-P1b already generated modal-reach contracts; more surface info just surfaces more reach-fragility as ERRORs. **Next lever (P1c):** make the RUNNER robust at multi-step reaches — auto-open the gating modal / retry a failed reach / detect "field not yet visible" — rather than feeding the generator more. Plus the cheap "available roles: […]; don't assert absent roles" directive for the residual `count(role=article)=0` consistency FPs.
+
+## Entry 52 — FP-cause decomposition + oracle accessible-name fix (ARIA chain). The FP floor is grounding/execution, NOT intent; one concrete oracle bug fixed (−3 FP, isolated).
+
+**Date:** 2026-06-01 · Prompted by the question "is the noise really an intent-inference failure?", classified the 16 FP-candidate FAILs of the v2 run by ACTUAL cause (read each contract + violation + checked the live app):
+
+| cause | ~count | intent? |
+|---|---|---|
+| oracle accessible-name gap (`name_regex` on a placeholder/label-named input matched nothing) | ~5 | no — oracle bug |
+| reach didn't land (favorite/nav action silently failed → assertion finds nothing) | ~5 | no — execution |
+| wrong `nth` fill (partner/name roundtrip hit the wrong of two identical `placeholder="Name"` inputs) | ~4 | no — grounding |
+| genuine wrong-intent (cancel-discards-changes, nav-to-home expectations) | ~2 | **yes** |
+
+**Conclusion: intent inference is a real but MINORITY FP cause (~2/16).** Intent reasoning is the lever for the RECALL ceiling (the 4/7 — the blind-from-buggy-source wall, where wrong `expected` MISSES bugs), a different axis from the FP floor, which is dominated by grounding/execution mechanics.
+
+**Root cause found + fixed (oracle):** `collectDomShape` computed accessible name as `aria-label || textContent` — omitting the rest of the ARIA accessible-name algorithm. So form inputs (named by a `<label>` or `placeholder`) were NAMELESS in the snapshot, and any `role_count`/element `name_regex` on them matched 0 → false "expected ≥1, got 0". The agent had named them correctly (from the probe's `placeholder=` line); Playwright resolves them fine (it follows the chain); only the oracle's snapshot didn't. Fix: `accessibleName` now follows `aria-labelledby → aria-label → associated <label> (el.labels) → placeholder → title → textContent`. TDD: 5 jsdom tests (probes 20→25). **Isolated measurement** (same v2 contracts, old-probe vs new-probe Stage-C): **3 FAIL→PASS** (`dashboard-get-started-opens-form` name=/Name/, `vendors-route-renders-listing` name=/Search vendors/, `hero-get-started-opens-details-modal`), zero PASS→FAIL, detection unchanged 4/7. Modest on app4 (only 3 contracts hit the placeholder-as-name pattern) but a correct, generalizable fix — and it also enriches the probe's `observedSurface` (generation now sees label/placeholder-derived names), an unmeasured generation-side benefit.
+
+**Remaining FP floor (the real next lever, P1c = execution-side):** reach-didn't-land (auto-open the gating modal / retry a failed reach step) + wrong-`nth` among identical fields (scope by an observed container). Oracle/runner/core/probes all green; no regression.
