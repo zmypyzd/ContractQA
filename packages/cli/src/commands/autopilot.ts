@@ -14,6 +14,7 @@ import { createStashGuard, isGitRepo } from '../autopilot/stash-guard.js';
 import { applicablePatterns } from '../autopilot/smoke-patterns.js';
 import { discoverByModule, type ContractProposal } from '../autopilot/llm-discovery.js';
 import { discoverByInteraction } from '../autopilot/interaction-discovery.js';
+import { createSurfaceProvider } from '../autopilot/surface-probe.js';
 import { confirmUncertainProposals } from '../autopilot/interactive-prompt.js';
 import { renderReportMarkdown, type AutopilotReport, type SmokeFailure } from '../autopilot/report.js';
 
@@ -643,6 +644,13 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
       }
       if (opts.discoveryMode === 'deep') {
         emit({ type: 'log', level: 'info', message: '[autopilot] Phase B using deep (interaction-driven) discovery', elapsedMs: elapsed() });
+        // Live-app surface probe so generation grounds locators in the real DOM.
+        // Opt out with CONTRACTQA_NO_SURFACE_PROBE=1; degrades to ungrounded if
+        // the browser/app is unavailable.
+        const surfaceBaseUrl = process.env.CONTRACTQA_BASE_URL ?? 'http://localhost:3000';
+        const surfaceProvider = process.env.CONTRACTQA_NO_SURFACE_PROBE
+          ? undefined
+          : createSurfaceProvider(surfaceBaseUrl, (msg) => emit({ type: 'log', level: 'info', message: `[autopilot] ${msg}`, elapsedMs: elapsed() }));
         const result = await discoverByInteraction({
           cwd: opts.cwd,
           llmClient,
@@ -650,6 +658,7 @@ export async function runAutopilot(opts: AutopilotOptions): Promise<AutopilotRep
           concurrency: opts.deepConcurrency,
           maxContracts: opts.deepMaxContracts,
           enableReflexion: opts.enableReflexion,
+          surfaceProvider,
           onEvent: (e) => {
             if (e.type === 'log') {
               emit({ type: 'log', level: e.level, message: e.message, elapsedMs: elapsed() });

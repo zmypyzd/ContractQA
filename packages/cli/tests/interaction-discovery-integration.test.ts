@@ -139,6 +139,55 @@ describe('discoverByInteraction integration', () => {
     expect((llm.generate as ReturnType<typeof vi.fn>).mock.calls.length).toBe(2);
   });
 
+  it('threads observedSurface from surfaceProvider into the generate prompt, keyed by route', async () => {
+    const reqs: Array<{ messages: Array<{ role: string; content: string }> }> = [];
+    let callIdx = 0;
+    const llm: LLMClient = {
+      providerName: 'anthropic-sdk',
+      modelHint: 'test',
+      generate: vi.fn(async (req: { messages: Array<{ role: string; content: string }> }) => {
+        reqs.push(req);
+        callIdx++;
+        if (callIdx === 1) {
+          return {
+            content: JSON.stringify([
+              { id: 'btn-app-greet', type: 'button', file: 'app/page.tsx', name: 'Greet', module: 'app', route: '/venues', rationale: 'r' },
+            ]),
+            usage: { inputTokens: 0, outputTokens: 0 },
+          };
+        }
+        return {
+          content: JSON.stringify([
+            { yaml: 'id: INV-1\ntitle: t\narea: app\nactions: []\nexpected: {}\n', confidence: 'high', module: 'app', evidence: { sourceFiles: [], rationale: 'r' } },
+          ]),
+          usage: { inputTokens: 0, outputTokens: 0 },
+        };
+      }),
+    };
+
+    const seenRoutes: string[][] = [];
+    const surfaceProvider = vi.fn(async (routes: string[]) => {
+      seenRoutes.push(routes);
+      return { '/venues': ['button "Get Started"', '(role counts: article=0, listitem=8)'] };
+    });
+
+    await discoverByInteraction({
+      cwd,
+      llmClient: llm,
+      signal: new AbortController().signal,
+      concurrency: 1,
+      enableReflexion: false,
+      surfaceProvider,
+    });
+
+    // The provider is asked for the routes enumeration found.
+    expect(seenRoutes[0]).toContain('/venues');
+    // The Stage-2 generate prompt for the /venues interaction carries that surface.
+    const userPrompt = reqs[1]!.messages[0]!.content;
+    expect(userPrompt).toContain('Observed REAL elements');
+    expect(userPrompt).toContain('button "Get Started"');
+  });
+
   it('re-run produces 0 new contracts (dedup works)', async () => {
     // Same LLM stub as above — first run writes, second should skip all 3
     let callIdx = 0;

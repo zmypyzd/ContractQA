@@ -156,6 +156,13 @@ export interface DiscoverByInteractionOptions {
   // targets the content class (cross-view consistency, data preservation).
   // Disable for unit tests that count Stage-2 outputs exactly.
   enableReflexion?: boolean;
+  // Optional live-app surface probe. Called once after enumeration (when the
+  // project's real routes are known) and before generation, with those routes.
+  // Returns a route → observedSurface map (pre-formatted REAL-element lines, see
+  // observed-surface.ts) so generation grounds locators in the live DOM instead
+  // of inventing names from (possibly buggy) source. Omitted ⇒ offline behaviour
+  // unchanged (observedSurface stays empty) — unit tests rely on this.
+  surfaceProvider?: (routes: string[], signal: AbortSignal) => Promise<Record<string, string[]>>;
   onEvent?: (event: DiscoveryEvent) => void;
 }
 
@@ -1407,6 +1414,22 @@ export async function discoverByInteraction(
   // interactions enumeration already found (NOT hardcoded). Fed to generation so
   // the reach-path goto uses a real route instead of an invented plural/variant.
   const knownRoutes = [...new Set(interactions.map((i) => i.route).filter((r): r is string => !!r))];
+
+  // Probe the live app for the REAL interactive surface of each route, so
+  // generation grounds locators in observed reality instead of inventing names
+  // from (possibly buggy) source. Offline when no provider is supplied.
+  let surfaceByRoute: Record<string, string[]> = {};
+  if (opts.surfaceProvider) {
+    try {
+      surfaceByRoute = await opts.surfaceProvider(knownRoutes, opts.signal);
+    } catch (err) {
+      emit({ type: 'log', level: 'warn', message: `[deep] surface probe failed (continuing ungrounded): ${(err as Error).message}` });
+    }
+  }
+  // A route-less interaction (modal/component) grounds against the home surface.
+  const surfaceFor = (interaction: Interaction): string[] =>
+    (interaction.route ? surfaceByRoute[interaction.route] : undefined) ?? surfaceByRoute['/'] ?? [];
+
   let completed = 0;
   const results = await runPool(interactions, concurrency, async (interaction) => {
     if (opts.signal.aborted) return null;
@@ -1416,6 +1439,7 @@ export async function discoverByInteraction(
       llmClient: opts.llmClient,
       signal: opts.signal,
       knownRoutes,
+      observedSurface: surfaceFor(interaction),
     });
     completed++;
     emit({ type: 'progress', phase: 'generate', done: completed, total: interactions.length });

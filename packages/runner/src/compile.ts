@@ -23,6 +23,8 @@ export interface CompiledPage {
   locator(selector: string): CompiledLocator;
   url(): string;
   waitForTimeout(ms: number): Promise<unknown>;
+  // Real Playwright pages expose this; optional so fakes/tests can omit it.
+  setDefaultTimeout?(ms: number): void;
 }
 
 export interface CompiledContext {
@@ -60,6 +62,11 @@ export interface CompileOptions {
   // Required for any contract that uses `type: 'http'`. Without it, http
   // actions will throw at runtime.
   baseUrl?: string;
+  // Per-action locator timeout (ms). Playwright defaults to 30_000, which makes
+  // an UNGROUNDED locator (a name the generator invented that doesn't resolve)
+  // hang 30s before failing. Capping at 5s lets those fail fast — a real local
+  // dev-server action resolves well under 5s. Default 5000.
+  actionTimeoutMs?: number;
 }
 
 export type CompiledContract = (
@@ -154,6 +161,8 @@ function resolveActionLocator(
 export function compileContract(c: ContractDoc, opts: CompileOptions = {}): CompiledContract {
   assertDomActionInvariant(c);
   return async (ctx) => {
+    // Fail fast on ungrounded locators instead of hanging 30s (Playwright default).
+    ctx.page.setDefaultTimeout?.(opts.actionTimeoutMs ?? 5000);
     if (c.preconditions?.auth_state === 'logged_in' && opts.authSetup) {
       await opts.authSetup({ page: ctx.page, context: ctx.context, contract: c });
     }

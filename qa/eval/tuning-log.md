@@ -1405,3 +1405,22 @@ Key observations that demolish Entry 39's "missing-attribute is epistemically un
 **Acceptance:** typecheck clean; oracle 53 / runner 43 / core 58 / cli 261 — all green, unregressed.
 
 **Shipped number update:** with P0 landed, the **default-product** app4 true detection is now **4/7** (was 1/7 — Entry 48's honesty caveat is now resolved for the default path). Remaining work = P1b (modal-opener reach via `observedSurface`, the dominant ERROR/FP source), P2 (JSON-parse retry), P3 (nav-assertion path-segment tightening).
+
+## Entry 50 — P1b (static surface probe) landed: ERRORs −21%, but FP NOT reduced — the FP cluster lives behind modals the static probe can't reach. Honest partial win + the real fix scoped (interactive probing).
+
+**Date:** 2026-06-01 · Built the long-dormant `observedSurface` grounding (Entry 48 P1b). A new `surfaceProvider` (opt: `DiscoverByInteractionOptions`) is called once post-enumerate with the real routes; `createSurfaceProvider` (autopilot.ts) launches headless chromium, navigates each page route, snapshots via `collectDomShape`, and `formatObservedSurface` turns it into REAL-element lines (role/name/placeholder/test-id + a capped role-count summary) fed into generation per route (route-less interactions → home-surface fallback). Also lowered the runner's per-action locator timeout 30s→**5s** (`CompileOptions.actionTimeoutMs`) so ungrounded locators fail fast. All TDD: formatter 8 tests, wiring 1, timeout 2; offline discovery tests unchanged (no provider → empty surface).
+
+**FRESH full blind autopilot on app4 (new default + P1b probe, deep, --regenerate --no-fix, ~14min)** then Stage-C, vs the Entry-49 baseline (P0-only / priors-neg contract set):
+
+| metric | baseline (P0) | fresh (P0+P1b+5s) |
+|---|---|---|
+| distinct GT bugs | 4/7 | **4/7** (held) |
+| ERROR (locator not-found) | 38 | **30** (−21%) |
+| FP-candidate FAILs | 14 | **22** (worse) |
+| contracts run | 130 | 141 |
+
+**The probe demonstrably works** (verified live against :8080): it captures the real names the generator was previously inventing — `button "Get Started"`, `button "View Details"`, `textbox placeholder="Search venues..."` — and a fresh catcher contract correctly grounds its opener in `name_regex:"Get Started|Update Details|Edit"` then fills `css:input[type=date]` and asserts `date_constraint future`. ERRORs dropped because **page-level** locators (nav/buttons/search) now resolve first-try.
+
+**Why FP did NOT drop — root cause verified, not assumed:** the static probe snapshots each route **with modals closed**, so the highest-FP-density surface (the planning-modal form fields) is never captured. The generator still guesses `{role:textbox, nth:0}` for the two identical `placeholder="Name"` inputs. I PROVED the partner-name FAIL cluster (~8 contracts: "missing Alexandra/Beatrice/…") are **false positives, not unlabeled bugs** — filling the fields correctly via `getByPlaceholder("Name").nth(0/1)` persists AND displays them (`weddingDetails={partnerOneName:"Alexandra",partnerTwoName:"Beatrice"}`, both shown on the home page, retained on modal reopen). The contracts fail only on fragile in-modal `nth` targeting. Second residual FP source: consistency contracts still assert `count(role=article)=0` even though `/venues`'s observedSurface lists no `article` — the LLM doesn't infer role-ABSENCE from a list of present roles.
+
+**Verdict:** P1b-static is a genuine PARTIAL win — ERROR −21%, a big eval-speed win (Stage-C ~16min→~few min via the 5s timeout), detection held 4/7, and the grounding infrastructure interactive probing will build on — but it does NOT crack precision. **The real FP fix is INTERACTIVE probing (P1b-v2):** for opener buttons (Get Started/Edit/Add) click → snapshot the revealed modal → surface the real field handles; plus an explicit "available roles: […]; do not assert on roles not in this list" directive to kill the role-absence FPs. Committed honestly framed (NOT as an FP fix). Acceptance: typecheck clean; cli 261→269, runner 43→45, oracle 53 / core 58 — all green.

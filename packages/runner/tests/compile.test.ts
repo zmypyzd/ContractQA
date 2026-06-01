@@ -18,6 +18,41 @@ const contract = {
   verification: { wait_ms: 0, retries: 0, evidence_required: ['state_diff'] },
 } as unknown as ContractDoc;
 
+describe('compileContract action timeout', () => {
+  const trivial = {
+    id: 'INV-TO',
+    title: 't',
+    area: 'a',
+    severity: 'P2',
+    risk_tags: [],
+    actions: [{ type: 'goto', path: '/' }],
+    expected: { url: { matches: '/' } },
+    verification: { wait_ms: 0, retries: 0, evidence_required: ['state_diff'] },
+  } as unknown as ContractDoc;
+
+  function fakePage() {
+    return {
+      goto: vi.fn(async () => undefined),
+      url: () => 'http://x/',
+      waitForTimeout: vi.fn(async () => undefined),
+      getByRole: () => ({ click: vi.fn(async () => undefined), fill: vi.fn(async () => undefined) }),
+      setDefaultTimeout: vi.fn(),
+    };
+  }
+
+  it('caps the per-action locator timeout at 5s by default (no 30s hangs on ungrounded locators)', async () => {
+    const page = fakePage();
+    await compileContract(trivial)({ page: page as unknown as CompiledPage, snapshot: async () => ({ url: '/', localStorageKeys: [], cookies: [] }) });
+    expect(page.setDefaultTimeout).toHaveBeenCalledWith(5000);
+  });
+
+  it('honours an explicit actionTimeoutMs override', async () => {
+    const page = fakePage();
+    await compileContract(trivial, { actionTimeoutMs: 1234 })({ page: page as unknown as CompiledPage, snapshot: async () => ({ url: '/', localStorageKeys: [], cookies: [] }) });
+    expect(page.setDefaultTimeout).toHaveBeenCalledWith(1234);
+  });
+});
+
 describe('compileContract', () => {
   it('returns a thunk that performs actions in order', async () => {
     const calls: string[] = [];
