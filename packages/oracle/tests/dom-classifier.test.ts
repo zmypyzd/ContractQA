@@ -99,12 +99,25 @@ describe('classifyDom — Stream 5 rich assertions', () => {
     expect(r.failContributions[0]?.actual).toBe('true');
   });
 
-  it('attribute_equals: no element matched → FAIL with null actual', () => {
+  it('attribute_equals: no element matched → SKIP (no violation without a grounded observation)', () => {
     const r = classifyDom(domWithElements, {
       attribute_equals: [{ target: { test_id: 'does-not-exist' }, attribute: 'disabled', equals: true }],
     });
-    expect(r.failContributions[0]?.actual).toBe(null);
-    expect(r.failContributions[0]?.detail).toContain('no element matched');
+    expect(r.failContributions).toEqual([]);
+    expect(r.passContributions).toEqual([]);
+  });
+
+  it('ungroundable target (empty / css-only) matches nothing → SKIP, never the first element', () => {
+    // Empty target {} and css-only targets carry no snapshot-matchable criterion.
+    // They must NOT silently ground onto an arbitrary element and manufacture a fail.
+    const empty = classifyDom(domWithElements, { class_contains: [{ target: {}, class: 'whatever' }] });
+    expect(empty.failContributions).toEqual([]);
+    expect(empty.passContributions).toEqual([]);
+    const cssOnly = classifyDom(domWithElements, {
+      input_value: [{ target: { css: 'input[type=date]' }, equals: 'whatever' }],
+    });
+    expect(cssOnly.failContributions).toEqual([]);
+    expect(cssOnly.passContributions).toEqual([]);
   });
 
   it('input_value.equals PASSes', () => {
@@ -178,6 +191,15 @@ describe('classifyDom consistency (cross-signal relations)', () => {
     { role: 'article', name: 'C', text: 'C', attributes: {}, classes: [], value: undefined },
   ];
   const domE = (e = els): DomShape => ({ roleCounts: {}, visibleText: '', elements: e });
+
+  it('ungroundable count signal → SKIP the relation (no false violation)', () => {
+    // Before the guard, count({}) matched ALL elements (e.g. 4) and fabricated
+    // a violation against count(article)=3. Now an ungroundable count is null →
+    // the whole consistency relation is skipped conservatively.
+    const r = classifyDom(domE(), { consistency: [{ left: { count: {} }, relation: 'eq', right: { count: { role: 'article' } } }] });
+    expect(r.failContributions).toEqual([]);
+    expect(r.passContributions).toEqual([]);
+  });
 
   it('FAILs when displayed count != rendered count (2 != 3)', () => {
     const r = classifyDom(domE(), { consistency: [{ left: { number_in: { text: 'Showing' } }, relation: 'eq', right: { count: { role: 'article' } } }] });

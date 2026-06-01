@@ -12,6 +12,12 @@ export interface DomTarget {
   placeholder?: string;
   first?: boolean;
   within?: string;
+  // Runner-side locator concerns that flow through from the schema Target but
+  // the snapshot oracle cannot evaluate (no css engine / positional index over
+  // the captured element list). A target carrying ONLY these is ungroundable —
+  // see isGroundableTarget.
+  css?: string;
+  nth?: number;
 }
 
 export interface DomExpected {
@@ -74,7 +80,23 @@ export interface ConsistencySignal {
 // per-element ancestor data in the snapshot) — contracts that use within
 // will get a "no element matched" failure for now; tracked as a known gap
 // in docs/stream5-dom-rich-assertions.md.
+// A DomTarget is "groundable" by the snapshot oracle only if it carries at
+// least one snapshot-matchable criterion (role / name_regex / test_id /
+// placeholder / text). css/icon/within/first/nth are runner-side locator
+// concerns the snapshot can't evaluate. Without this guard an EMPTY target
+// `{}` (every predicate is `continue`d) or a css-only target matched the FIRST
+// element in matchElement and ALL elements in matchAllElements — silently
+// grounding an assertion onto an arbitrary element and manufacturing false
+// violations (e.g. `class_contains <unspecified target>`, or a consistency
+// `count(<unspecified target>)` that matched all 32 elements). Treat such
+// targets as ungroundable: match nothing, so the caller skips. A violation
+// requires a grounded observation.
+function isGroundableTarget(t: DomTarget): boolean {
+  return !!(t.role || t.name_regex || t.test_id || t.placeholder || t.text);
+}
+
 function matchElement(target: DomTarget, elements: DomElementSnapshot[]): DomElementSnapshot | null {
+  if (!isGroundableTarget(target)) return null;
   const matches: DomElementSnapshot[] = [];
   for (const el of elements) {
     if (target.role && el.role !== target.role) continue;
@@ -96,6 +118,7 @@ function matchElement(target: DomTarget, elements: DomElementSnapshot[]): DomEle
 // All elements matching a DomTarget (consistency's count/sum_of need every match,
 // not just the first). Mirrors matchElement's predicate.
 function matchAllElements(target: DomTarget, elements: DomElementSnapshot[]): DomElementSnapshot[] {
+  if (!isGroundableTarget(target)) return [];
   return elements.filter((el) => {
     if (target.role && el.role !== target.role) return false;
     if (target.name_regex && !new RegExp(target.name_regex, 'i').test(el.name)) return false;
@@ -115,7 +138,14 @@ function firstNumber(s: string): number | null {
 // Resolve a ConsistencySignal to a number, or null if it can't be grounded
 // (no matching element / no parseable number) → caller skips (conservative).
 function evalSignal(sig: ConsistencySignal, els: DomElementSnapshot[]): { value: number | null; label: string } {
-  if (sig.count) return { value: matchAllElements(sig.count, els).length, label: `count(${targetLabel(sig.count)})` };
+  if (sig.count) {
+    // Ungroundable count target → null (skip the whole relation), NOT 0.
+    // 0 would still compare (0 eq 3 → false) and fabricate a violation;
+    // null makes evalSignal's caller skip conservatively. A groundable target
+    // that genuinely matches zero elements still returns a real 0.
+    if (!isGroundableTarget(sig.count)) return { value: null, label: `count(${targetLabel(sig.count)})` };
+    return { value: matchAllElements(sig.count, els).length, label: `count(${targetLabel(sig.count)})` };
+  }
   if (sig.number_in) {
     const el = matchElement(sig.number_in, els);
     return { value: el ? firstNumber(el.text) : null, label: `number_in(${targetLabel(sig.number_in)})` };
@@ -229,14 +259,11 @@ export function classifyDom(dom: DomShape, expected: DomExpected): DomClassifica
     for (const a of expected.attribute_equals) {
       const el = matchElement(a.target, els);
       const label = `${targetLabel(a.target)} attr=${a.attribute}`;
-      if (!el) {
-        out.failContributions.push({
-          field: 'dom.attribute_equals',
-          detail: `${label} — no element matched target`,
-          actual: null,
-        });
-        continue;
-      }
+      // No element matched → ungroundable → SKIP (inconclusive), not FAIL. A
+      // violation requires a grounded observation; "couldn't locate the
+      // subject" is the dominant false-positive source (modal didn't open,
+      // empty/css-only target). Mirrors date_constraint/consistency no-match.
+      if (!el) continue;
       const got = el.attributes[a.attribute.toLowerCase()];
       // Boolean equals semantics: true means the attribute is present at all
       // (HTML boolean attrs like `disabled` use `disabled=""`); false means
@@ -266,14 +293,7 @@ export function classifyDom(dom: DomShape, expected: DomExpected): DomClassifica
     for (const iv of expected.input_value) {
       const el = matchElement(iv.target, els);
       const label = targetLabel(iv.target);
-      if (!el) {
-        out.failContributions.push({
-          field: 'dom.input_value',
-          detail: `${label} — no element matched target`,
-          actual: null,
-        });
-        continue;
-      }
+      if (!el) continue; // ungroundable → skip (see attribute_equals)
       const got = el.value ?? '';
       if (iv.equals !== undefined) {
         if (got === iv.equals) {
@@ -309,14 +329,7 @@ export function classifyDom(dom: DomShape, expected: DomExpected): DomClassifica
     for (const cc of expected.class_contains) {
       const el = matchElement(cc.target, els);
       const label = `${targetLabel(cc.target)} class=${cc.class}`;
-      if (!el) {
-        out.failContributions.push({
-          field: 'dom.class_contains',
-          detail: `${label} — no element matched target`,
-          actual: null,
-        });
-        continue;
-      }
+      if (!el) continue; // ungroundable → skip (see attribute_equals)
       if (el.classes.includes(cc.class)) {
         out.passContributions.push({
           field: 'dom.class_contains',
@@ -336,14 +349,7 @@ export function classifyDom(dom: DomShape, expected: DomExpected): DomClassifica
     for (const et of expected.element_text_equals) {
       const el = matchElement(et.target, els);
       const label = `${targetLabel(et.target)} text`;
-      if (!el) {
-        out.failContributions.push({
-          field: 'dom.element_text_equals',
-          detail: `${label} — no element matched target`,
-          actual: null,
-        });
-        continue;
-      }
+      if (!el) continue; // ungroundable → skip (see attribute_equals)
       if (el.text === et.equals) {
         out.passContributions.push({
           field: 'dom.element_text_equals',
