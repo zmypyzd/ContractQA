@@ -1363,3 +1363,31 @@ Key observations that demolish Entry 39's "missing-attribute is epistemically un
 **Acceptance (full):** core 58 · oracle 51 · runner 43 · probes 20 (+10) · cli 261 (+1 skip) · orchestrator 62 · repro 3 · dogfood 5 · dashboard 1 · **e2e phase1-loop 2 (was the pre-existing red)** — all green.
 
 **Artifacts:** `collectDomShape` + text pass in `packages/probes/src/browser-snapshot.ts`; `packages/probes/tests/collect-dom-shape.test.ts`; `scripts/eval/verify-app4-date-catch.mjs`; deleted `qa/contracts/{api,core,dashboard,issues,_smoke,auth}/*` stale auto-gen fixtures (61).
+
+## Entry 48 — Blind full-pipeline eval on app4 (0004): default prompt detects 1/7, priors-neg 4/7; text-pass validated end-to-end; oracle no-match→SKIP fix cuts false positives 24→15 (−37.5%) at zero detection loss.
+
+**Date:** 2026-06-01 · First full stage-by-stage tuner-audited blind autopilot run since the Entry-47 ship. Ran `contractqa autopilot` (deep, blind, 30-min budget) on app 0004 (wedding planner; GT bugs id3,4,8,9,11,12,16; realistic blind ceiling id8,9,11,12). Verified each stage against the golden checklist + GT (agent never saw them). Two arms: **baseline** (default gen prompt) vs **priors-neg** (`CONTRACTQA_GEN_PROMPT=priors-neg`), same live app, same blind conditions.
+
+**Stage-by-stage (baseline):**
+- **A discovery** ✅ — `interactionsFound=61`; reached the gated planning modal (wedding-details form, budget/guest/date inputs), /venues, /vendors, View Details. Gated-surface reach is NOT the blocker at the discovery layer.
+- **B generation** ❌ — 124 contracts, ALL positive happy-path: budget filled the LEGAL 52000, guests 150, date a FUTURE 2027 → asserting legal values on bugged fields catches nothing. `date_constraint`=0. Two key interactions (`form-index-wedding-details`, `input-index-budget`) dropped to "LLM response is not valid JSON".
+- **C execution** ❌ — true detection **1/7** (only id12, via `vendor-card-view-profile-navigates`). The actual `venue-card-view-details-navigates` FALSELY PASSED: it asserts `url~"/venue"` but the page starts at `/venues`, so an inert button leaves the url matching → bug missed by a too-loose regex. 18 FAIL of which **17 were false positives** (contract couldn't drive its own setup) + 34 ERROR (locator timeouts).
+- **D coverage judge** — coverage_overall 0.667, bug_detection_coverage 0.429 (topical id3,id4,id12; 2 of those non-manifesting). Real execution detection ≈ 1.
+
+**Root cause (the headline):** `interaction-discovery.ts:470` → `CONTRACTQA_GEN_PROMPT || 'baseline'`. The ENTIRE omission-bug catcher machinery (priors-neg negative-outcome + date_constraint recognition, Entries 41–47) is gated behind a non-default env var. The shipped default detects ~1/7. **The mechanisms we built are dormant in production.**
+
+**priors-neg arm (mechanism ON):** 136 contracts; `date_constraint`=5 (all fill a PAST date + `rule:future {text:"2020"}`), budget-negative catchers ×5, guest-negative ×1. **True detection 4/7** — id8 (`not_contains_text "-5,000"`), id9 (`-10`), id11 (`date_constraint text=2020 expected future` — **grounds via the Entry-47 text-pass, full-pipeline-confirmed, not just isolated verify**), id12 (this time `venue-view-details` used a tighter `/venues/[\w-]+` and caught it). id3/4/16 correctly not caught (non-manifesting).
+
+**Coverage judge is unreliable in BOTH directions** (do NOT use it as a detection proxy — reinforces scorer-coverage-not-detection): baseline OVER-counts (id3/id4 topical, non-catching); priors-neg UNDER-counts (id8 judged `covered=false` "budget≠plural" yet execution catches it). bug_detection_coverage 0.429→0.714 ≠ the real 1→4.
+
+**Fix shipped this entry — oracle no-match → SKIP + ungroundable-target guard (`dom-classifier.ts`):** the dominant false-positive source was the oracle asserting a violation it could not GROUND. Two changes: (1) `isGroundableTarget` — an empty `{}` or css/nth-only target (no role/name_regex/test_id/placeholder/text) now matches NOTHING; previously empty matched the FIRST element (matchElement) and ALL elements (matchAllElements → `count(<unspecified>)=32`). (2) no-match → SKIP (not FAIL) in attribute_equals/input_value/class_contains/element_text_equals, and an ungroundable `count` signal → null (skip the relation, not 0) — aligning all evaluators with date_constraint/consistency ("a violation requires a grounded observation"). Re-ran priors-neg Stage C with the fixed oracle: **FAIL 37→28, false positives 24→15 (−37.5%), true detection unchanged at 4** (none of the 4 catchers depend on no-match→FAIL → zero detection loss). oracle 51→53 tests green; runner 43 / core 58 / cli 261 unregressed.
+
+**Improvement plan (prioritized, evidence-backed):**
+- **P0 — promote the catcher recipe to default.** Fold priors-neg's negative-outcome + date_constraint recognition into `baseline` (or default the env). Evidence: 1→4 true detection. MUST ship with P1 or the false positives ride along.
+- **P1 — cut remaining false positives.** (a) DONE: no-match→SKIP + ungroundable guard (−37.5%). (b) modal-opener reach: thread `observedSurface` real opener label so the Get Started/Edit modal reliably opens — the residual reach-failure FPs (spinbutton-not-found, partner-name value-mismatch) and most of the 38 ERRORs come from the modal not opening (Entry-44 residual, still dominant). (c) consistency role assumptions: contracts assume cards are `role=article` (count=0) — a generation-side grounding error.
+- **P2 — JSON-parse robustness on generation:** retry/repair when a per-interaction LLM response isn't valid JSON; baseline lost the wedding-details form + budget input that way.
+- **P3 — tighten auto-generated nav assertions:** require a new path segment (`/venues/[\w-]+`), not a substring (`/venue`), so list-page false-passes can't happen.
+
+**Honesty note:** the tuning-log's "app4 true_detection 3→4" holds ONLY under priors-neg. Default-product detection is 1 until P0 lands. Don't cite 4 as the shipped number.
+
+**Artifacts:** `scripts/eval/stage-c-exec-0004.mjs` (live execution harness, FAIL→GT mapping); baseline snapshot `/tmp/baseline-0004`; oracle fix in `packages/oracle/src/dom-classifier.ts` (`isGroundableTarget` + no-match→skip) with 2 new unit tests.
