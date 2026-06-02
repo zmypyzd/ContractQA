@@ -1,61 +1,57 @@
 # Session Handoff
 
-**Saved:** 2026-06-01T01:39:18Z (UTC) / 2026-06-01 09:39 Asia/Shanghai (CST)
-**Branch:** main (synced with origin/main; eval/manifestation-audit-entry38 == main)
-**Head:** 1e7714a — feat(oracle,runner,gen): lever A date_constraint primitive + Target.css + lever C schema hardening (Entry 46)
+**Saved:** 2026-06-01T06:48:34Z (UTC) / 2026-06-01 14:48 Asia/Shanghai (CST)
+**Branch:** main (synced with origin/main, 0/0)
+**Head:** 620c73e — eval: Entry 48 — blind full-pipeline audit of app4 (baseline 1/7 vs priors-neg 4/7)
 
 ## Current task
-Break the blind-from-buggy-source detection wall on WebTestBench apps 2-4 by catching MISSING-ATTRIBUTE
-omission bugs fully blind (no checklist). Numeric class is DONE (app4 true_detection 1→3, full-pipeline
-confirmed). The remaining open work is to **land the date-class end-to-end catch** — the `date_constraint`
-oracle + recognition are built, but the live catch is blocked by snapshot coverage.
+Just shipped: a full blind-autopilot eval of app4 (0004) + an oracle false-positive fix (Entry 48). The
+eval surfaced THE production gap — **the catcher machinery is gated behind `CONTRACTQA_GEN_PROMPT=priors-neg`,
+default `baseline`, so the shipped default detects ~1/7 vs 4/7 with the recipe on.** The natural next task is
+the Entry-48 improvement plan, starting at **P0: promote the priors-neg recipe to the default gen prompt**.
 
 ## Next concrete step
-Extend the probe snapshot in `packages/probes/src/browser-snapshot.ts` to capture TEXT-BEARING elements
-(plain `<p>`/`<span>` with visible text, not just roled/interactive els + headings) into `DomShape.elements`,
-so `expected.dom.date_constraint` with a `{text:"2020"}` target can ground onto the dashboard's displayed
-date. Then verify live: launch app4 (`/Users/zmy/intership/qa-eval-fixtures/WebTestBench/runner/launch.sh 0004`),
-hand-run the date contract (open Get Started modal → `css:"input[type=date]"` fill `2020-01-01` → Save →
-`date_constraint {target:{text:"2020"}, rule:"future"}`) and confirm verdict=FAIL (app4 id11 caught).
+Implement **P0** — make the negative-outcome + date_constraint recognition the DEFAULT in
+`packages/cli/src/autopilot/interaction-discovery.ts`: either change `genVariantBlock()` (~L469-518) so the
+`priors-neg` block runs under `baseline`, or flip the default at L470 (`process.env.CONTRACTQA_GEN_PROMPT || 'baseline'` → `'priors-neg'`). Then re-run the blind autopilot on app4 + `scripts/eval/stage-c-exec-0004.mjs` for execution truth, confirming default detection goes 1→4 with no FP regression. **P0 must ship with P1 FP controls** — the oracle no-match→SKIP fix (done, 49439fb) is P1a; remaining FP source is modal-opener reach (P1b).
 
 ## Status of play (this session)
-- [x] Levers B/A/C implemented, merged to main (1e7714a), pushed to origin (02f758e..1e7714a, 33 commits / Entry 38–46).
-- [x] **B** — `priors-neg` fills PRESENT-but-malformed (not empty) + source-gated format negatives; hand-authored 2-step reach catches app2 phone id12 live (url stays /event/ vs buggy → /).
-- [x] **A** — `expected.dom.date_constraint` primitive (rule future/past/today_or_*; relational after/before) in schema+classifier (4 unit tests, no-match→skip self-calibrating) + `Target.css`/`Target.nth` grounding; agent generates `wedding-date-must-be-future`.
-- [x] **C** — system-prompt schema guards: `within` is a role string (`within:{text}` was the unloadable cause); documented css/nth/date_constraint + valid action types.
-- [x] Acceptance: core 58 / oracle 51 / runner 43 / cli 261 / orchestrator 62 / repro 3 / dogfood 5 / dashboard 1 — all green.
-- [x] Diagnosed the ONE red (e2e `phase1-loop`) as PRE-EXISTING on main + unrelated (stale dogfood fixtures use legacy `api_call`/`http_status`/`response_body`).
+- [x] Ran two full blind autopilot arms on app4: baseline (default) vs priors-neg, stage-by-stage tuner-audited vs GT (golden checklist, 7 bugs: id3,4,8,9,11,12,16).
+- [x] Baseline true detection **1/7** (only id12); priors-neg **4/7** (id8,9,11,12). Root cause = catcher recipe gated behind non-default env var.
+- [x] Validated the Entry-47 text-pass END-TO-END: 5 `date_constraint` contracts all caught id11 in the full pipeline (not just isolated verify).
+- [x] Shipped oracle FP fix (`dom-classifier.ts`): `isGroundableTarget` (empty/css-only target → match nothing) + no-match→SKIP for the 4 property evaluators + ungroundable `count`→null. FPs 24→15 (−37.5%), zero detection loss. Committed `49439fb`.
+- [x] Wrote tuning-log Entry 48 + `scripts/eval/stage-c-exec-0004.mjs` harness. Committed `620c73e`.
+- [x] All acceptance green: oracle 53 / runner 43 / core 58 / cli 261. Pushed to origin/main.
 
 ## WIP / uncommitted
-- Working tree CLEAN except untracked `_probe_watch.mjs` (OAuth probe scratch, not load-bearing). All lever code committed + pushed; next step (snapshot extension) not started.
+- Working tree clean except `docs/session-handoff.md` (this file — session machinery, auto-churns; not part of any task). All eval+fix work committed + pushed (49439fb, 620c73e).
 
 ## Decisions made
-- **Date catch's blocker is snapshot coverage, NOT the oracle** — the `date_constraint` primitive is built + unit-proven; the live miss is that plain `<p>` dates aren't in `DomShape.elements`. Fix the snapshot, don't re-design the oracle.
-- **`Target.css` is the grounding handle for role-less `<input type=date>`/`time`** (no ARIA role → role/name/placeholder can't fill them). Don't add per-input-type targeting.
-- **Format-negatives are gated on the source showing NO guard** (skip `type=email`/`pattern`) — their residual (e.g. `a@b`) is spec-ambiguous and over-fires; phone (`type=tel`, no pattern) is the clean case.
-- **The e2e red is pre-existing + non-regressing** (strict schema 23988fd + http_status fixtures 82213b2 both predate this work, both on main) — do NOT treat it as caused by these levers.
-- **Numeric outcome oracle self-calibrates** — passes on validated fields (app6 min=0 amount), fails only when the illegal value persists; no false positives (Entry 42). Same skip-on-no-match logic applied to date_constraint.
+- **Committed direct to local main, no PR/feature branch** — user explicitly chose this near-path twice this session; solo repo. Don't re-propose the PR flow unless asked.
+- **no-match → SKIP is principled, not overfit** — extends the existing date_constraint/consistency "no grounding → no violation" rule to the 4 property evaluators; none of the 4 true positives depend on no-match→FAIL, so zero detection loss. Don't re-litigate as "masking real failures" — missing-element bugs belong on role_count/contains_text.
+- **Coverage judge (webtestbench-score) is NOT a detection proxy** — proven unreliable BOTH directions this session (over-counts id3/4 baseline, under-counts id8 priors-neg). Use `stage-c-exec-0004.mjs` execution truth.
+- **"app4 3→4" holds ONLY under priors-neg** — default-product detection is 1 until P0 lands. Honesty note already in Entry 48.
+- **Left `docs/session-handoff.md` + `_probe_watch.mjs` churn out of feature commits** — unrelated session machinery (user committed them once explicitly earlier; default is to leave them).
 
 ## Open questions
-- Land the date catch via the snapshot extension (next step), OR also clean the stale `qa/contracts/*` dogfood fixtures (api_call/http_status → current schema) to fix the pre-existing e2e red? Both are scoped; ask user which to prioritize.
-- Is a full fresh autopilot run + LLM coverage-judge worth running to formalize the suite-level true_detection score (mechanism already confirmed at contract level)?
+- P0 risk: promoting priors-neg to default brings its false positives into every run. Is the −37.5% from the oracle fix enough, or should P1b (modal-opener reach via `observedSurface`) land FIRST? Ask the user the order before flipping the default.
+- Should P0 be a hard default flip (L470) or a softer "fold date_constraint + negative-outcome directives into the baseline block, keep priors-neg as the aggressive variant"? Taste call — confirm with user.
 
 ## Read these first
-1. `qa/eval/tuning-log.md` — Entries 38→46 (the whole arc; start at Entry 40 plateau-overturn, 44 full-pipeline, 46 levers).
-2. `packages/oracle/src/dom-classifier.ts` — `date_constraint` block + `parseDateFrom` (no-match→skip).
-3. `packages/probes/src/browser-snapshot.ts` — the snapshot that must capture text-bearing elements (the next-step file).
-4. `packages/cli/src/autopilot/interaction-discovery.ts` — `genVariantBlock()` `priors-neg` recipe + reach/grounding directives + schema description.
-5. `packages/core/src/schemas/contract.schema.ts` + `packages/runner/src/compile.ts` — `Target.css`/`Target.nth` + `date_constraint` schema/resolver.
+1. `qa/eval/tuning-log.md` — Entry 48 (the whole eval + the P0→P3 plan; start there).
+2. `packages/cli/src/autopilot/interaction-discovery.ts` — `genVariantBlock()` ~L469-518 + the `CONTRACTQA_GEN_PROMPT || 'baseline'` default at L470 (the P0 edit site).
+3. `packages/oracle/src/dom-classifier.ts` — the shipped FP fix (`isGroundableTarget`, no-match→skip); reference for the skip pattern.
+4. `scripts/eval/stage-c-exec-0004.mjs` — live execution harness (loads scratch/0004/qa/contracts, runs vs :8080, FAIL→GT mapping).
+5. `/Users/zmy/.claude/projects/-Users-zmy-intership-5-10--qa-agent/memory/reference_blind_from_buggy_source_wall.md` — Entry-48 note (default-prompt gap + the arc 38→48).
 
 ## Already invoked this session
-- **2× independent Opus design reviews** (general-purpose subagents) — killed the gated-flow explorer design (Entries 39); findings synthesized into Entry 39/40. Don't re-run.
-- **Full autopilot deep run on app4** (priors-neg, 927s, 130 contracts) — snapshot transient in `scratch/0004/qa/contracts`; results in Entry 44. Don't re-run unless re-measuring.
-- **Many isolated `generateContractFor` + live-run harnesses** — `scripts/eval/{gen-experiment-negative-outcome,run-contract-against-live,remeasure-app4-negatives,probe-negative-outcome-oracle,manifestation-audit-app{2,3,4}}.mjs` (committed, reproducible).
-- **Memory updated** — `reference_blind_from_buggy_source_wall.md` (full 38→46 chain + the date snapshot-coverage follow-up).
+- **Full blind autopilot ×2 on app4** (baseline + priors-neg, deep mode, ~13min each) — contracts in `WebTestBench/scratch/0004/qa/contracts` (currently the priors-neg set); baseline snapshot at `/tmp/baseline-0004`. Logs `/tmp/ap-0004-*.log`. Don't re-run unless re-measuring.
+- **Stage C execution ×3** (`stage-c-exec-0004.mjs`) + **webtestbench-score ×2** (coverage judge) — results `/tmp/stage-c-0004*.log`, `/tmp/score-0004-*.log`, `scratch/0004/score.json`.
+- **Memory updated** — `reference_blind_from_buggy_source_wall.md` (Entry 48), `feedback_chinese_cute_ceo_duck.md` (new: always use Chinese cute CEO duck voice).
+- **App4 fixture torn down** — :8080 free; `cd WebTestBench && ./runner/reset.sh 0004 && ./runner/launch.sh 0004` to bring back.
 
 ## Verify state on resume
 ```
-cd /Users/zmy/intership/5.10+/qa-agent && git log --oneline -1 && \
-  grep -c "date_constraint" packages/oracle/src/dom-classifier.ts && \
-  pnpm --filter @contractqa/oracle test 2>&1 | grep -E "Tests "
+cd /Users/zmy/intership/5.10+/qa-agent && git log --oneline -2 && \
+  grep -n "CONTRACTQA_GEN_PROMPT || 'baseline'" packages/cli/src/autopilot/interaction-discovery.ts
 ```
