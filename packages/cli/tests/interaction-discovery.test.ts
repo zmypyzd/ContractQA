@@ -5,6 +5,7 @@ import path from 'node:path';
 import {
   InteractionSchema,
   InteractionsSchema,
+  parseEnumeratedInteractions,
   buildGenerateSystemPrompt,
   enumerateSurface,
   generateContractFor,
@@ -74,6 +75,30 @@ describe('InteractionSchema', () => {
   });
 });
 
+describe('parseEnumeratedInteractions (lenient — one bad item must not bypass the whole catcher)', () => {
+  const valid = (id: string, type = 'button') => ({ id, type, file: 'a.tsx', name: 'n', module: 'm', rationale: 'r' });
+
+  it('keeps valid items and drops only the invalid ones', () => {
+    const out = parseEnumeratedInteractions([valid('keep-1'), { ...valid('bad'), type: 'totally-unknown' }, valid('keep-2')]);
+    expect(out?.map((i) => i.id)).toEqual(['keep-1', 'keep-2']);
+  });
+
+  it('coerces the common LLM near-miss type "submit" → "submit-handler" (preserves the form-submit interaction the catcher needs)', () => {
+    const out = parseEnumeratedInteractions([{ ...valid('sub'), type: 'submit' }]);
+    expect(out).toHaveLength(1);
+    expect(out![0]!.type).toBe('submit-handler');
+  });
+
+  it('returns null only when the payload is not an array (real fallback case)', () => {
+    expect(parseEnumeratedInteractions({ not: 'an array' })).toBeNull();
+    expect(parseEnumeratedInteractions('nope')).toBeNull();
+  });
+
+  it('returns [] (not null) when the array has zero valid items — array shape was fine', () => {
+    expect(parseEnumeratedInteractions([{ junk: true }])).toEqual([]);
+  });
+});
+
 // Helper: build a stub LLMClient that returns a canned response.
 const stubLlm = (response: string): LLMClient => ({
   providerName: 'anthropic-sdk',
@@ -123,13 +148,27 @@ describe('enumerateSurface', () => {
     expect(onQuarantine).toHaveBeenCalledWith('not json at all', expect.stringContaining('JSON'));
   });
 
-  it('returns interactions=null on schema validation failure', async () => {
+  it('drops a schema-invalid item but does NOT quarantine the whole array (lenient parse)', async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), 'enum-surface-'));
     await writeFile(path.join(cwd, 'package.json'), '{}');
 
+    // One bad item (uppercase id) among otherwise-array-shaped output: it is dropped,
+    // not used to nuke the entire enumeration into a module-discovery fallback.
     const invalid = [{ id: 'UPPERCASE', type: 'button', file: 'x', name: 'y', module: 'z', rationale: 'r' }];
     const onQuarantine = vi.fn();
     const llm = stubLlm(JSON.stringify(invalid));
+
+    const result = await enumerateSurface({ cwd, llmClient: llm, onQuarantine });
+
+    expect(result.interactions).toEqual([]); // bad item dropped → empty, NOT null
+    expect(onQuarantine).not.toHaveBeenCalled();
+  });
+
+  it('quarantines (interactions=null) only when the payload is not a JSON array', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'enum-surface-'));
+    await writeFile(path.join(cwd, 'package.json'), '{}');
+    const onQuarantine = vi.fn();
+    const llm = stubLlm(JSON.stringify({ not: 'an array' }));
 
     const result = await enumerateSurface({ cwd, llmClient: llm, onQuarantine });
 

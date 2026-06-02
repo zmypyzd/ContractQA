@@ -82,6 +82,40 @@ export const InteractionSchema = z.object({
 export type Interaction = z.infer<typeof InteractionSchema>;
 export const InteractionsSchema = z.array(InteractionSchema);
 
+// Common LLM near-miss values for the `type` enum — coerced before validation so
+// a semantically-correct item isn't dropped over a wording slip (the model often
+// writes "submit" for a submit-handler, "anchor"/"a" for a link, "input" for a form).
+const TYPE_ALIASES: Record<string, string> = {
+  submit: 'submit-handler',
+  'submit-button': 'submit-handler',
+  anchor: 'link',
+  a: 'link',
+  input: 'form',
+};
+
+// LENIENT enumeration parse. The model occasionally emits one or two items with a
+// slightly-off `type` (e.g. "submit" instead of "submit-handler"); a strict
+// all-or-nothing `InteractionsSchema.safeParse` would quarantine the ENTIRE
+// enumeration over them and fall back to module discovery — silently bypassing the
+// whole deep/catcher pipeline (observed on a fresh app where 2 of 56 items used
+// "submit"). Instead: coerce known aliases, validate per-item, keep the valid ones,
+// drop the rest. Returns null ONLY when the payload isn't an array (a real parse
+// failure that warrants fallback); an array with zero survivors returns [].
+export function parseEnumeratedInteractions(json: unknown): Interaction[] | null {
+  if (!Array.isArray(json)) return null;
+  const out: Interaction[] = [];
+  for (const raw of json) {
+    let item = raw;
+    if (raw && typeof raw === 'object' && typeof (raw as { type?: unknown }).type === 'string') {
+      const alias = TYPE_ALIASES[(raw as { type: string }).type];
+      if (alias) item = { ...(raw as object), type: alias };
+    }
+    const r = InteractionSchema.safeParse(item);
+    if (r.success) out.push(r.data);
+  }
+  return out;
+}
+
 export interface EnumerateSurfaceOptions {
   cwd: string;
   llmClient: LLMClient;
@@ -400,9 +434,12 @@ export async function enumerateSurface(opts: EnumerateSurfaceOptions): Promise<E
     };
   }
 
-  const parsed = InteractionsSchema.safeParse(json);
-  if (!parsed.success) {
-    opts.onQuarantine?.(content, `Zod validation failed: ${parsed.error.message}`);
+  // Lenient per-item parse: a single off-enum item must not quarantine the whole
+  // enumeration and bypass the catcher (see parseEnumeratedInteractions). null only
+  // when the payload isn't even an array.
+  const interactionsParsed = parseEnumeratedInteractions(json);
+  if (interactionsParsed === null) {
+    opts.onQuarantine?.(content, 'LLM output is not a JSON array of interactions');
     return {
       interactions: null,
       truncated: truncatedCount > 0,
@@ -417,7 +454,7 @@ export async function enumerateSurface(opts: EnumerateSurfaceOptions): Promise<E
   const fileSet = new Set(allFiles);
   const hallucinated: string[] = [];
   const survived: Interaction[] = [];
-  for (const it of parsed.data) {
+  for (const it of interactionsParsed) {
     // A path with `..` anywhere — including embedded segments like
     // `app/../../escape.tsx` — cannot represent a file inside cwd. Reject.
     const hasEscape = it.file.split('/').includes('..');
